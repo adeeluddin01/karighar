@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { AdminShell } from "@/components/AdminShell";
-import { Card, Button, Badge, inputClass } from "@/components/ui";
 import { useToast } from "@/components/Toast";
+import { Button, Card, EmptyState, Input, Pill } from "@/components/ui";
+import { Icon } from "@/components/Icon";
 
 type Dispute = {
   id: string;
@@ -26,19 +27,27 @@ export default function AdminDisputes() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data: disputes } = await supabase.from("disputes").select("*").order("created_at", { ascending: false });
+    const { data: disputes } = await supabase
+      .from("disputes")
+      .select("*")
+      .order("created_at", { ascending: false });
     const list = (disputes as Dispute[]) || [];
     const jobIds = [...new Set(list.map((d) => d.job_id))];
     const userIds = [...new Set(list.map((d) => d.raised_by))];
     const [{ data: jobs }, { data: profs }] = await Promise.all([
-      jobIds.length ? supabase.from("jobs").select("id,title").in("id", jobIds) : Promise.resolve({ data: [] }),
-      userIds.length ? supabase.from("profiles").select("id,full_name").in("id", userIds) : Promise.resolve({ data: [] }),
+      jobIds.length
+        ? supabase.from("jobs").select("id,title").in("id", jobIds)
+        : Promise.resolve({ data: [] }),
+      userIds.length
+        ? supabase.from("profiles").select("id,full_name").in("id", userIds)
+        : Promise.resolve({ data: [] }),
     ]);
     setRows(
       list.map((d) => ({
         ...d,
         jobTitle: (jobs as { id: string; title: string }[])?.find((j) => j.id === d.job_id)?.title,
-        raiser: (profs as { id: string; full_name: string }[])?.find((p) => p.id === d.raised_by)?.full_name,
+        raiser: (profs as { id: string; full_name: string }[])?.find((p) => p.id === d.raised_by)
+          ?.full_name,
       }))
     );
   }, []);
@@ -67,33 +76,38 @@ export default function AdminDisputes() {
 
   return (
     <AdminShell>
-      <h2 className="text-lg font-bold text-slate-900">Open disputes ({open.length})</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-bold tracking-tight">Open disputes</h2>
+        <Pill tone={open.length ? "bad" : "ok"}>{open.length}</Pill>
+      </div>
+
       {open.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">No open disputes 🎉</p>
+        <EmptyState icon="party" title="No open disputes" hint="Everything reported has been handled." />
       ) : (
-        <div className="mt-3 space-y-3">
+        <div className="flex flex-col gap-4">
           {open.map((d) => (
             <Card key={d.id}>
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <Link href={`/admin/jobs`} className="font-semibold text-slate-900 hover:text-brand-700">
+                <div className="min-w-0">
+                  <Link href="/admin/jobs" className="font-bold hover:text-primary">
                     {d.jobTitle ?? "Job"}
                   </Link>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     by {d.raiser ?? "user"} · {new Date(d.created_at).toLocaleString("en-PK")}
                   </p>
-                  <p className="mt-2 text-sm text-slate-700">{d.reason}</p>
+                  <p className="mt-2 text-sm">{d.reason}</p>
                 </div>
-                <Badge tone="amber">{d.status}</Badge>
+                <Pill tone="warn">{d.status}</Pill>
               </div>
-              <div className="mt-3 flex gap-2">
-                <input
-                  className={inputClass}
+              <div className="mt-4 flex items-center gap-2">
+                <Input
+                  className="flex-1"
                   placeholder="Resolution note…"
                   value={notes[d.id] ?? ""}
                   onChange={(e) => setNotes((n) => ({ ...n, [d.id]: e.target.value }))}
+                  aria-label="Resolution note"
                 />
-                <Button className="px-3 py-1.5" disabled={busy === d.id} onClick={() => resolve(d)}>
+                <Button size="sm" disabled={busy === d.id} onClick={() => resolve(d)}>
                   Resolve
                 </Button>
               </div>
@@ -104,16 +118,23 @@ export default function AdminDisputes() {
 
       {resolved.length > 0 && (
         <>
-          <h2 className="mt-10 text-lg font-bold text-slate-900">Resolved ({resolved.length})</h2>
-          <div className="mt-3 space-y-2">
-            {resolved.map((d) => (
-              <Card key={d.id} className="p-4">
-                <p className="font-medium text-slate-900">{d.jobTitle ?? "Job"}</p>
-                <p className="text-sm text-slate-600">{d.reason}</p>
-                {d.resolution && <p className="mt-1 text-sm text-emerald-700">✓ {d.resolution}</p>}
-              </Card>
-            ))}
+          <div className="mt-10 mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold tracking-tight">Resolved</h2>
+            <span className="text-xs text-muted-foreground">{resolved.length} total</span>
           </div>
+          <Card padded={false} className="overflow-hidden">
+            {resolved.map((d) => (
+              <div key={d.id} className="border-b border-border p-4 last:border-b-0">
+                <p className="font-semibold">{d.jobTitle ?? "Job"}</p>
+                <p className="text-sm text-muted-foreground">{d.reason}</p>
+                {d.resolution && (
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-success">
+                    <Icon name="check" size="sm" /> {d.resolution}
+                  </p>
+                )}
+              </div>
+            ))}
+          </Card>
         </>
       )}
     </AdminShell>

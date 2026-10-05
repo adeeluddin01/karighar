@@ -1,18 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { normalizePkPhone } from "@/lib/validate";
-import { Button, Card, Field, Input } from "@/components/ui";
+import { Modal } from "@/components/Modal";
+import { Button, Field, Input, Tabs } from "@/components/ui";
 
-export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
-  const router = useRouter();
-  const search = useSearchParams();
-  const next = search.get("next") || "/";
-  const asProvider = search.get("role") === "provider";
+type Mode = "signin" | "signup";
 
+/**
+ * Sign-in/sign-up gate shown in place, without navigating away — so a filled
+ * form (booking wizard, custom job, etc.) stays intact behind the modal.
+ *
+ * The one unavoidable exception is Google OAuth: Supabase redirects the whole
+ * page away and back via /auth/callback. Callers must persist their own draft
+ * (e.g. to sessionStorage) inside `onGoogleRedirect` and restore it when the
+ * page remounts with `next` pointing back at itself.
+ */
+export function AuthGateModal({
+  onClose,
+  onSuccess,
+  onGoogleRedirect,
+  title = "Sign in to continue",
+  subtitle = "Your details are saved — sign in or create an account to finish.",
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+  /** Called right before the Google OAuth redirect fires. Return the path to land back on. */
+  onGoogleRedirect: () => string;
+  title?: string;
+  subtitle?: string;
+}) {
+  const [mode, setMode] = useState<Mode>("signin");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -23,11 +42,12 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
 
   async function google() {
     setError(null);
-    const supabase = createClient();
-    const dest = asProvider ? "/pro/onboarding" : next;
-    const { error } = await supabase.auth.signInWithOAuth({
+    const next = onGoogleRedirect();
+    const { error } = await createClient().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(dest)}` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     });
     if (error) setError(error.message);
   }
@@ -58,22 +78,17 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       }
       if (!data.session) {
         setNotice(
-          "Account created. Please check your email to confirm, then sign in. (Tip: you can disable email confirmation in Supabase → Authentication → Sign In / Providers for faster testing.)"
+          "Account created. Check your email to confirm it, then sign in here to continue."
         );
         setBusy(false);
         return;
       }
-      // Signed in immediately — persist name/phone + role.
       await supabase
         .from("profiles")
-        .update({
-          full_name: fullName,
-          phone: normPhone,
-          role: asProvider ? "provider" : "customer",
-        })
+        .update({ full_name: fullName, phone: normPhone, role: "customer" })
         .eq("id", data.session.user.id);
-      router.push(asProvider ? "/pro/onboarding" : next);
-      router.refresh();
+      setBusy(false);
+      onSuccess();
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
@@ -81,42 +96,52 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         setBusy(false);
         return;
       }
-      router.push(next);
-      router.refresh();
+      setBusy(false);
+      onSuccess();
     }
   }
 
   return (
-    <Card className="mx-auto w-full max-w-sm">
-      <h1 className="text-2xl font-extrabold tracking-tight">
-        {mode === "signup"
-          ? asProvider
-            ? "Join KARIGHAR as a Pro"
-            : "Create your account"
-          : "Welcome back"}
-      </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {mode === "signup"
-          ? "It takes less than a minute."
-          : "Sign in to book and track services."}
-      </p>
+    <Modal title={title} subtitle={subtitle} onClose={onClose}>
+      <Tabs
+        value={mode}
+        onChange={setMode}
+        className="mb-5 w-full justify-center"
+        tabs={[
+          { key: "signin", label: "Sign in" },
+          { key: "signup", label: "Sign up" },
+        ]}
+      />
 
       <button
         type="button"
         onClick={google}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold hover:bg-secondary"
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-2.5 text-sm font-semibold hover:bg-secondary"
       >
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
-          <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.2-.1-2.3-.4-3.5z"/>
-          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 5.1 29.6 3 24 3 16 3 9.1 7.6 6.3 14.7z"/>
-          <path fill="#4CAF50" d="M24 45c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 36 26.7 37 24 37c-5.3 0-9.7-2.6-11.3-7l-6.5 5C9 40.3 15.9 45 24 45z"/>
-          <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4 5.5l6.3 5.3C41 36.3 44 30.8 44 24c0-1.2-.1-2.3-.4-3.5z"/>
+          <path
+            fill="#FFC107"
+            d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.2-.1-2.3-.4-3.5z"
+          />
+          <path
+            fill="#FF3D00"
+            d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 5.1 29.6 3 24 3 16 3 9.1 7.6 6.3 14.7z"
+          />
+          <path
+            fill="#4CAF50"
+            d="M24 45c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 36 26.7 37 24 37c-5.3 0-9.7-2.6-11.3-7l-6.5 5C9 40.3 15.9 45 24 45z"
+          />
+          <path
+            fill="#1976D2"
+            d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4 5.5l6.3 5.3C41 36.3 44 30.8 44 24c0-1.2-.1-2.3-.4-3.5z"
+          />
         </svg>
         Continue with Google
       </button>
 
       <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
-        <span className="h-px flex-1 bg-border" /> or {mode === "signup" ? "sign up" : "sign in"} with email
+        <span className="h-px flex-1 bg-border" /> or {mode === "signup" ? "sign up" : "sign in"}{" "}
+        with email
         <span className="h-px flex-1 bg-border" />
       </div>
 
@@ -168,31 +193,15 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
 
         {error && <p className="errtxt">{error}</p>}
         {notice && (
-          <p className="rounded-xl bg-warning-light p-3 text-sm text-warning-foreground">{notice}</p>
+          <p className="rounded-xl bg-warning-light p-3 text-sm text-warning-foreground">
+            {notice}
+          </p>
         )}
 
         <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+          {busy ? "Please wait…" : mode === "signup" ? "Create account & continue" : "Sign in & continue"}
         </Button>
       </form>
-
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        {mode === "signup" ? (
-          <>
-            Already have an account?{" "}
-            <Link href={`/signin?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
-              Sign in
-            </Link>
-          </>
-        ) : (
-          <>
-            New to KARIGHAR?{" "}
-            <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
-              Create an account
-            </Link>
-          </>
-        )}
-      </p>
-    </Card>
+    </Modal>
   );
 }

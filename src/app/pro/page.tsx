@@ -2,7 +2,14 @@
 
 import { useUser } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, LinkButton } from "@/components/ui";
+import { Card, LinkButton, Pill } from "@/components/ui";
+import { BRAND } from "@/lib/config";
+
+const BENEFITS = [
+  ["📋", "Get matched", "Receive nearby jobs that fit your skills and area."],
+  ["💰", "Keep more", "Low commission (15–20%). Cash paid directly to you."],
+  ["⭐", "Build a reputation", "Ratings help you win more, higher-value jobs."],
+] as const;
 
 export default function BecomeAProPage() {
   const { user, profile } = useUser();
@@ -10,46 +17,47 @@ export default function BecomeAProPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-2xl text-center">
-        <span className="inline-block rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">
+      <section className="hero text-center">
+        <Pill tone="gray" className="relative z-[1] bg-white/20 text-primary-foreground">
           For professionals
-        </span>
-        <h1 className="mt-4 text-3xl font-extrabold text-slate-900">
-          Grow your business with <span className="text-brand-600">KARIGHAR</span>
+        </Pill>
+        <h1 className="relative z-[1] mt-4 text-3xl font-extrabold tracking-tight md:text-4xl">
+          Grow your business with {BRAND.name}
         </h1>
-        <p className="mt-3 text-slate-600">
-          Get steady jobs from customers across Karachi. You keep most of every job —
-          we only take a small commission when you get paid.
+        <p className="relative z-[1] mx-auto mt-3 max-w-xl text-sm opacity-90">
+          Get steady jobs from customers across {BRAND.city}. You keep most of every job — we only
+          take a small commission when you get paid.
         </p>
-
-        <div className="mt-8">
+        <div className="relative z-[1] mt-6 flex justify-center">
           {isProvider ? (
-            <LinkButton href="/pro/dashboard">Go to your dashboard</LinkButton>
+            <LinkButton href="/pro/dashboard" variant="ghost">
+              Go to your dashboard
+            </LinkButton>
           ) : user ? (
-            <LinkButton href="/pro/onboarding">Complete your pro profile</LinkButton>
+            <LinkButton href="/pro/onboarding" variant="ghost">
+              Complete your pro profile
+            </LinkButton>
           ) : (
-            <LinkButton href="/signup?role=provider&next=/pro/onboarding">Apply to become a pro</LinkButton>
+            <LinkButton href="/signup?role=provider&next=/pro/onboarding" variant="ghost">
+              Apply to become a pro
+            </LinkButton>
           )}
         </div>
+      </section>
 
-        <div className="mt-12 grid gap-4 text-left sm:grid-cols-3">
-          {[
-            ["📋", "Get matched", "Receive nearby jobs that fit your skills and area."],
-            ["💰", "Keep more", "Low commission (15–20%). Cash paid directly to you."],
-            ["⭐", "Build a reputation", "Ratings help you win more, higher-value jobs."],
-          ].map(([icon, title, desc]) => (
-            <Card key={title}>
-              <div className="text-2xl">{icon}</div>
-              <h3 className="mt-2 font-semibold text-slate-900">{title}</h3>
-              <p className="mt-1 text-sm text-slate-600">{desc}</p>
-            </Card>
-          ))}
-        </div>
-
-        <p className="mt-8 text-sm text-slate-400">
-          You&apos;ll need your CNIC and a selfie to get verified. Approval usually takes 1–2 days.
-        </p>
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        {BENEFITS.map(([icon, title, desc]) => (
+          <Card key={title}>
+            <span className="emoji">{icon}</span>
+            <h3 className="mt-3 text-base font-bold">{title}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
+          </Card>
+        ))}
       </div>
+
+      <p className="mt-8 text-center text-sm text-muted-foreground">
+        You&apos;ll need your CNIC and a selfie to get verified. Approval usually takes 1–2 days.
+      </p>
     </AppShell>
   );
 }

@@ -7,9 +7,9 @@ export const metadata: Metadata = { title: "Privacy Policy — KARIGHAR" };
 export default function PrivacyPage() {
   return (
     <AppShell width="narrow">
-      <article className="space-y-4 text-slate-700">
-        <h1 className="text-2xl font-bold text-slate-900">Privacy Policy</h1>
-        <p className="text-sm text-slate-400">Last updated: 17 August 2026 · Placeholder — review with a lawyer before launch.</p>
+      <article className="space-y-4">
+        <h1 className="text-3xl font-extrabold tracking-tight">Privacy Policy</h1>
+        <p className="text-sm text-muted-foreground">Last updated: 17 August 2026 · Placeholder — review with a lawyer before launch.</p>
 
         <Section title="What we collect">
           Account details (name, phone, email), your service addresses and location (to match and
@@ -44,8 +44,8 @@ export default function PrivacyPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-      <p className="mt-1 text-sm leading-relaxed text-slate-600">{children}</p>
+      <h2 className="text-base font-bold">{title}</h2>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{children}</p>
     </section>
   );
 }

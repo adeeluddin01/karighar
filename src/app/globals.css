@@ -1,52 +1,909 @@
 @import "tailwindcss";
 
+/* ============================================================
+   KARIGHAR design tokens
+   Ported from the `karighar (1).html` prototype (oklch teal/mint).
+   ============================================================ */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --radius: 1rem;
+
+  --background: oklch(97.5% 0.004 160);
+  --foreground: oklch(20% 0.02 200);
+  --card: oklch(100% 0 0);
+
+  --primary: oklch(52% 0.12 172);
+  --primary-dark: oklch(42% 0.1 174);
+  --primary-light: oklch(95% 0.035 170);
+  --primary-foreground: oklch(99% 0.005 170);
+
+  --secondary: oklch(95.5% 0.006 170);
+  --secondary-foreground: oklch(25% 0.02 200);
+
+  --muted: oklch(95.5% 0.006 170);
+  --muted-foreground: oklch(52% 0.015 200);
+  --accent-foreground: oklch(42% 0.1 174);
+
+  --success: oklch(60% 0.15 150);
+  --success-light: oklch(95% 0.05 150);
+  --warning: oklch(72% 0.15 70);
+  --warning-light: oklch(96% 0.05 80);
+  --warning-foreground: oklch(50% 0.12 70);
+  --destructive: oklch(60% 0.2 25);
+  --destructive-light: oklch(95% 0.03 25);
+  --destructive-foreground: oklch(99% 0 0);
+
+  --border: oklch(92% 0.006 170);
+  --star: oklch(78% 0.16 85);
+
+  --shadow-soft: 0 1px 2px oklch(20% 0.02 200 / 0.04), 0 4px 16px -6px oklch(20% 0.02 200 / 0.06);
+  --shadow-lift: 0 12px 32px -12px oklch(42% 0.1 174 / 0.25);
 }
 
-/* KARIGHAR brand tokens */
+/* Dark theme — follows the OS unless the user forced light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: oklch(18% 0.015 200);
+    --foreground: oklch(95% 0.01 170);
+    --card: oklch(23% 0.015 200);
+    --primary-light: oklch(30% 0.05 172);
+    --secondary: oklch(28% 0.015 200);
+    --secondary-foreground: oklch(92% 0.01 170);
+    --muted: oklch(28% 0.015 200);
+    --muted-foreground: oklch(70% 0.015 190);
+    --accent-foreground: oklch(85% 0.08 170);
+    --border: oklch(32% 0.015 200);
+    --success-light: oklch(30% 0.06 150);
+    --warning-light: oklch(32% 0.06 80);
+    --warning-foreground: oklch(85% 0.12 80);
+    --destructive-light: oklch(30% 0.06 25);
+  }
+}
+
+/* …and the same set again for an explicit choice, so the toggle wins both ways. */
+:root[data-theme="dark"] {
+  --background: oklch(18% 0.015 200);
+  --foreground: oklch(95% 0.01 170);
+  --card: oklch(23% 0.015 200);
+  --primary-light: oklch(30% 0.05 172);
+  --secondary: oklch(28% 0.015 200);
+  --secondary-foreground: oklch(92% 0.01 170);
+  --muted: oklch(28% 0.015 200);
+  --muted-foreground: oklch(70% 0.015 190);
+  --accent-foreground: oklch(85% 0.08 170);
+  --border: oklch(32% 0.015 200);
+  --success-light: oklch(30% 0.06 150);
+  --warning-light: oklch(32% 0.06 80);
+  --warning-foreground: oklch(85% 0.12 80);
+  --destructive-light: oklch(30% 0.06 25);
+}
+
+/* ============================================================
+   Tailwind theme bridge — makes the tokens available as utilities
+   (bg-card, text-muted-foreground, border-border, …)
+   ============================================================ */
 @theme inline {
+  --font-sans: var(--font-jakarta);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-card: var(--card);
+  --color-border: var(--border);
 
-  /* Brand navy — matches the KARIGHAR logo */
-  --color-brand-50: #eef3fb;
-  --color-brand-100: #d5e2f5;
-  --color-brand-200: #adc4ea;
-  --color-brand-300: #7f9fda;
-  --color-brand-400: #4f74c4;
-  --color-brand-500: #2b4fa0;
-  --color-brand-600: #1e3a8a;
-  --color-brand-700: #172e6e;
-  --color-brand-800: #132555;
-  --color-brand-900: #0f1c40;
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-primary-foreground: var(--primary-foreground);
 
-  /* Brand orange accent — matches the KARIGHAR logo */
-  --color-accent-400: #f7913f;
-  --color-accent-500: #ea6a1c;
-  --color-accent-600: #c8540f;
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-light: var(--destructive-light);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-star: var(--star);
+
+  /* The `brand-*` ramp predates this redesign and is referenced across the app.
+     It now resolves to the teal scale so every call site stays on-palette. */
+  --color-brand-50: oklch(97.5% 0.015 170);
+  --color-brand-100: oklch(95% 0.035 170);
+  --color-brand-200: oklch(90% 0.055 171);
+  --color-brand-300: oklch(82% 0.08 171);
+  --color-brand-400: oklch(68% 0.105 172);
+  --color-brand-500: oklch(58% 0.118 172);
+  --color-brand-600: oklch(52% 0.12 172);
+  --color-brand-700: oklch(42% 0.1 174);
+  --color-brand-800: oklch(34% 0.08 176);
+  --color-brand-900: oklch(27% 0.06 178);
+
+  --color-accent-400: oklch(58% 0.118 172);
+  --color-accent-500: oklch(52% 0.12 172);
+  --color-accent-600: oklch(42% 0.1 174);
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-lift: var(--shadow-lift);
 }
 
+/* ============================================================
+   Base
+   ============================================================ */
 html {
   -webkit-text-size-adjust: 100%;
+  scroll-padding-top: env(safe-area-inset-top, 0px);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* Nicer focus ring for keyboard users */
 :focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* Subtle scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* ============================================================
+   Components — ported from the prototype's stylesheet.
+   Layout/spacing helpers are deliberately NOT ported; Tailwind
+   utilities cover those and `.grid`/`.container` would collide.
+   ============================================================ */
+
+/* --- surfaces --- */
+.surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  border-radius: 1.25rem;
+}
+
+.hero {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: var(--primary-foreground);
+  border-radius: 1.5rem;
+  padding: 1.75rem;
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: "";
+  position: absolute;
+  right: -3rem;
+  top: -3rem;
+  width: 12rem;
+  height: 12rem;
+  border-radius: 50%;
+  background: oklch(100% 0 0 / 0.08);
+}
+.hero-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 0.9rem;
+  padding: 0 1rem;
+  margin-top: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+.hero-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.9rem 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.stat {
+  padding: 1.1rem;
+}
+.stat .v {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-top: 0.25rem;
+}
+
+/* --- buttons --- */
+.btn-primary,
+.btn-ghost,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.4rem;
+  border-radius: 0.875rem;
+  font-weight: 600;
+  transition: background 0.15s, transform 0.15s;
+  cursor: pointer;
+}
+.btn-primary:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn-ghost {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--border);
+}
+.btn-ghost:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.btn-danger {
+  background: var(--destructive-light);
+  color: var(--destructive);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+.btn-sm {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  border-radius: 0.7rem;
+}
+.btn-round {
+  padding: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.875rem;
+}
+
+/* --- inputs --- */
+.lbl {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+}
+.field {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 0.75rem;
+  padding: 0 1rem;
+  transition: border-color 0.15s;
+}
+.field:focus-within {
+  border-color: var(--primary);
+}
+.field input,
+.field select,
+.field textarea {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 0.85rem 0.5rem;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  outline: 0;
+}
+.field select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+.field textarea {
+  resize: vertical;
+  min-height: 5.5rem;
+}
+.field .pre {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.field.err {
+  border-color: var(--destructive);
+}
+.errtxt {
+  color: var(--destructive);
+  font-size: 0.8rem;
+}
+
+/* --- chips, pills --- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover {
+  border-color: var(--primary);
+}
+.chip.on {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--accent-foreground);
+  font-weight: 600;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pill.ok {
+  background: var(--success-light);
+  color: var(--success);
+}
+.pill.warn {
+  background: var(--warning-light);
+  color: var(--warning-foreground);
+}
+.pill.bad {
+  background: var(--destructive-light);
+  color: var(--destructive);
+}
+.pill.info {
+  background: var(--primary-light);
+  color: var(--accent-foreground);
+}
+.pill.gray {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+/* --- selectable option cards --- */
+.opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  text-align: left;
+  width: 100%;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  border-radius: 1.1rem;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--shadow-soft);
+}
+.opt:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lift);
+}
+.opt.on {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.emoji {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.9rem;
+  background: var(--primary-light);
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+.emoji.lg {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1.1rem;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.avatar.sm {
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 0.8rem;
+}
+.avatar.lg {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.2rem;
+}
+
+/* --- misc structure --- */
+.progress {
+  display: flex;
+  gap: 0.375rem;
+}
+.progress span {
+  height: 0.375rem;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background 0.2s;
+}
+.progress span.on {
+  background: var(--primary);
+}
+
+.sep {
+  height: 1px;
+  background: var(--border);
+  margin: 1rem 0;
+}
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+  padding: 0.35rem 0;
+}
+.kv > :first-child {
+  color: var(--muted-foreground);
+}
+.kv > :last-child {
+  font-weight: 600;
+  text-align: right;
+}
+
+.toggle {
+  width: 3rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle::after {
+  content: "";
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px #0003;
+}
+.toggle.on {
+  background: var(--primary);
+}
+.toggle.on::after {
+  transform: translateX(1.25rem);
+}
+
+.tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  background: var(--secondary);
+  padding: 0.25rem;
+  border-radius: 0.9rem;
+}
+.tabs button,
+.tabs a {
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tabs button.on,
+.tabs a.on {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-soft);
+}
+
+/* --- tables (scoped: bare element selectors would leak into Maps' DOM) --- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.data-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+.scroll-x {
+  overflow-x: auto;
+}
+
+/* --- status timeline --- */
+.timeline {
+  position: relative;
+}
+.tl {
+  display: flex;
+  gap: 0.9rem;
+  position: relative;
+  padding-bottom: 1.25rem;
+}
+.tl:last-child {
+  padding-bottom: 0;
+}
+.tl::before {
+  content: "";
+  position: absolute;
+  left: 0.8rem;
+  top: 1.7rem;
+  bottom: -0.1rem;
+  width: 2px;
+  background: var(--border);
+}
+.tl:last-child::before {
+  display: none;
+}
+.tl.done::before {
+  background: var(--primary);
+}
+.tl .dot {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+.tl.done .dot {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.tl.now .dot {
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-light), 0 0 0 6px var(--primary);
+}
+
+/* --- map frame --- */
+.mapbox {
+  position: relative;
+  height: 15rem;
+  border-radius: 1.1rem;
+  overflow: hidden;
+  background: oklch(94% 0.02 160);
+}
+
+/* --- weekly bars --- */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  height: 11rem;
+}
+.bars > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  height: 100%;
+}
+.bars i {
+  display: block;
+  width: 100%;
+  border-radius: 0.5rem 0.5rem 0.2rem 0.2rem;
+  background: var(--primary-light);
+  transition: height 0.5s;
+  min-height: 4px;
+}
+.bars > div.cur i {
+  background: var(--primary);
+}
+.bars small {
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+}
+
+/* --- empty state --- */
+.empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+.empty .big {
+  font-size: 2.5rem;
+}
+
+/* --- modal --- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: oklch(20% 0.02 200 / 0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: kg-fade 0.15s;
+}
+@media (min-width: 640px) {
+  .overlay {
+    align-items: center;
+  }
+}
+.modal {
+  background: var(--card);
+  color: var(--foreground);
+  width: 100%;
+  max-width: 28rem;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 1.5rem 1.5rem 0 0;
+  padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  animation: kg-up 0.22s ease;
+  box-shadow: 0 24px 60px -20px #0006;
+}
+@media (min-width: 640px) {
+  .modal {
+    border-radius: 1.5rem;
+  }
+}
+.modal.lg {
+  max-width: 34rem;
+}
+.mhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.mhead > button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--secondary);
+  color: inherit;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* --- code inputs --- */
+.otp {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}
+.otp input {
+  width: 3.4rem;
+  height: 3.8rem;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+  border-radius: 0.9rem;
+  background: var(--card);
+  color: inherit;
+  outline: 0;
+}
+.otp input:focus {
+  border-color: var(--primary);
+}
+
+.success {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  background: var(--success-light);
+  color: var(--success);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 1rem;
+  font-size: 2.2rem;
+  animation: kg-pop 0.4s ease;
+}
+
+/* --- toasts --- */
+.toasts {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  pointer-events: none;
+}
+@media (min-width: 768px) {
+  .toasts {
+    bottom: 2rem;
+  }
+}
+.toast {
+  background: var(--foreground);
+  color: var(--background);
+  padding: 0.7rem 1.1rem;
+  border-radius: 0.9rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lift);
+  animation: kg-up 0.2s ease;
+}
+
+/* --- chat --- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+.msg {
+  max-width: 80%;
+  padding: 0.55rem 0.85rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+}
+.msg.me {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-bottom-right-radius: 0.3rem;
+}
+.msg.them {
+  align-self: flex-start;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border-bottom-left-radius: 0.3rem;
+}
+
+/* --- ratings --- */
+.star {
+  color: var(--star);
+}
+.rate button {
+  font-size: 2rem;
+  color: var(--border);
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.rate button.on {
+  color: var(--star);
+}
+
+/* --- live indicator --- */
+.live {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--success);
+  animation: kg-pulse 1.4s infinite;
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes kg-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes kg-up {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes kg-pop {
+  0% {
+    transform: scale(0.4);
+  }
+  70% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes kg-slide {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes kg-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.anim {
+  animation: kg-slide 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

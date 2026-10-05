@@ -49,19 +49,17 @@ export function ProviderTracker({ jobId, autoStart }: { jobId: string; autoStart
   }
 
   return (
-    <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
       <div>
-        <p className="text-sm font-medium text-slate-800">
-          {sharing ? "🟢 Sharing your live location" : "Location sharing off"}
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          {sharing ? <><span className="live" /> Sharing your live location</> : "Location sharing off"}
         </p>
-        {error && <p className="text-xs text-rose-600">{error}</p>}
-        {!error && <p className="text-xs text-slate-400">Lets the customer see you approaching.</p>}
+        {error && <p className="errtxt">{error}</p>}
+        {!error && <p className="text-xs text-muted-foreground">Lets the customer see you approaching.</p>}
       </div>
       <button
         onClick={sharing ? stop : start}
-        className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-          sharing ? "bg-slate-100 text-slate-600" : "bg-brand-600 text-white"
-        }`}
+        className={sharing ? "btn-ghost btn-sm" : "btn-primary btn-sm"}
       >
         {sharing ? "Stop" : "Share location"}
       </button>

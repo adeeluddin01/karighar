@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
+import { Spinner } from "@/components/ui";
 
 // OAuth (Google) redirect target. In a static export there is no server, so we
 // exchange the PKCE code for a session in the browser (the code verifier lives
@@ -33,7 +34,7 @@ export default function AuthCallbackPage() {
 
   return (
     <AppShell width="narrow">
-      <p className="text-slate-500">{error ? "Sign-in failed — redirecting…" : "Signing you in…"}</p>
+      <Spinner label={error ? "Sign-in failed — redirecting…" : "Signing you in…"} />
     </AppShell>
   );
 }

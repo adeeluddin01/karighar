@@ -6,7 +6,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Field, inputClass, Badge } from "@/components/ui";
+import { Icon, type IconName } from "@/components/Icon";
+import {
+  Avatar,
+  Button,
+  Card,
+  Field,
+  Input,
+  KV,
+  Pill,
+  Rating,
+  Spinner,
+} from "@/components/ui";
 import type { Provider } from "@/lib/types";
 
 export default function ProfilePage() {
@@ -53,71 +64,112 @@ export default function ProfilePage() {
   if (loading || !user) {
     return (
       <AppShell width="narrow">
-        <p className="text-slate-500">Loading…</p>
+        <Spinner label="Loading…" />
       </AppShell>
     );
   }
 
-  const initial = (fullName || "?").charAt(0).toUpperCase();
-
   return (
     <AppShell width="narrow">
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-2xl font-bold text-white">
-          {initial}
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{fullName || "Your profile"}</h1>
-          <p className="text-sm capitalize text-slate-500">
-            {profile?.role} {provider && <Badge tone={provider.status === "approved" ? "green" : "amber"}>{provider.status}</Badge>}
+        <Avatar name={fullName || user.email} size="lg" />
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-extrabold tracking-tight">
+            {fullName || "Your profile"}
+          </h1>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm capitalize text-muted-foreground">
+            {profile?.role}
+            {provider && (
+              <Pill tone={provider.status === "approved" ? "ok" : "warn"}>{provider.status}</Pill>
+            )}
           </p>
         </div>
       </div>
 
       {provider?.status === "approved" && (
-        <Card className="mt-4 bg-slate-50">
-          <p className="text-sm text-slate-600">
-            ⭐ {provider.rating_avg?.toFixed(1) ?? "New"} · {provider.jobs_completed} jobs completed
-          </p>
+        <Card className="mt-4">
+          <KV label="Rating">
+            <Rating value={provider.rating_avg} />
+          </KV>
+          <KV label="Jobs completed">{provider.jobs_completed}</KV>
         </Card>
       )}
 
       <form onSubmit={save} className="mt-6 space-y-4">
         <Field label="Full name">
-          <input className={inputClass} value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
         </Field>
         <Field label="Phone">
-          <input className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
+            autoComplete="tel"
+          />
         </Field>
-        <Field label="Email">
-          <input className={`${inputClass} bg-slate-50 text-slate-500`} value={user.email ?? ""} disabled />
+        <Field label="Email" hint="Email can't be changed here.">
+          <Input className="opacity-60" value={user.email ?? ""} disabled />
         </Field>
-        {saved && <p className="text-sm text-emerald-600">Saved ✓</p>}
-        <Button type="submit" disabled={busy}>
-          {busy ? "Saving…" : "Save changes"}
-        </Button>
+
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save changes"}
+          </Button>
+          {saved && (
+            <Pill tone="ok" icon="check">
+              Saved
+            </Pill>
+          )}
+        </div>
       </form>
 
-      <div className="mt-8 space-y-2">
-        {profile?.role === "provider" ? (
-          <Link href="/pro/services" className="block rounded-xl border border-slate-200 p-4 hover:border-brand-300">
-            ⚙️ Manage my services & areas
-          </Link>
+      <Card padded={false} className="mt-8 overflow-hidden">
+        {provider ? (
+          provider.status === "approved" ? (
+            <Row href="/pro/services" icon="wrench">
+              Manage my services &amp; areas
+            </Row>
+          ) : (
+            <Row href="/pro/onboarding" icon="shield">
+              View my verification details
+            </Row>
+          )
         ) : (
-          <Link href="/pro" className="block rounded-xl border border-slate-200 p-4 hover:border-brand-300">
-            🧰 Become a service provider
-          </Link>
+          <Row href="/pro" icon="briefcase">
+            Become a service provider
+          </Row>
         )}
-        <Link href="/settings" className="block rounded-xl border border-slate-200 p-4 hover:border-brand-300">
-          ⚙️ Settings
-        </Link>
+        <Row href="/settings" icon="settings">
+          Settings
+        </Row>
         <button
           onClick={signOut}
-          className="w-full rounded-xl border border-slate-200 p-4 text-left text-rose-600 hover:border-rose-300"
+          className="flex w-full items-center gap-3 p-4 text-left font-semibold text-destructive hover:bg-destructive-light"
         >
-          ↩︎ Sign out
+          <Icon name="logout" size="sm" /> Sign out
         </button>
-      </div>
+      </Card>
     </AppShell>
+  );
+}
+
+function Row({
+  href,
+  icon,
+  children,
+}: {
+  href: string;
+  icon: IconName;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 border-b border-border p-4 font-medium hover:bg-secondary"
+    >
+      <Icon name={icon} size="sm" className="text-muted-foreground" />
+      <span className="flex-1">{children}</span>
+      <Icon name="chevron" size="sm" className="text-muted-foreground" />
+    </Link>
   );
 }

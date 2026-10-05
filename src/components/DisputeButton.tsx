@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
-import { inputClass } from "@/components/ui";
+import { Button, Textarea } from "@/components/ui";
+import { Icon } from "@/components/Icon";
 
 // "Report a problem" — lets a customer or provider raise a dispute on a job.
 export function DisputeButton({ jobId, userId }: { jobId: string; userId: string }) {
@@ -33,36 +34,39 @@ export function DisputeButton({ jobId, userId }: { jobId: string; userId: string
   }
 
   if (done) {
-    return <p className="text-center text-xs text-slate-400">Problem reported — support will follow up.</p>;
+    return (
+      <p className="text-center text-xs text-muted-foreground">
+        Problem reported — support will follow up.
+      </p>
+    );
   }
 
   return (
     <div className="text-center">
       {open ? (
-        <div className="space-y-2 text-left">
-          <textarea
-            className={inputClass}
+        <div className="space-y-3 text-left">
+          <Textarea
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Describe the problem…"
+            aria-label="Describe the problem"
           />
           <div className="flex gap-2">
-            <button
-              onClick={submit}
-              disabled={busy}
-              className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
-            >
+            <Button variant="danger" size="sm" disabled={busy} onClick={submit}>
               {busy ? "Sending…" : "Submit report"}
-            </button>
-            <button onClick={() => setOpen(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-500">
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setOpen(true)} className="text-xs font-medium text-slate-400 hover:text-rose-600">
-          ⚠ Report a problem
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-destructive"
+        >
+          <Icon name="alert" size="sm" /> Report a problem
         </button>
       )}
     </div>

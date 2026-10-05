@@ -13,7 +13,7 @@ export type Service = {
 export type Category = {
   key: string;
   name: string;
-  icon: string; // emoji placeholder until we add real icons
+  icon: string; // an IconName from @/components/Icon
   services: Service[];
 };
 
@@ -21,7 +21,7 @@ export const CATALOG: Category[] = [
   {
     key: "ac",
     name: "AC Service & Repair",
-    icon: "❄️",
+    icon: "snowflake",
     services: [
       { name: "AC General Service", description: "Cleaning & servicing, 1–2.5 ton", basePrice: 1750, unit: "unit", visitFee: 500 },
       { name: "AC Installation", description: "Install with up to 10ft piping", basePrice: 2800, unit: "unit", visitFee: 500 },
@@ -31,7 +31,7 @@ export const CATALOG: Category[] = [
   {
     key: "electrician",
     name: "Electrician",
-    icon: "⚡",
+    icon: "zap",
     services: [
       { name: "Basic Visit / Minor Fix", description: "Switches, sockets, small faults", basePrice: 800, unit: "visit", visitFee: 0 },
       { name: "House Wiring", description: "Per square foot", basePrice: 65, unit: "sq ft", visitFee: 0 },
@@ -40,7 +40,7 @@ export const CATALOG: Category[] = [
   {
     key: "plumber",
     name: "Plumber",
-    icon: "🔧",
+    icon: "wrench",
     services: [
       { name: "Basic Visit / Leak Fix", description: "Leaks, taps, small repairs", basePrice: 800, unit: "visit", visitFee: 0 },
       { name: "Fixture Installation", description: "Tap, sink, commode install", basePrice: 1200, unit: "item", visitFee: 0 },

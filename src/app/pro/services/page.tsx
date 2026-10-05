@@ -4,9 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button } from "@/components/ui";
+import { Button, Card, Chip, PageHeader, Pill, Spinner } from "@/components/ui";
 import { KARACHI_AREAS, type ServiceCategory, type Service } from "@/lib/types";
-import { clsx } from "@/lib/clsx";
 
 export default function ProviderServicesPage() {
   const { user, loading } = useRequireAuth("/pro/services");
@@ -29,9 +28,11 @@ export default function ProviderServicesPage() {
     const svcList = (s as Service[]) || [];
     setCats((c as ServiceCategory[]) || []);
     setServices(svcList);
-    setAreas(((prov as { service_areas: string[] } | null)?.service_areas) || []);
+    setAreas((prov as { service_areas: string[] } | null)?.service_areas || []);
     const myServiceIds = new Set(((ps as { service_id: string }[]) || []).map((r) => r.service_id));
-    const myCats = new Set(svcList.filter((sv) => myServiceIds.has(sv.id)).map((sv) => sv.category_id));
+    const myCats = new Set(
+      svcList.filter((sv) => myServiceIds.has(sv.id)).map((sv) => sv.category_id)
+    );
     setSelectedCats([...myCats]);
   }, [user]);
 
@@ -40,6 +41,7 @@ export default function ProviderServicesPage() {
   }, [load]);
 
   function toggle(list: string[], set: (v: string[]) => void, value: string) {
+    setSaved(false);
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   }
 
@@ -67,52 +69,43 @@ export default function ProviderServicesPage() {
   if (loading || !user) {
     return (
       <AppShell>
-        <p className="text-slate-500">Loading…</p>
+        <Spinner label="Loading…" />
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-bold text-slate-900">My services</h1>
-      <p className="mt-1 text-sm text-slate-500">Choose what you offer and where you work.</p>
+      <PageHeader title="My services" subtitle="Choose what you offer and where you work." />
 
-      <Card className="mt-6">
-        <h2 className="font-semibold text-slate-900">Services you offer</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+      <Card>
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold">Services you offer</h2>
+          <span className="text-xs text-muted-foreground">{selectedCats.length} selected</span>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
           {cats.map((c) => (
-            <button
+            <Chip
               key={c.id}
+              active={selectedCats.includes(c.id)}
               onClick={() => toggle(selectedCats, setSelectedCats, c.id)}
-              className={clsx(
-                "rounded-full border px-3 py-1.5 text-sm font-medium",
-                selectedCats.includes(c.id)
-                  ? "border-brand-600 bg-brand-600 text-white"
-                  : "border-slate-300 text-slate-600 hover:border-brand-400"
-              )}
             >
               {c.name}
-            </button>
+            </Chip>
           ))}
         </div>
       </Card>
 
       <Card className="mt-4">
-        <h2 className="font-semibold text-slate-900">Areas you cover</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold">Areas you cover</h2>
+          <span className="text-xs text-muted-foreground">{areas.length} selected</span>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
           {KARACHI_AREAS.map((a) => (
-            <button
-              key={a}
-              onClick={() => toggle(areas, setAreas, a)}
-              className={clsx(
-                "rounded-full border px-3 py-1.5 text-xs font-medium",
-                areas.includes(a)
-                  ? "border-brand-600 bg-brand-600 text-white"
-                  : "border-slate-300 text-slate-600 hover:border-brand-400"
-              )}
-            >
+            <Chip key={a} active={areas.includes(a)} onClick={() => toggle(areas, setAreas, a)}>
               {a}
-            </button>
+            </Chip>
           ))}
         </div>
       </Card>
@@ -121,7 +114,11 @@ export default function ProviderServicesPage() {
         <Button disabled={busy} onClick={save}>
           {busy ? "Saving…" : "Save changes"}
         </Button>
-        {saved && <span className="text-sm text-emerald-600">Saved ✓</span>}
+        {saved && (
+          <Pill tone="ok" icon="check">
+            Saved
+          </Pill>
+        )}
       </div>
     </AppShell>
   );

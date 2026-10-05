@@ -1,133 +1,183 @@
 import Link from "next/link";
 import { CATALOG, formatPKR } from "@/lib/catalog";
-import { AppHeader } from "@/components/AppHeader";
-import { BottomNav } from "@/components/BottomNav";
+import { AppShell } from "@/components/AppShell";
+import { HeroSearch } from "@/components/HeroSearch";
+import { Icon, type IconName } from "@/components/Icon";
+import { Card, LinkButton } from "@/components/ui";
+import { BRAND } from "@/lib/config";
+
+const HOW_IT_WORKS = [
+  ["1", "Pick a service", "Choose a fixed-price service or post a custom job for quotes."],
+  ["2", "Get matched", "A verified pro near you accepts — or bids on your custom job."],
+  ["3", "Track live", "Follow your pro on the map from on-the-way to arrived."],
+  ["4", "Pay & rate", "Pay cash on completion, then rate your pro."],
+] as const;
+
+const GUARANTEE: [IconName, string, string][] = [
+  ["idcard", "CNIC-verified pros", "Every pro passes identity and background checks."],
+  ["creditcard", "Pay after the job", "No advance payment. Cash on completion."],
+  ["tag", "Upfront pricing", "You see the price before you book — no surprises."],
+  ["shield", "Satisfaction guarantee", "Not fixed properly? Tell us and we make it right."],
+];
+
+// Cheapest listed price in a category, for the "From Rs …" line on the service cards.
+function fromPrice(services: { basePrice: number | null }[]) {
+  const prices = services.map((s) => s.basePrice).filter((p): p is number => p !== null);
+  return prices.length ? Math.min(...prices) : null;
+}
 
 export default function Home() {
   return (
-    <main className="flex-1">
-      <AppHeader />
-
+    <AppShell>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-brand-50 to-white">
-        <div className="mx-auto max-w-6xl px-5 py-16 text-center sm:py-24">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon-512.png" alt="KARIGHAR" className="mx-auto mb-6 h-28 w-28 rounded-full shadow-sm" />
-          <span className="inline-block rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold text-brand-700">
-            Now in Karachi
-          </span>
-          <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-            Verified home-service pros,
-            <span className="text-brand-600"> booked in minutes.</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-            Plumbers, electricians and AC technicians — CNIC-verified, fixed
-            prices, live tracking, and a satisfaction guarantee.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link
-              href="/book"
-              className="rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-brand-700"
-            >
-              Book a service
-            </Link>
-            <Link
-              href="/pro"
-              className="rounded-xl border border-slate-300 px-6 py-3 font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-700"
-            >
-              Work with us
-            </Link>
-          </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-slate-500">
-            <span>✓ CNIC-verified pros</span>
-            <span>✓ Upfront pricing</span>
-            <span>✓ Cash on completion</span>
-            <span>✓ Satisfaction guarantee</span>
-          </div>
-        </div>
+      <section className="hero">
+        <p className="text-sm font-semibold opacity-85">Salaam 👋 {BRAND.city}</p>
+        <h1 className="relative z-[1] mt-1 text-3xl font-extrabold leading-tight tracking-tight md:text-4xl">
+          What do you need
+          <br />
+          help with?
+        </h1>
+        <p className="relative z-[1] mt-2 text-sm opacity-85">
+          CNIC-verified technicians at your door, with fixed prices and live tracking.
+        </p>
+        <HeroSearch />
       </section>
 
-      {/* Services + prices */}
-      <section className="mx-auto max-w-6xl px-5 py-16">
-        <h2 className="text-2xl font-bold text-slate-900">Services & prices</h2>
-        <p className="mt-1 text-slate-600">
-          Transparent Karachi rates. No surprises — you see the price before you book.
-        </p>
-        <div className="mt-8 grid gap-6 md:grid-cols-3">
-          {CATALOG.map((cat) => (
-            <div
-              key={cat.key}
-              className="rounded-2xl border border-slate-200 p-6 shadow-sm transition hover:border-brand-300 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{cat.icon}</span>
-                <h3 className="text-lg font-bold text-slate-900">{cat.name}</h3>
+      {/* Services */}
+      <div className="mt-10 mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-bold tracking-tight">Our services</h2>
+        <span className="text-xs text-muted-foreground">{CATALOG.length} available</span>
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {CATALOG.map((cat) => {
+          const from = fromPrice(cat.services);
+          return (
+            <Link key={cat.key} href="/book" className="opt">
+              <span className="emoji">
+                <Icon name={cat.icon as IconName} className="text-accent-foreground" />
+              </span>
+              <span className="text-base font-bold">{cat.name}</span>
+              <span className="text-xs text-muted-foreground">
+                {from === null ? "On quote" : `From ${formatPKR(from)}`}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* How it works */}
+      <h2 className="mt-12 mb-4 text-xl font-bold tracking-tight">How it works</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {HOW_IT_WORKS.map(([n, title, desc]) => (
+          <Card key={n}>
+            <span className="avatar">{n}</span>
+            <p className="mt-3 text-base font-bold">{title}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
+          </Card>
+        ))}
+      </div>
+
+      {/* Guarantee */}
+      <Card className="mt-6">
+        <div className="flex items-center gap-4">
+          <span className="emoji">
+            <Icon name="shield" size="lg" className="text-accent-foreground" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-bold">The {BRAND.name} Guarantee</p>
+            <p className="text-sm text-muted-foreground">
+              Verified pros, upfront prices, and you only pay once the work is done.
+            </p>
+          </div>
+        </div>
+        <div className="sep" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {GUARANTEE.map(([icon, title, desc]) => (
+            <div key={title} className="flex items-start gap-3">
+              <span className="emoji">
+                <Icon name={icon} className="text-accent-foreground" />
+              </span>
+              <div>
+                <p className="text-sm font-bold">{title}</p>
+                <p className="text-xs text-muted-foreground">{desc}</p>
               </div>
-              <ul className="mt-4 space-y-3">
-                {cat.services.map((s) => (
-                  <li key={s.name} className="flex items-start justify-between gap-3 border-t border-slate-100 pt-3">
-                    <div>
-                      <p className="font-medium text-slate-800">{s.name}</p>
-                      <p className="text-sm text-slate-500">{s.description}</p>
-                    </div>
-                    <div className="whitespace-nowrap text-right">
-                      <p className="font-semibold text-brand-700">{formatPKR(s.basePrice)}</p>
-                      <p className="text-xs text-slate-400">/ {s.unit}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/book"
-                className="mt-5 inline-block text-sm font-semibold text-brand-600 hover:text-brand-700"
-              >
-                Book {cat.name} →
-              </Link>
             </div>
           ))}
         </div>
-      </section>
+      </Card>
 
-      {/* How it works */}
-      <section className="bg-slate-50">
-        <div className="mx-auto max-w-6xl px-5 py-16">
-          <h2 className="text-2xl font-bold text-slate-900">How it works</h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ["1", "Pick a service", "Choose from fixed-price services or post a custom job for quotes."],
-              ["2", "Get matched", "A verified pro near you accepts — or bids on your custom job."],
-              ["3", "Track live", "Follow your pro on the map from on-the-way to arrived."],
-              ["4", "Pay & rate", "Pay cash on completion, then rate your pro."],
-            ].map(([n, title, desc]) => (
-              <div key={n} className="rounded-2xl bg-white p-6 shadow-sm">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 font-bold text-white">
-                  {n}
+      {/* Prices */}
+      <div className="mt-12 mb-4">
+        <h2 className="text-xl font-bold tracking-tight">Services &amp; prices</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Transparent {BRAND.city} rates. You see the price before you book.
+        </p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {CATALOG.map((cat) => (
+          <Card key={cat.key} className="flex flex-col">
+            <div className="flex items-center gap-3">
+              <span className="emoji">
+                <Icon name={cat.icon as IconName} className="text-accent-foreground" />
+              </span>
+              <h3 className="text-base font-bold">{cat.name}</h3>
+            </div>
+            <div className="sep" />
+            <div className="flex-1">
+              {cat.services.map((s) => (
+                <div key={s.name} className="kv items-start">
+                  <span className="min-w-0">
+                    <span className="block font-medium text-foreground">{s.name}</span>
+                    <span className="block text-xs text-muted-foreground">{s.description}</span>
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {formatPKR(s.basePrice)}
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      / {s.unit}
+                    </span>
+                  </span>
                 </div>
-                <h3 className="mt-4 font-semibold text-slate-900">{title}</h3>
-                <p className="mt-1 text-sm text-slate-600">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              ))}
+            </div>
+            <LinkButton href="/book" variant="ghost" size="sm" className="mt-4 w-full">
+              Book {cat.name}
+              <Icon name="chevron" size="sm" />
+            </LinkButton>
+          </Card>
+        ))}
+      </div>
+
+      {/* Pro / business */}
+      <div className="mt-8 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Are you a professional?</span>
+        <Link href="/pro" className="font-semibold text-primary">
+          Join as a technician →
+        </Link>
+      </div>
 
       {/* Footer */}
-      <footer className="border-t border-slate-100">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-5 py-8 text-sm text-slate-500 sm:flex-row">
-          <span className="font-extrabold text-brand-700">
-            KARI<span className="text-accent-500">GHAR</span>
-          </span>
-          <nav className="flex gap-4">
-            <Link href="/support" className="hover:text-brand-700">Support</Link>
-            <Link href="/terms" className="hover:text-brand-700">Terms</Link>
-            <Link href="/privacy" className="hover:text-brand-700">Privacy</Link>
-            <Link href="/pro" className="hover:text-brand-700">Become a Pro</Link>
+      <footer className="mt-10 border-t border-border pt-6 text-sm text-muted-foreground">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <span className="font-extrabold text-primary">{BRAND.name}</span>
+          <nav className="flex flex-wrap gap-4">
+            <Link href="/support" className="hover:text-foreground">
+              Support
+            </Link>
+            <Link href="/terms" className="hover:text-foreground">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-foreground">
+              Privacy
+            </Link>
+            <Link href="/pro" className="hover:text-foreground">
+              Become a Pro
+            </Link>
           </nav>
-          <span>© {new Date().getFullYear()} KARIGHAR · Karachi, Pakistan</span>
+          <span className="text-xs">
+            © {new Date().getFullYear()} {BRAND.name} · {BRAND.city}, Pakistan
+          </span>
         </div>
       </footer>
-      <div className="h-16 md:hidden" />
-      <BottomNav />
-    </main>
+    </AppShell>
   );
 }

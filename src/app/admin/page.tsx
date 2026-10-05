@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminShell } from "@/components/AdminShell";
-import { Card } from "@/components/ui";
+import { LinkButton, Stat } from "@/components/ui";
+import type { IconName } from "@/components/Icon";
 
 export default function AdminOverview() {
   const [stats, setStats] = useState({ pendingPros: 0, openJobs: 0, activeJobs: 0, totalJobs: 0 });
@@ -12,8 +13,14 @@ export default function AdminOverview() {
     const supabase = createClient();
     (async () => {
       const [pending, open, active, total] = await Promise.all([
-        supabase.from("providers").select("profile_id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("jobs").select("id", { count: "exact", head: true }).in("status", ["created", "bidding"]),
+        supabase
+          .from("providers")
+          .select("profile_id", { count: "exact", head: true })
+          .eq("status", "pending"),
+        supabase
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .in("status", ["created", "bidding"]),
         supabase
           .from("jobs")
           .select("id", { count: "exact", head: true })
@@ -29,26 +36,40 @@ export default function AdminOverview() {
     })();
   }, []);
 
-  const tiles: [string, number][] = [
-    ["Pending verifications", stats.pendingPros],
-    ["Open jobs", stats.openJobs],
-    ["Active jobs", stats.activeJobs],
-    ["Total jobs", stats.totalJobs],
+  const tiles: [string, number, IconName][] = [
+    ["Pending verifications", stats.pendingPros, "users"],
+    ["Open jobs", stats.openJobs, "briefcase"],
+    ["Active jobs", stats.activeJobs, "clock"],
+    ["Total jobs", stats.totalJobs, "trend"],
   ];
 
   return (
     <AdminShell>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map(([label, value]) => (
-          <Card key={label}>
-            <p className="text-sm text-slate-500">{label}</p>
-            <p className="mt-2 text-3xl font-extrabold text-slate-900">{value}</p>
-          </Card>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {tiles.map(([label, value, icon]) => (
+          <Stat key={label} label={label} value={value} icon={icon} />
         ))}
       </div>
-      <p className="mt-6 text-sm text-slate-500">
-        Use the tabs above to verify providers, monitor jobs, and manage the price catalog.
-      </p>
+
+      <div className="surface mt-6 flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <p className="text-base font-bold">Where to next?</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Verify providers, monitor jobs, settle commissions, and manage the price catalog.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <LinkButton href="/admin/providers" size="sm" icon="users">
+            Verify providers
+          </LinkButton>
+          <LinkButton href="/admin/jobs" variant="ghost" size="sm" icon="briefcase">
+            Jobs
+          </LinkButton>
+          <LinkButton href="/admin/settlements" variant="ghost" size="sm" icon="wallet">
+            Settlements
+          </LinkButton>
+        </div>
+      </div>
     </AdminShell>
   );
 }

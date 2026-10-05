@@ -5,10 +5,20 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Field, inputClass } from "@/components/ui";
+import {
+  Button,
+  Card,
+  Chip,
+  Field,
+  Input,
+  KV,
+  PageHeader,
+  Pill,
+  Spinner,
+  Textarea,
+} from "@/components/ui";
 import { KARACHI_AREAS, type ServiceCategory, type Provider } from "@/lib/types";
 import { isValidCnic, formatCnic } from "@/lib/validate";
-import { clsx } from "@/lib/clsx";
 
 export default function ProviderOnboardingPage() {
   const { user, loading } = useRequireAuth("/pro/onboarding");
@@ -53,9 +63,13 @@ export default function ProviderOnboardingPage() {
     if (!file || !user) return null;
     const supabase = createClient();
     const path = `${user.id}/${name}-${file.name}`;
-    const { error } = await supabase.storage.from("verification").upload(path, file, { upsert: true });
+    const { error } = await supabase.storage
+      .from("verification")
+      .upload(path, file, { upsert: true });
     if (error) {
-      setWarn("Documents couldn't be uploaded (storage not set up yet) — you can add them later. Your profile was still submitted.");
+      setWarn(
+        "Documents couldn't be uploaded (storage not set up yet) — you can add them later. Your profile was still submitted."
+      );
       return null;
     }
     return path;
@@ -101,9 +115,15 @@ export default function ProviderOnboardingPage() {
     }
 
     // Map chosen categories -> all their services -> provider_services.
-    const { data: svcs } = await supabase.from("services").select("id").in("category_id", selectedCats);
+    const { data: svcs } = await supabase
+      .from("services")
+      .select("id")
+      .in("category_id", selectedCats);
     const rows = (svcs as { id: string }[]).map((s) => ({ provider_id: user.id, service_id: s.id }));
-    if (rows.length) await supabase.from("provider_services").upsert(rows, { onConflict: "provider_id,service_id" });
+    if (rows.length)
+      await supabase
+        .from("provider_services")
+        .upsert(rows, { onConflict: "provider_id,service_id" });
 
     router.push("/pro/dashboard");
   }
@@ -111,26 +131,35 @@ export default function ProviderOnboardingPage() {
   if (loading || !user) {
     return (
       <AppShell width="narrow">
-        <p className="text-slate-500">Loading…</p>
+        <Spinner label="Loading…" />
       </AppShell>
     );
   }
 
   return (
     <AppShell width="narrow">
-      <h1 className="text-2xl font-bold text-slate-900">
-        {existing ? "Update your pro profile" : "Set up your pro profile"}
-      </h1>
-      <p className="mt-1 text-sm text-slate-500">
-        {existing?.status === "approved"
-          ? "You're approved and live 🎉"
-          : "We'll review your details and verify you (usually 1–2 days)."}
-      </p>
+      <PageHeader
+        title={existing ? "Update your pro profile" : "Set up your pro profile"}
+        subtitle={
+          existing?.status === "approved"
+            ? "You're approved and live 🎉"
+            : "We'll review your details and verify you (usually 1–2 days)."
+        }
+      />
 
-      <form onSubmit={submit} className="mt-6 space-y-5">
+      {existing && (
+        <Card className="mb-6">
+          <KV label="Verification status">
+            <Pill tone={existing.status === "approved" ? "ok" : existing.status === "pending" ? "warn" : "bad"}>
+              {existing.status}
+            </Pill>
+          </KV>
+        </Card>
+      )}
+
+      <form onSubmit={submit} className="space-y-5">
         <Field label="Short bio" hint="Tell customers about your experience.">
-          <textarea
-            className={inputClass}
+          <Textarea
             rows={3}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
@@ -139,50 +168,33 @@ export default function ProviderOnboardingPage() {
         </Field>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-700">Services you offer</p>
+          <p className="lbl mb-3">Services you offer</p>
           <div className="flex flex-wrap gap-2">
             {cats.map((c) => (
-              <button
-                type="button"
+              <Chip
                 key={c.id}
+                active={selectedCats.includes(c.id)}
                 onClick={() => toggle(selectedCats, setSelectedCats, c.id)}
-                className={clsx(
-                  "rounded-full border px-3 py-1.5 text-sm font-medium",
-                  selectedCats.includes(c.id)
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 text-slate-600 hover:border-brand-400"
-                )}
               >
                 {c.name}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-700">Areas you cover</p>
+          <p className="lbl mb-3">Areas you cover</p>
           <div className="flex flex-wrap gap-2">
             {KARACHI_AREAS.map((a) => (
-              <button
-                type="button"
-                key={a}
-                onClick={() => toggle(areas, setAreas, a)}
-                className={clsx(
-                  "rounded-full border px-3 py-1.5 text-xs font-medium",
-                  areas.includes(a)
-                    ? "border-brand-600 bg-brand-600 text-white"
-                    : "border-slate-300 text-slate-600 hover:border-brand-400"
-                )}
-              >
+              <Chip key={a} active={areas.includes(a)} onClick={() => toggle(areas, setAreas, a)}>
                 {a}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
 
         <Field label="CNIC number">
-          <input
-            className={inputClass}
+          <Input
             value={cnic}
             onChange={(e) => setCnic(formatCnic(e.target.value))}
             required
@@ -191,31 +203,38 @@ export default function ProviderOnboardingPage() {
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="CNIC photo" hint="Front side">
-            <input type="file" accept="image/*" onChange={(e) => setCnicFront(e.target.files?.[0] ?? null)} />
+            <div className="field">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setCnicFront(e.target.files?.[0] ?? null)}
+                className="text-sm"
+              />
+            </div>
           </Field>
           <Field label="Selfie" hint="Clear face photo">
-            <input type="file" accept="image/*" onChange={(e) => setSelfie(e.target.files?.[0] ?? null)} />
+            <div className="field">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setSelfie(e.target.files?.[0] ?? null)}
+                className="text-sm"
+              />
+            </div>
           </Field>
         </div>
 
-        {warn && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-700">{warn}</p>}
-        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {warn && (
+          <p className="rounded-xl bg-warning-light p-3 text-sm text-warning-foreground">{warn}</p>
+        )}
+        {error && <p className="errtxt">{error}</p>}
 
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? "Submitting…" : existing ? "Save changes" : "Submit for verification"}
         </Button>
       </form>
-
-      {existing && (
-        <Card className="mt-6 bg-slate-50">
-          <p className="text-sm text-slate-600">
-            Verification status:{" "}
-            <span className="font-semibold capitalize text-slate-900">{existing.status}</span>
-          </p>
-        </Card>
-      )}
     </AppShell>
   );
 }

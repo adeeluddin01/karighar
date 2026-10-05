@@ -5,7 +5,7 @@ import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import { createClient } from "@/lib/supabase/client";
 import { MapController } from "@/components/maps/MapController";
 import { MapGate } from "@/components/maps/MapGate";
-import { GOOGLE_MAPS_KEY, KARACHI_CENTER, type LatLng } from "@/lib/maps";
+import { GOOGLE_MAPS_KEY, KARACHI_CENTER, NAV_MAP_STYLE, type LatLng } from "@/lib/maps";
 
 // Customer-facing: shows the destination pin + the pro's live location.
 export function TrackingMap({ jobId, destination }: { jobId: string; destination: LatLng | null }) {
@@ -44,9 +44,16 @@ export function TrackingMap({ jobId, destination }: { jobId: string; destination
 
   return (
     <APIProvider apiKey={GOOGLE_MAPS_KEY}>
-      <div className="h-56 w-full overflow-hidden rounded-xl border border-slate-200">
+      <div className="mapbox">
         <MapGate>
-          <Map defaultCenter={center} defaultZoom={13} gestureHandling="greedy" disableDefaultUI zoomControl>
+          <Map
+            defaultCenter={center}
+            defaultZoom={15}
+            styles={NAV_MAP_STYLE}
+            gestureHandling="greedy"
+            disableDefaultUI
+            zoomControl
+          >
             <MapController target={proPos} />
             {destination && <Marker position={destination} title="Service location" />}
             {proPos && (
@@ -55,11 +62,11 @@ export function TrackingMap({ jobId, destination }: { jobId: string; destination
           </Map>
         </MapGate>
       </div>
-      <p className="mt-1 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-muted-foreground">
         {proPos ? "🔵 Your pro’s live location · 📍 service location" : "Waiting for your pro to share their location…"}
       </p>
     </APIProvider>
   );
 }
 
-const PRO_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="9" fill="#0f766e" stroke="white" stroke-width="3"/></svg>`;
+const PRO_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="9" fill="#0f8a7e" stroke="white" stroke-width="3"/></svg>`;

@@ -10,11 +10,11 @@ export function MapGate({ children, compact }: { children: React.ReactNode; comp
   if (status === APILoadingStatus.AUTH_FAILURE || status === APILoadingStatus.FAILED) {
     return (
       <div
-        className={`flex ${compact ? "h-32" : "h-full"} w-full flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center`}
+        className={`flex ${compact ? "h-32" : "h-full"} w-full flex-col items-center justify-center gap-1 rounded-xl border border-border bg-secondary p-4 text-center`}
       >
         <span className="text-2xl">🗺️</span>
-        <p className="text-sm font-medium text-slate-600">Map preview unavailable</p>
-        <p className="text-xs text-slate-400">
+        <p className="text-sm font-medium text-foreground">Map preview unavailable</p>
+        <p className="text-xs text-muted-foreground">
           Enable billing for the Google Maps key. Location can still be set by address.
         </p>
       </div>

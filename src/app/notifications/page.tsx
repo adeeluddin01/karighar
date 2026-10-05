@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card } from "@/components/ui";
+import { Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { clsx } from "@/lib/clsx";
 import type { Notification } from "@/lib/types";
 
@@ -29,36 +29,70 @@ export default function NotificationsPage() {
     if (n.job_id) router.push(`/bookings/view/?id=${n.job_id}`);
   }
 
+  async function markAll() {
+    if (!user) return;
+    await createClient()
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+    setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+  }
+
   if (loading || !user) {
     return (
-      <AppShell>
-        <p className="text-slate-500">Loading…</p>
+      <AppShell width="narrow">
+        <Spinner label="Loading…" />
       </AppShell>
     );
   }
 
+  const unread = items.filter((i) => !i.read).length;
+
   return (
     <AppShell width="narrow">
-      <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+      <PageHeader
+        title="Notifications"
+        subtitle={unread ? `${unread} unread` : "You're all caught up."}
+        action={
+          unread > 0 ? (
+            <Button variant="ghost" size="sm" onClick={markAll}>
+              Mark all read
+            </Button>
+          ) : undefined
+        }
+      />
+
       {items.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-500">You&apos;re all caught up.</p>
+        <EmptyState icon="bell" title="Nothing yet" hint="Updates about your bookings land here." />
       ) : (
-        <div className="mt-6 space-y-2">
+        <Card padded={false} className="overflow-hidden">
           {items.map((n) => (
-            <button key={n.id} onClick={() => open(n)} className="block w-full text-left">
-              <Card className={clsx("p-4 transition hover:border-brand-300", !n.read && "border-brand-200 bg-brand-50/40")}>
-                <div className="flex items-start gap-2">
-                  {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" />}
-                  <div>
-                    <p className="font-medium text-slate-900">{n.title}</p>
-                    {n.body && <p className="text-sm text-slate-500">{n.body}</p>}
-                    <p className="mt-0.5 text-xs text-slate-400">{new Date(n.created_at).toLocaleString("en-PK")}</p>
-                  </div>
+            <button
+              key={n.id}
+              onClick={() => open(n)}
+              className={clsx(
+                "block w-full border-b border-border p-4 text-left last:border-b-0 hover:bg-secondary",
+                !n.read && "bg-primary-light/50"
+              )}
+            >
+              <div className="flex items-start gap-2">
+                {!n.read ? (
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                ) : (
+                  <span className="mt-1.5 h-2 w-2 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="font-semibold">{n.title}</p>
+                  {n.body && <p className="text-sm text-muted-foreground">{n.body}</p>}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {new Date(n.created_at).toLocaleString("en-PK")}
+                  </p>
                 </div>
-              </Card>
+              </div>
             </button>
           ))}
-        </div>
+        </Card>
       )}
     </AppShell>
   );

@@ -5,9 +5,19 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, Badge, formatPKR } from "@/components/ui";
+import {
+  Card,
+  EmptyState,
+  LinkButton,
+  PageHeader,
+  Pill,
+  Spinner,
+  Stat,
+  formatPKR,
+} from "@/components/ui";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Job } from "@/lib/types";
+import { BRAND } from "@/lib/config";
 
 export default function ProviderHistoryPage() {
   const { user, loading } = useRequireAuth("/pro/history");
@@ -29,72 +39,81 @@ export default function ProviderHistoryPage() {
         supabase.from("provider_ledger").select("type,amount").eq("provider_id", user.id),
       ]);
       setJobs((jobRows as Job[]) || []);
-      setWallet(summarizeLedger(((ledger as LedgerEntry[]) || [])));
+      setWallet(summarizeLedger((ledger as LedgerEntry[]) || []));
       setFetching(false);
     })();
   }, [user]);
 
   const done = jobs.filter((j) => j.status !== "cancelled").length;
+  const owed = wallet?.commissionOwed ?? 0;
 
   if (loading || !user) {
     return (
       <AppShell>
-        <p className="text-slate-500">Loading…</p>
+        <Spinner label="Loading…" />
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-bold text-slate-900">Earnings & history</h1>
+      <PageHeader title="Earnings & history" subtitle="Your wallet and completed jobs." />
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        <Card>
-          <p className="text-sm text-slate-500">Net earnings</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-900">{formatPKR(wallet?.netEarnings ?? 0)}</p>
-          <p className="text-xs text-slate-400">after commission</p>
-        </Card>
-        <Card className={wallet && wallet.commissionOwed > 0 ? "border-amber-200 bg-amber-50" : ""}>
-          <p className="text-sm text-slate-500">Commission owed to KARIGHAR</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-900">{formatPKR(wallet?.commissionOwed ?? 0)}</p>
-          <p className="text-xs text-slate-400">from cash you collected · settle with the team</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Jobs completed</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-900">{done}</p>
-        </Card>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <Stat icon="wallet" label="Net earnings" value={formatPKR(wallet?.netEarnings ?? 0)} />
+        <Stat icon="check" label="Jobs completed" value={done} />
+        <Stat
+          icon="trend"
+          label={`Owed to ${BRAND.name}`}
+          value={formatPKR(owed)}
+          className="col-span-2 sm:col-span-1"
+        />
       </div>
 
-      {fetching ? (
-        <p className="mt-6 text-slate-500">Loading…</p>
-      ) : jobs.length === 0 ? (
-        <Card className="mt-6 text-center">
-          <p className="text-slate-600">No completed jobs yet.</p>
-          <Link href="/pro/dashboard" className="mt-3 inline-block font-semibold text-brand-700">
-            Find jobs →
-          </Link>
+      {owed > 0 && (
+        <Card className="mt-4 bg-warning-light">
+          <p className="text-sm font-semibold text-warning-foreground">
+            {formatPKR(owed)} commission to settle
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            From cash you collected directly. Settle with the {BRAND.name} team.
+          </p>
         </Card>
+      )}
+
+      <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Past jobs</h2>
+
+      {fetching ? (
+        <Spinner />
+      ) : jobs.length === 0 ? (
+        <EmptyState icon="calendar" title="No completed jobs yet" hint="Accepted jobs land here once paid.">
+          <LinkButton href="/pro/dashboard" size="sm">
+            Find jobs
+          </LinkButton>
+        </EmptyState>
       ) : (
-        <div className="mt-6 space-y-2">
+        <Card padded={false} className="overflow-hidden">
           {jobs.map((job) => (
-            <Link key={job.id} href={`/pro/jobs/view/?id=${job.id}`}>
-              <Card className="p-4 transition hover:border-brand-300">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-slate-900">{job.title}</p>
-                    <p className="text-xs text-slate-400">
-                      {new Date(job.updated_at).toLocaleDateString("en-PK")} · {job.address}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <Badge tone={job.status === "cancelled" ? "rose" : "slate"}>{JOB_STATUS_LABEL[job.status]}</Badge>
-                    <p className="mt-1 font-semibold text-slate-800">{formatPKR(job.price)}</p>
-                  </div>
-                </div>
-              </Card>
+            <Link
+              key={job.id}
+              href={`/pro/jobs/view/?id=${job.id}`}
+              className="flex items-center justify-between gap-3 border-b border-border p-4 last:border-b-0 hover:bg-secondary"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{job.title}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {new Date(job.updated_at).toLocaleDateString("en-PK")} · {job.address}
+                </p>
+              </div>
+              <div className="whitespace-nowrap text-right">
+                <Pill tone={job.status === "cancelled" ? "bad" : "ok"}>
+                  {JOB_STATUS_LABEL[job.status]}
+                </Pill>
+                <p className="mt-1 font-semibold">{formatPKR(job.price)}</p>
+              </div>
             </Link>
           ))}
-        </div>
+        </Card>
       )}
     </AppShell>
   );

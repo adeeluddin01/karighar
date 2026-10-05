@@ -16,7 +16,7 @@ export function MapPicker({
 }) {
   if (!GOOGLE_MAPS_KEY) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+      <div className="rounded-xl bg-warning-light p-4 text-sm text-warning-foreground">
         Map unavailable — set <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in <code>.env.local</code>.
       </div>
     );
@@ -44,6 +44,14 @@ function PickerInner({
     if (geocodingLib) setGeocoder(new geocodingLib.Geocoder());
   }, [geocodingLib]);
 
+  // A job with no lat/lng never shows up on the provider's map — if the
+  // customer never drags the pin, fall back to a default location instead of
+  // silently saving `null`. Only runs once, and only when nothing is set yet.
+  useEffect(() => {
+    if (value === null) update(KARACHI_CENTER);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function update(next: LatLng) {
     if (geocoder) {
       geocoder.geocode({ location: next }, (results, status) => {
@@ -68,7 +76,7 @@ function PickerInner({
 
   return (
     <div className="space-y-2">
-      <div className="h-64 w-full overflow-hidden rounded-xl border border-slate-200">
+      <div className="mapbox" style={{ height: "16rem" }}>
         <MapGate>
           <Map
             defaultCenter={pos}
@@ -90,9 +98,9 @@ function PickerInner({
           </Map>
         </MapGate>
       </div>
-      <div className="flex items-center justify-between text-xs text-slate-500">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>Tap the map or drag the pin to set the exact location.</span>
-        <button type="button" onClick={useMyLocation} className="font-semibold text-brand-700">
+        <button type="button" onClick={useMyLocation} className="font-semibold text-primary">
           📍 Use my location
         </button>
       </div>

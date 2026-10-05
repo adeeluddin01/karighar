@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminShell } from "@/components/AdminShell";
-import { Card, Button, Badge, inputClass } from "@/components/ui";
+import { Button, Card, EmptyState, Input, Pill } from "@/components/ui";
 import type { Service, ServiceCategory } from "@/lib/types";
 
 export default function AdminCatalog() {
@@ -43,42 +43,56 @@ export default function AdminCatalog() {
     setBusy(null);
   }
 
+  if (cats.length === 0) {
+    return (
+      <AdminShell>
+        <EmptyState
+          icon="file"
+          title="No catalog yet"
+          hint="Run supabase/schema.sql to seed the Karachi service catalog."
+        />
+      </AdminShell>
+    );
+  }
+
   return (
     <AdminShell>
-      <div className="space-y-8">
+      <div className="flex flex-col gap-8">
         {cats.map((cat) => (
           <section key={cat.id}>
-            <h2 className="text-lg font-bold text-slate-900">{cat.name}</h2>
-            <div className="mt-3 space-y-2">
+            <h2 className="mb-4 text-xl font-bold tracking-tight">{cat.name}</h2>
+            <div className="flex flex-col gap-3">
               {services
                 .filter((s) => s.category_id === cat.id)
                 .map((svc) => (
-                  <Card key={svc.id} className="p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-slate-900">{svc.name}</span>
-                          {!svc.is_active && <Badge tone="rose">Hidden</Badge>}
+                  <Card key={svc.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-bold">{svc.name}</span>
+                          {!svc.is_active && <Pill tone="bad">Hidden</Pill>}
                         </div>
-                        <p className="text-sm text-slate-500">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           {svc.description} · per {svc.unit}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-400">Rs</span>
-                        <input
-                          className={`${inputClass} w-28`}
+                        <Input
+                          className="w-32"
                           type="number"
+                          inputMode="numeric"
+                          prefix="Rs"
                           defaultValue={svc.base_price ?? ""}
                           placeholder="quote"
+                          aria-label={`Base price for ${svc.name}`}
                           onChange={(e) => setEdits((p) => ({ ...p, [svc.id]: e.target.value }))}
                         />
-                        <Button className="px-3 py-1.5" disabled={busy === svc.id} onClick={() => savePrice(svc)}>
+                        <Button size="sm" disabled={busy === svc.id} onClick={() => savePrice(svc)}>
                           Save
                         </Button>
                         <Button
-                          variant="outline"
-                          className="px-3 py-1.5"
+                          variant="ghost"
+                          size="sm"
                           disabled={busy === svc.id}
                           onClick={() => toggleActive(svc)}
                         >

@@ -6,20 +6,45 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Badge, inputClass, formatPKR } from "@/components/ui";
 import { JobTimeline } from "@/components/JobTimeline";
 import { JobChat } from "@/components/JobChat";
 import { TrackingMap } from "@/components/maps/TrackingMap";
 import { DisputeButton } from "@/components/DisputeButton";
-import type { Job, Bid, Profile } from "@/lib/types";
+import { useToast } from "@/components/Toast";
+import { Icon } from "@/components/Icon";
+import {
+  Avatar,
+  Button,
+  Card,
+  KV,
+  LinkButton,
+  Pill,
+  Rating,
+  Select,
+  Spinner,
+  Textarea,
+  formatPKR,
+} from "@/components/ui";
+import { JOB_STATUS_LABEL, type Job, type Bid, type Profile } from "@/lib/types";
+import { clsx } from "@/lib/clsx";
 
 type BidWithPro = Bid & { pro?: Profile; rating?: number };
+
+const CANCEL_REASONS = [
+  "Changed my mind",
+  "Booked by mistake",
+  "Found another provider",
+  "Pro not responding",
+  "Scheduling conflict",
+  "Other",
+];
 
 function BookingDetailContent() {
   const search = useSearchParams();
   const jobId = search.get("id") ?? "";
   const isNew = search.get("new") === "1";
   const { user, loading } = useRequireAuth(`/bookings/view/?id=${jobId}`);
+  const toast = useToast();
 
   const [job, setJob] = useState<Job | null>(null);
   const [providerProfile, setProviderProfile] = useState<Profile | null>(null);
@@ -119,13 +144,23 @@ function BookingDetailContent() {
 
   async function cancelJob() {
     setBusy(true);
-    await createClient()
+    // .select().single() so a silent 0-row update (e.g. blocked by RLS, or
+    // the status already moved on) comes back as an error instead of
+    // looking like success.
+    const { error } = await createClient()
       .from("jobs")
       .update({ status: "cancelled", cancel_reason: cancelReason || null })
-      .eq("id", jobId);
-    await load();
+      .eq("id", jobId)
+      .select("id")
+      .single();
     setBusy(false);
+    if (error) {
+      toast("Couldn't cancel this booking — " + error.message, "error");
+      return;
+    }
+    await load();
     setShowCancel(false);
+    toast("Booking cancelled", "success");
   }
 
   async function submitReview(e: React.FormEvent) {
@@ -147,15 +182,20 @@ function BookingDetailContent() {
 
   if (loading || fetching) {
     return (
-      <AppShell width="narrow">
-        <p className="text-slate-500">Loading…</p>
+      <AppShell>
+        <Spinner label="Loading booking…" />
       </AppShell>
     );
   }
   if (!job) {
     return (
-      <AppShell width="narrow">
-        <p className="text-slate-500">Booking not found.</p>
+      <AppShell>
+        <Card className="text-center">
+          <p className="text-muted-foreground">Booking not found.</p>
+          <LinkButton href="/bookings" variant="ghost" size="sm" className="mt-4">
+            Back to my bookings
+          </LinkButton>
+        </Card>
       </AppShell>
     );
   }
@@ -163,190 +203,245 @@ function BookingDetailContent() {
   const canCancel = ["created", "bidding", "assigned"].includes(job.status);
   const canReview = job.status === "paid" && !hasReview && job.provider_id;
   const awaitingPayment = job.status === "completed";
+  const isLive = ["en_route", "arrived", "in_progress"].includes(job.status);
+  const isOver = ["cancelled", "disputed"].includes(job.status);
 
   return (
-    <AppShell width="narrow">
+    <AppShell>
       {isNew && (
-        <div className="mb-4 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-          🎉 Booking placed! {job.type === "custom" ? "Pros will send quotes shortly." : "We're finding you a pro."}
+        <div className="mb-5 flex items-center gap-3 rounded-2xl bg-success-light p-4 text-sm font-semibold text-success">
+          <Icon name="check" size="sm" />
+          Booking placed!{" "}
+          {job.type === "custom" ? "Pros will send quotes shortly." : "We're finding you a pro."}
         </div>
       )}
 
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{job.title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{job.address}</p>
-          <p className="mt-1 text-xs text-slate-400">
-            {job.scheduled_at ? new Date(job.scheduled_at).toLocaleString("en-PK") : "No time set"}
-          </p>
+      {/* Header */}
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-extrabold tracking-tight">{job.title}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
         </div>
         <div className="text-right">
-          {job.type === "custom" && <Badge tone="amber">Custom</Badge>}
-          <p className="mt-2 text-lg font-bold text-slate-900">{formatPKR(job.price)}</p>
-          <p className="text-xs text-slate-400">Cash on completion</p>
+          {job.type === "custom" && <Pill tone="warn">Custom</Pill>}
+          <p className="mt-2 text-xl font-extrabold">{formatPKR(job.price)}</p>
+          <p className="text-xs text-muted-foreground">Cash on completion</p>
         </div>
       </div>
 
-      {job.description && (
-        <Card className="mt-4 bg-slate-50">
-          <p className="text-sm text-slate-600">{job.description}</p>
-        </Card>
-      )}
+      <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
+        {/* ---------- left column ---------- */}
+        <div className="flex flex-col gap-5">
+          {/* Live tracking */}
+          {job.provider_id && isLive && (
+            <Card>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-base font-bold">Live tracking</h2>
+                <Pill tone="ok">
+                  <span className="live" /> Live
+                </Pill>
+              </div>
+              <TrackingMap
+                jobId={jobId}
+                destination={
+                  job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null
+                }
+              />
+            </Card>
+          )}
 
-      {/* Live tracking */}
-      {job.provider_id && ["en_route", "arrived", "in_progress"].includes(job.status) && (
-        <Card className="mt-6">
-          <h2 className="mb-3 font-semibold text-slate-900">Live tracking</h2>
-          <TrackingMap
-            jobId={jobId}
-            destination={job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null}
-          />
-        </Card>
-      )}
+          {/* Status */}
+          <Card>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-bold">Progress</h2>
+              <Pill tone={isOver ? "bad" : job.status === "rated" ? "ok" : "info"}>
+                {JOB_STATUS_LABEL[job.status]}
+              </Pill>
+            </div>
+            <JobTimeline status={job.status} />
+          </Card>
 
-      {/* Status */}
-      <Card className="mt-6">
-        <h2 className="mb-4 font-semibold text-slate-900">Status</h2>
-        <JobTimeline status={job.status} />
-      </Card>
+          {/* Quotes (custom job, still collecting) */}
+          {job.type === "custom" && job.status === "bidding" && (
+            <Card>
+              <h2 className="text-base font-bold">Quotes from pros</h2>
+              {bids.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  No quotes yet — check back shortly.
+                </p>
+              ) : (
+                <div className="mt-4 flex flex-col gap-3">
+                  {bids.map((b) => (
+                    <div key={b.id} className="flex items-center gap-3 rounded-2xl border border-border p-3">
+                      <Avatar name={b.pro?.full_name} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/providers/view/?id=${b.provider_id}`}
+                          className="font-semibold hover:text-primary"
+                        >
+                          {b.pro?.full_name ?? "Pro"}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          <Rating value={b.rating} />
+                          {b.eta_minutes ? ` · ETA ${b.eta_minutes} min` : ""}
+                        </p>
+                        {b.note && <p className="mt-1 text-sm text-muted-foreground">{b.note}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-primary">{formatPKR(b.amount)}</p>
+                        <Button size="sm" className="mt-1" disabled={busy} onClick={() => acceptBid(b)}>
+                          Accept
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
 
-      {/* Bids (custom, still collecting) */}
-      {job.type === "custom" && job.status === "bidding" && (
-        <Card className="mt-6">
-          <h2 className="font-semibold text-slate-900">Quotes from pros</h2>
-          {bids.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">No quotes yet — check back shortly.</p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {bids.map((b) => (
-                <div key={b.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
-                  <div>
-                    <Link href={`/providers/view/?id=${b.provider_id}`} className="font-medium text-slate-900 hover:text-brand-700">
-                      {b.pro?.full_name ?? "Pro"}
-                    </Link>
-                    <p className="text-xs text-slate-500">
-                      ⭐ {b.rating?.toFixed(1) ?? "New"} {b.eta_minutes ? `· ETA ${b.eta_minutes} min` : ""}
-                    </p>
-                    {b.note && <p className="mt-1 text-sm text-slate-600">{b.note}</p>}
+          {/* Chat */}
+          {job.provider_id && user && (
+            <Card>
+              <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
+                <Icon name="chat" size="sm" /> Messages
+              </h2>
+              <JobChat jobId={jobId} userId={user.id} />
+            </Card>
+          )}
+        </div>
+
+        {/* ---------- right column ---------- */}
+        <div className="flex flex-col gap-5">
+          {/* Pro card */}
+          {providerProfile && (
+            <Card>
+              <div className="flex items-center gap-3">
+                <Avatar name={providerProfile.full_name} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/providers/view/?id=${job.provider_id}`}
+                    className="block truncate font-bold hover:text-primary"
+                  >
+                    {providerProfile.full_name}
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    <Rating value={providerRating} />
+                  </p>
+                  <Pill tone="ok" icon="shield" className="mt-1">
+                    Verified
+                  </Pill>
+                </div>
+              </div>
+              {providerProfile.phone && (
+                <a href={`tel:${providerProfile.phone}`} className="btn-primary mt-4 w-full">
+                  <Icon name="phone" size="sm" /> Call
+                </a>
+              )}
+            </Card>
+          )}
+
+          {/* Details */}
+          <Card>
+            <h2 className="mb-2 text-base font-bold">Booking details</h2>
+            <KV label="Status">{JOB_STATUS_LABEL[job.status]}</KV>
+            <KV label="When">
+              {job.scheduled_at
+                ? new Date(job.scheduled_at).toLocaleString("en-PK")
+                : "No time set"}
+            </KV>
+            <KV label="Address">{job.address}</KV>
+            <KV label="Type">{job.type === "custom" ? "Custom job" : "Fixed price"}</KV>
+            <KV label="Price">{formatPKR(job.price)}</KV>
+            {job.description && (
+              <>
+                <div className="sep" />
+                <p className="text-xs font-semibold text-muted-foreground">Your notes</p>
+                <p className="mt-1 text-sm">{job.description}</p>
+              </>
+            )}
+          </Card>
+
+          {/* Awaiting payment */}
+          {awaitingPayment && (
+            <Card className="bg-warning-light">
+              <p className="text-sm text-warning-foreground">
+                Work completed. Please pay <strong>{formatPKR(job.price)}</strong> in cash. Once your
+                pro confirms payment, you can leave a rating.
+              </p>
+            </Card>
+          )}
+
+          {/* Rating */}
+          {canReview && (
+            <Card>
+              <h2 className="text-base font-bold">Rate your pro</h2>
+              <form onSubmit={submitReview} className="mt-3 space-y-3">
+                <div className="rate flex justify-center gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setRating(n)}
+                      aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                      className={clsx(n <= rating && "on")}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  rows={2}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="How was the service? (optional)"
+                  aria-label="Review comment"
+                />
+                <Button type="submit" disabled={busy} className="w-full">
+                  Submit rating
+                </Button>
+              </form>
+            </Card>
+          )}
+
+          {/* Cancel */}
+          {canCancel && (
+            <>
+              {showCancel ? (
+                <Card>
+                  <p className="text-sm font-semibold">Why are you cancelling?</p>
+                  <div className="mt-3">
+                    <Select
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      aria-label="Cancellation reason"
+                    >
+                      <option value="">Select a reason…</option>
+                      {CANCEL_REASONS.map((r) => (
+                        <option key={r}>{r}</option>
+                      ))}
+                    </Select>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-brand-700">{formatPKR(b.amount)}</p>
-                    <Button className="mt-1 px-3 py-1.5" disabled={busy} onClick={() => acceptBid(b)}>
-                      Accept
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="danger" size="sm" className="flex-1" disabled={busy} onClick={cancelJob}>
+                      Confirm cancellation
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowCancel(false)}>
+                      Keep booking
                     </Button>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Provider */}
-      {providerProfile && (
-        <Card className="mt-6">
-          <h2 className="font-semibold text-slate-900">Your pro</h2>
-          <div className="mt-3 flex items-center justify-between">
-            <div>
-              <Link href={`/providers/view/?id=${job.provider_id}`} className="font-medium text-slate-900 hover:text-brand-700">
-                {providerProfile.full_name}
-              </Link>
-              <p className="text-xs text-slate-500">⭐ {providerRating?.toFixed(1) ?? "New"}</p>
-            </div>
-            {providerProfile.phone && (
-              <a href={`tel:${providerProfile.phone}`} className="text-sm font-semibold text-brand-700">
-                Call
-              </a>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* Awaiting payment confirmation */}
-      {awaitingPayment && (
-        <Card className="mt-6 bg-amber-50">
-          <p className="text-sm text-amber-700">
-            ✅ Work completed. Please pay <strong>{formatPKR(job.price)}</strong> in cash. Once your pro
-            confirms payment, you can leave a rating.
-          </p>
-        </Card>
-      )}
-
-      {/* Rating */}
-      {canReview && (
-        <Card className="mt-6">
-          <h2 className="font-semibold text-slate-900">Rate your pro</h2>
-          <form onSubmit={submitReview} className="mt-3 space-y-3">
-            <div className="flex gap-1 text-2xl">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setRating(n)}
-                  className={n <= rating ? "text-amber-400" : "text-slate-300"}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
-            <textarea
-              className={inputClass}
-              rows={2}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="How was the service? (optional)"
-            />
-            <Button type="submit" disabled={busy}>
-              Submit rating
-            </Button>
-          </form>
-        </Card>
-      )}
-
-      {/* Chat */}
-      {job.provider_id && user && (
-        <Card className="mt-6">
-          <h2 className="mb-2 font-semibold text-slate-900">Messages</h2>
-          <JobChat jobId={jobId} userId={user.id} />
-        </Card>
-      )}
-
-      {canCancel && (
-        <div className="mt-6">
-          {showCancel ? (
-            <Card className="border-rose-200">
-              <p className="text-sm font-medium text-slate-800">Why are you cancelling?</p>
-              <select className={`${inputClass} mt-2`} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}>
-                <option value="">Select a reason…</option>
-                <option>Changed my mind</option>
-                <option>Booked by mistake</option>
-                <option>Found another provider</option>
-                <option>Pro not responding</option>
-                <option>Scheduling conflict</option>
-                <option>Other</option>
-              </select>
-              <div className="mt-3 flex gap-2">
-                <Button variant="danger" disabled={busy} onClick={cancelJob}>
-                  Confirm cancellation
+                </Card>
+              ) : (
+                <Button variant="danger" size="sm" onClick={() => setShowCancel(true)}>
+                  Cancel booking
                 </Button>
-                <Button variant="outline" onClick={() => setShowCancel(false)}>
-                  Keep booking
-                </Button>
-              </div>
-            </Card>
-          ) : (
-            <Button variant="danger" onClick={() => setShowCancel(true)}>
-              Cancel booking
-            </Button>
+              )}
+            </>
           )}
-        </div>
-      )}
 
-      {user && job.provider_id && (
-        <div className="mt-6">
-          <DisputeButton jobId={jobId} userId={user.id} />
+          {user && job.provider_id && <DisputeButton jobId={jobId} userId={user.id} />}
         </div>
-      )}
+      </div>
     </AppShell>
   );
 }
@@ -355,8 +450,8 @@ export default function BookingDetailPage() {
   return (
     <Suspense
       fallback={
-        <AppShell width="narrow">
-          <p className="text-slate-500">Loading…</p>
+        <AppShell>
+          <Spinner label="Loading…" />
         </AppShell>
       }
     >

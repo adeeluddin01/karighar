@@ -1,21 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card, Button, Badge, inputClass, formatPKR } from "@/components/ui";
 import { useToast } from "@/components/Toast";
+import { Icon } from "@/components/Icon";
+import {
+  Avatar,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  LinkButton,
+  Pill,
+  Rating,
+  Spinner,
+  Stat,
+  Tabs,
+  formatPKR,
+} from "@/components/ui";
 import { JOB_STATUS_LABEL, type Job, type Provider } from "@/lib/types";
 
+type Tab = "open" | "active";
+
 export default function ProDashboard() {
-  const { user, loading } = useRequireAuth("/pro/dashboard");
+  const { user, profile, loading } = useRequireAuth("/pro/dashboard");
   const toast = useToast();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [available, setAvailable] = useState<Job[]>([]);
   const [mine, setMine] = useState<Job[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [tab, setTab] = useState<Tab>("open");
   const [bidFor, setBidFor] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
@@ -24,7 +41,11 @@ export default function ProDashboard() {
   const load = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
-    const { data: prov } = await supabase.from("providers").select("*").eq("profile_id", user.id).maybeSingle();
+    const { data: prov } = await supabase
+      .from("providers")
+      .select("*")
+      .eq("profile_id", user.id)
+      .maybeSingle();
     setProvider(prov as Provider | null);
 
     if ((prov as Provider | null)?.status === "approved") {
@@ -79,10 +100,13 @@ export default function ProDashboard() {
     toast("Quote sent! The customer will be notified.", "success");
   }
 
+  // Money still owed on jobs in flight, as a quick "pipeline" figure.
+  const pipeline = useMemo(() => mine.reduce((sum, j) => sum + (j.price ?? 0), 0), [mine]);
+
   if (loading || fetching) {
     return (
       <AppShell>
-        <p className="text-slate-500">Loading…</p>
+        <Spinner label="Loading your jobs…" />
       </AppShell>
     );
   }
@@ -90,12 +114,15 @@ export default function ProDashboard() {
   if (!provider) {
     return (
       <AppShell>
-        <Card className="text-center">
-          <p className="text-slate-600">You haven&apos;t set up your pro profile yet.</p>
-          <Link href="/pro/onboarding" className="mt-3 inline-block font-semibold text-brand-700">
-            Complete onboarding →
-          </Link>
-        </Card>
+        <EmptyState
+          icon="briefcase"
+          title="Your pro profile isn't set up yet"
+          hint="Finish onboarding to start receiving jobs."
+        >
+          <LinkButton href="/pro/onboarding" size="sm">
+            Complete onboarding
+          </LinkButton>
+        </EmptyState>
       </AppShell>
     );
   }
@@ -103,117 +130,177 @@ export default function ProDashboard() {
   if (provider.status !== "approved") {
     return (
       <AppShell>
-        <Card className="text-center">
-          <div className="text-3xl">⏳</div>
-          <h1 className="mt-2 text-xl font-bold text-slate-900">
-            {provider.status === "pending" ? "Verification in progress" : `Account ${provider.status}`}
-          </h1>
-          <p className="mt-2 text-slate-600">
-            {provider.status === "pending"
+        <EmptyState
+          icon={provider.status === "pending" ? "hourglass" : "ban"}
+          title={
+            provider.status === "pending"
+              ? "Verification in progress"
+              : `Account ${provider.status}`
+          }
+          hint={
+            provider.status === "pending"
               ? "Our team is reviewing your profile. You'll be able to accept jobs once approved (usually 1–2 days)."
-              : "Please contact support for details."}
-          </p>
-          <Link href="/pro/onboarding" className="mt-4 inline-block text-sm font-semibold text-brand-700">
+              : "Please contact support for details."
+          }
+        >
+          <LinkButton href="/pro/onboarding" variant="ghost" size="sm">
             Edit profile
-          </Link>
-        </Card>
+          </LinkButton>
+          <LinkButton href="/support" variant="ghost" size="sm">
+            Contact support
+          </LinkButton>
+        </EmptyState>
       </AppShell>
     );
   }
 
+  const list = tab === "open" ? available : mine;
+
   return (
     <AppShell>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Pro dashboard</h1>
-          <p className="text-sm text-slate-500">
-            ⭐ {provider.rating_avg?.toFixed(1) ?? "New"} · {provider.jobs_completed} jobs done
-          </p>
+      {/* Greeting */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Avatar name={profile?.full_name || user?.email} size="lg" />
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight">
+              Salaam, {profile?.full_name?.split(" ")[0] ?? "Pro"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              <Rating value={provider.rating_avg} /> · {provider.jobs_completed} jobs done
+            </p>
+          </div>
         </div>
-        <Badge tone="green">Approved</Badge>
+        <Pill tone="ok" icon="shield">
+          Approved
+        </Pill>
       </div>
 
-      {/* My active jobs */}
-      <h2 className="mt-8 text-lg font-bold text-slate-900">Your jobs</h2>
-      {mine.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">No active jobs. Accept one below 👇</p>
-      ) : (
-        <div className="mt-3 space-y-3">
-          {mine.map((job) => (
-            <Link key={job.id} href={`/pro/jobs/view/?id=${job.id}`}>
-              <Card className="transition hover:border-brand-300 hover:shadow-md">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{job.title}</h3>
-                    <p className="text-sm text-slate-500">{job.address}</p>
-                  </div>
-                  <div className="text-right">
-                    <Badge>{JOB_STATUS_LABEL[job.status]}</Badge>
-                    <p className="mt-2 font-semibold text-slate-800">{formatPKR(job.price)}</p>
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <Stat icon="briefcase" label="Open requests" value={available.length} />
+        <Stat icon="clock" label="Active jobs" value={mine.length} />
+        <Stat
+          icon="wallet"
+          label="In pipeline"
+          value={formatPKR(pipeline)}
+          className="col-span-2 sm:col-span-1"
+        />
+      </div>
 
-      {/* Available jobs */}
-      <h2 className="mt-10 text-lg font-bold text-slate-900">Available near you</h2>
-      {available.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">No open jobs right now. Check back soon.</p>
+      {/* Tabs */}
+      <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: "open", label: `Open${available.length ? ` (${available.length})` : ""}` },
+            { key: "active", label: `Your jobs${mine.length ? ` (${mine.length})` : ""}` },
+          ]}
+        />
+        <LinkButton href="/pro/history" variant="ghost" size="sm" icon="trend">
+          Earnings
+        </LinkButton>
+      </div>
+
+      {list.length === 0 ? (
+        <EmptyState
+          icon={tab === "open" ? "party" : "calendar"}
+          title="Nothing here yet"
+          hint={
+            tab === "open"
+              ? "No open jobs right now. Check back soon."
+              : "Jobs you accept will show up here."
+          }
+        />
       ) : (
-        <div className="mt-3 space-y-3">
-          {available.map((job) => (
-            <Card key={job.id}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-slate-900">{job.title}</h3>
-                    {job.type === "custom" && <Badge tone="amber">Custom · quote</Badge>}
+        <div className="flex flex-col gap-4">
+          {tab === "active"
+            ? mine.map((job) => (
+                <Link key={job.id} href={`/pro/jobs/view/?id=${job.id}`} className="opt">
+                  <span className="flex w-full items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block text-base font-bold">{job.title}</span>
+                      <span className="block text-sm text-muted-foreground">{job.address}</span>
+                    </span>
+                    <span className="whitespace-nowrap text-right">
+                      <Pill tone="info">{JOB_STATUS_LABEL[job.status]}</Pill>
+                      <span className="mt-2 block font-bold">{formatPKR(job.price)}</span>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Icon name="calendar" size="sm" />
+                    {job.scheduled_at
+                      ? new Date(job.scheduled_at).toLocaleString("en-PK")
+                      : "Flexible time"}
+                  </span>
+                </Link>
+              ))
+            : available.map((job) => (
+                <Card key={job.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-bold">{job.title}</h3>
+                        {job.type === "custom" && <Pill tone="warn">Custom · quote</Pill>}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
+                      {job.description && <p className="mt-1 text-sm">{job.description}</p>}
+                      <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Icon name="calendar" size="sm" />
+                        {job.scheduled_at
+                          ? new Date(job.scheduled_at).toLocaleString("en-PK")
+                          : "Flexible time"}
+                      </p>
+                    </div>
+                    <div className="whitespace-nowrap text-right">
+                      <p className="font-bold text-primary">{formatPKR(job.price)}</p>
+                      {job.type === "fixed" ? (
+                        <Button
+                          size="sm"
+                          className="mt-2"
+                          disabled={busy}
+                          onClick={() => acceptFixed(job)}
+                        >
+                          Accept
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="mt-2"
+                          onClick={() => setBidFor(bidFor === job.id ? null : job.id)}
+                        >
+                          {bidFor === job.id ? "Close" : "Send quote"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{job.address}</p>
-                  {job.description && <p className="mt-1 text-sm text-slate-600">{job.description}</p>}
-                  <p className="mt-1 text-xs text-slate-400">
-                    {job.scheduled_at ? new Date(job.scheduled_at).toLocaleString("en-PK") : "Flexible time"}
-                  </p>
-                </div>
-                <div className="whitespace-nowrap text-right">
-                  <p className="font-bold text-brand-700">{formatPKR(job.price)}</p>
-                  {job.type === "fixed" ? (
-                    <Button className="mt-2 px-3 py-1.5" disabled={busy} onClick={() => acceptFixed(job)}>
-                      Accept
-                    </Button>
-                  ) : (
-                    <Button className="mt-2 px-3 py-1.5" variant="outline" onClick={() => setBidFor(bidFor === job.id ? null : job.id)}>
-                      {bidFor === job.id ? "Close" : "Send quote"}
-                    </Button>
+
+                  {bidFor === job.id && (
+                    <div className="mt-4 space-y-3 border-t border-border pt-4">
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        value={bidAmount}
+                        onChange={(e) => setBidAmount(e.target.value)}
+                        placeholder="Your quote"
+                        aria-label="Your quote"
+                        prefix="Rs"
+                      />
+                      <Input
+                        value={bidNote}
+                        onChange={(e) => setBidNote(e.target.value)}
+                        placeholder="Note (optional) — what's included"
+                        aria-label="Quote note"
+                      />
+                      <Button disabled={busy} className="w-full" onClick={() => submitBid(job.id)}>
+                        Submit quote
+                      </Button>
+                    </div>
                   )}
-                </div>
-              </div>
-
-              {bidFor === job.id && (
-                <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
-                  <input
-                    className={inputClass}
-                    type="number"
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(e.target.value)}
-                    placeholder="Your quote (Rs)"
-                  />
-                  <input
-                    className={inputClass}
-                    value={bidNote}
-                    onChange={(e) => setBidNote(e.target.value)}
-                    placeholder="Note (optional) — what's included"
-                  />
-                  <Button disabled={busy} onClick={() => submitBid(job.id)}>
-                    Submit quote
-                  </Button>
-                </div>
-              )}
-            </Card>
-          ))}
+                </Card>
+              ))}
         </div>
       )}
     </AppShell>

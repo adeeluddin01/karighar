@@ -25,15 +25,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={toast}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex flex-col items-center gap-2 px-4 md:bottom-8">
+      {/* .toasts clears the mobile bottom nav; see globals.css */}
+      <div className="toasts px-4">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={clsx(
-              "pointer-events-auto max-w-sm rounded-xl px-4 py-3 text-sm font-medium shadow-lg",
-              t.kind === "success" && "bg-emerald-600 text-white",
-              t.kind === "error" && "bg-rose-600 text-white",
-              t.kind === "info" && "bg-slate-900 text-white"
+              "toast pointer-events-auto flex max-w-sm items-center gap-2",
+              t.kind === "success" && "before:content-['✓']",
+              t.kind === "error" && "before:content-['!']"
             )}
           >
             {t.message}

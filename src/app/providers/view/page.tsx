@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
-import { Card, Badge, Spinner } from "@/components/ui";
+import { Avatar, Card, EmptyState, Pill, Spinner } from "@/components/ui";
 
 type PublicProfile = {
   id: string;
@@ -18,10 +18,11 @@ type PublicProfile = {
 type Review = { id: string; rating: number; comment: string | null; created_at: string };
 
 function Stars({ n }: { n: number }) {
+  const filled = Math.round(n || 0);
   return (
-    <span className="text-amber-400">
-      {"★".repeat(Math.round(n))}
-      <span className="text-slate-200">{"★".repeat(5 - Math.round(n))}</span>
+    <span className="star" aria-label={`${filled} out of 5 stars`}>
+      {"★".repeat(filled)}
+      <span className="text-border">{"★".repeat(5 - filled)}</span>
     </span>
   );
 }
@@ -41,7 +42,12 @@ function ProviderProfileContent() {
     (async () => {
       const [{ data: prof }, { data: revs }] = await Promise.all([
         supabase.from("public_provider_profiles").select("*").eq("id", id).maybeSingle(),
-        supabase.from("reviews").select("id,rating,comment,created_at").eq("provider_id", id).order("created_at", { ascending: false }).limit(20),
+        supabase
+          .from("reviews")
+          .select("id,rating,comment,created_at")
+          .eq("provider_id", id)
+          .order("created_at", { ascending: false })
+          .limit(20),
       ]);
       setProfile(prof as PublicProfile | null);
       setReviews((revs as Review[]) || []);
@@ -52,58 +58,78 @@ function ProviderProfileContent() {
   if (loading) {
     return (
       <AppShell width="narrow">
-        <Spinner />
+        <Spinner label="Loading profile…" />
       </AppShell>
     );
   }
   if (!profile) {
     return (
       <AppShell width="narrow">
-        <p className="text-slate-500">Provider not found.</p>
+        <EmptyState icon="search" title="Provider not found" hint="This profile may no longer be active." />
       </AppShell>
     );
   }
 
-  const initial = (profile.full_name || "?").charAt(0).toUpperCase();
-
   return (
     <AppShell width="narrow">
-      <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-600 text-2xl font-bold text-white">
-          {initial}
+      <Card>
+        <div className="flex items-center gap-4">
+          <Avatar name={profile.full_name} size="lg" />
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-extrabold tracking-tight">
+              {profile.full_name ?? "Provider"}
+            </h1>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <Stars n={profile.rating_avg} />
+              {profile.rating_avg ? profile.rating_avg.toFixed(1) : "New"} ·{" "}
+              {profile.jobs_completed} jobs
+            </p>
+            <Pill tone="ok" icon="shield" className="mt-2">
+              Verified
+            </Pill>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">{profile.full_name ?? "Provider"}</h1>
-          <p className="mt-0.5 text-sm text-slate-600">
-            <Stars n={profile.rating_avg} /> {profile.rating_avg?.toFixed(1) ?? "New"} · {profile.jobs_completed} jobs
-          </p>
-        </div>
+
+        {profile.bio && (
+          <>
+            <div className="sep" />
+            <p className="text-sm leading-relaxed text-muted-foreground">{profile.bio}</p>
+          </>
+        )}
+
+        {profile.service_areas?.length > 0 && (
+          <>
+            <div className="sep" />
+            <p className="text-xs font-semibold text-muted-foreground">Areas covered</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {profile.service_areas.map((a) => (
+                <Pill key={a} tone="gray">
+                  {a}
+                </Pill>
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
+
+      <div className="mt-8 mb-4 flex items-center justify-between">
+        <h2 className="text-xl font-bold tracking-tight">Reviews</h2>
+        <span className="text-xs text-muted-foreground">{reviews.length} total</span>
       </div>
 
-      {profile.bio && <p className="mt-4 text-sm leading-relaxed text-slate-600">{profile.bio}</p>}
-
-      {profile.service_areas?.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {profile.service_areas.map((a) => (
-            <Badge key={a} tone="slate">
-              {a}
-            </Badge>
-          ))}
-        </div>
-      )}
-
-      <h2 className="mt-8 text-lg font-bold text-slate-900">Reviews ({reviews.length})</h2>
       {reviews.length === 0 ? (
-        <p className="mt-2 text-sm text-slate-500">No reviews yet.</p>
+        <EmptyState icon="star" title="No reviews yet" hint="Reviews appear after completed jobs." />
       ) : (
-        <div className="mt-3 space-y-2">
+        <div className="flex flex-col gap-3">
           {reviews.map((r) => (
-            <Card key={r.id} className="p-4">
+            <Card key={r.id}>
               <div className="flex items-center justify-between">
                 <Stars n={r.rating} />
-                <span className="text-xs text-slate-400">{new Date(r.created_at).toLocaleDateString("en-PK")}</span>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(r.created_at).toLocaleDateString("en-PK")}
+                </span>
               </div>
-              {r.comment && <p className="mt-1 text-sm text-slate-600">{r.comment}</p>}
+              {r.comment && <p className="mt-2 text-sm text-muted-foreground">{r.comment}</p>}
             </Card>
           ))}
         </div>

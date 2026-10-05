@@ -6,7 +6,7 @@ import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
-import { Card } from "@/components/ui";
+import { Card, PageHeader, Spinner } from "@/components/ui";
 import { MapGate } from "@/components/maps/MapGate";
 import { GOOGLE_MAPS_KEY, KARACHI_CENTER } from "@/lib/maps";
 import type { Job } from "@/lib/types";
@@ -37,24 +37,24 @@ export default function ProviderMapPage() {
   if (loading || !user) {
     return (
       <AppShell>
-        <p className="text-slate-500">Loading…</p>
+        <Spinner label="Loading map…" />
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-bold text-slate-900">Jobs map</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        🟢 your active jobs · 🟠 available jobs. Tap a pin to open it.
-      </p>
+      <PageHeader
+        title="Jobs map"
+        subtitle="Teal pins are your active jobs, amber pins are available jobs. Tap a pin to open it."
+      />
 
       {!GOOGLE_MAPS_KEY ? (
-        <Card className="mt-6 border-amber-200 bg-amber-50 text-amber-700">
+        <Card className="bg-warning-light text-warning-foreground">
           Set <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in <code>.env.local</code> to enable the map.
         </Card>
       ) : (
-        <div className="mt-6 h-[70vh] w-full overflow-hidden rounded-2xl border border-slate-200">
+        <div className="mapbox h-[70vh]">
           <APIProvider apiKey={GOOGLE_MAPS_KEY}>
             <MapGate>
             <Map defaultCenter={KARACHI_CENTER} defaultZoom={12} gestureHandling="greedy" disableDefaultUI zoomControl>
@@ -63,7 +63,7 @@ export default function ProviderMapPage() {
                   key={j.id}
                   position={{ lat: j.lat!, lng: j.lng! }}
                   title={j.title}
-                  icon={pin("#0f766e")}
+                  icon={pin("#0f8a7e")}
                   onClick={() => router.push(`/pro/jobs/view/?id=${j.id}`)}
                 />
               ))}
@@ -83,7 +83,7 @@ export default function ProviderMapPage() {
       )}
 
       {mine.length === 0 && open.length === 0 && (
-        <p className="mt-4 text-sm text-slate-400">No jobs with a pinned location yet.</p>
+        <p className="mt-4 text-sm text-muted-foreground">No jobs with a pinned location yet.</p>
       )}
     </AppShell>
   );
