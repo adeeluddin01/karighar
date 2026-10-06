@@ -51,7 +51,7 @@ export default function ProviderMapPage() {
 
       {!GOOGLE_MAPS_KEY ? (
         <Card className="bg-warning-light text-warning-foreground">
-          Set <code>GOOGLE_MAPS_API_KEY</code> in <code>.env.local</code> to enable the map.
+          Set <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in <code>.env.local</code> to enable the map.
         </Card>
       ) : (
         <div className="mapbox h-[70vh]">

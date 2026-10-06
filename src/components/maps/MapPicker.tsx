@@ -17,7 +17,7 @@ export function MapPicker({
   if (!GOOGLE_MAPS_KEY) {
     return (
       <div className="rounded-xl bg-warning-light p-4 text-sm text-warning-foreground">
-        Map unavailable — set <code>GOOGLE_MAPS_API_KEY</code> in <code>.env.local</code>.
+        Map unavailable — set <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in <code>.env.local</code>.
       </div>
     );
   }

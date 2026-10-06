@@ -8,7 +8,7 @@
 //        table: notifications, events: INSERT, type: HTTP Request,
 //        URL: https://<project>.functions.supabase.co/send-notification-email
 //
-// SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
+// NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     // Resolve the recipient's email via the admin API.
     const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("NEXT_PUBLIC_SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
     const { data: userRes } = await admin.auth.admin.getUserById(n.user_id);

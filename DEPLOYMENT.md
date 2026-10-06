@@ -34,10 +34,10 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
 
 1. Push this repo to GitHub and **Import** it in Vercel (root = `karighar/`).
 2. **Environment Variables** (Production):
-   - `SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_URL`
    - `SUPABASE_PUBLISHABLE_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `GOOGLE_MAPS_API_KEY`
+   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
    - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (if using Google login)
    - `NEXT_PUBLIC_SITE_URL` = `https://thekarighar.com`
 3. Deploy. Add your custom domain in Vercel → Domains.

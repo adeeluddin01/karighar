@@ -31,7 +31,7 @@ Open http://localhost:3000 — the landing page runs without any backend yet.
 See [`../LAUNCH_READINESS.md`](../LAUNCH_READINESS.md) for the full architect audit and
 [`DEPLOYMENT.md`](DEPLOYMENT.md) for the production (Vercel) checklist.
 3. Copy `.env.local.example` → `.env.local` and fill in your project's **URL** and key
-   (Project Settings → API). The **publishable key** goes in `SUPABASE_ANON_KEY`
+   (Project Settings → API). The **publishable key** goes in `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — either name works).
 4. **For fast testing:** in Supabase → **Authentication → Sign In / Providers → Email**,
    turn **off** "Confirm email" so signups log in instantly. (Turn it back on for production.)
@@ -49,7 +49,7 @@ Now `/admin` unlocks (verify providers, manage catalog, monitor jobs).
 
 ### Google Maps
 
-`GOOGLE_MAPS_API_KEY` must have **Maps JavaScript API** and **Geocoding API**
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` must have **Maps JavaScript API** and **Geocoding API**
 enabled (Google Cloud Console → APIs). If you set HTTP-referrer restrictions, allow
 `http://localhost:3000/*` and your production domain.
 

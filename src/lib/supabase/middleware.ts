@@ -1,13 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SUPABASE_URL, SUPABASE_KEY } from "./config";
+import { NEXT_PUBLIC_SUPABASE_URL, SUPABASE_KEY } from "./config";
 
 // Refreshes the Supabase auth session on every request so Server Components
 // and Client Components stay in sync. Standard @supabase/ssr pattern.
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(SUPABASE_URL, SUPABASE_KEY, {
+  const supabase = createServerClient(NEXT_PUBLIC_SUPABASE_URL, SUPABASE_KEY, {
     cookies: {
       getAll() {
         return request.cookies.getAll();
