@@ -13,7 +13,7 @@ const OUT = "../karighar-mobile";
 const TYPES = { ".js": "text/javascript", ".html": "text/html", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".ico": "image/x-icon", ".ttf": "font/ttf", ".woff2": "font/woff2", ".svg": "image/svg+xml" };
 const PASS = "Karighar#2026";
 
-const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
+const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
 
 async function providerJobId() {
   const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });

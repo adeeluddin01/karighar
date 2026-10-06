@@ -12,9 +12,9 @@ if (!TOKEN) {
 // Only the vars the running app actually needs (all public / non-secret).
 const SITE_URL = "https://thekarighar.com";
 const ENV = {
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  SUPABASE_URL: process.env.SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+  GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
   NEXT_PUBLIC_SITE_URL: SITE_URL,
 };
 
