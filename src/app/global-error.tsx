@@ -1,13 +1,13 @@
 "use client";
 
 // Root error boundary — replaces the root layout, so globals.css never loads here.
-// Colors are hardcoded on purpose and mirror the teal design tokens.
+// Colors are hardcoded on purpose and mirror the sage/forest design tokens.
 export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
   return (
     <html lang="en">
       <body
         style={{
-          fontFamily: '"Plus Jakarta Sans", system-ui, sans-serif',
+          fontFamily: 'Manrope, "Segoe UI", system-ui, sans-serif',
           display: "flex",
           minHeight: "100vh",
           alignItems: "center",
@@ -15,25 +15,25 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
           textAlign: "center",
           padding: 20,
           margin: 0,
-          background: "#f7faf9",
-          color: "#17272b",
+          background: "#f2f5f3",
+          color: "#14201b",
         }}
       >
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>
             Something went wrong
           </h1>
-          <p style={{ color: "#6b7f83", marginTop: 8 }}>Please reload the page.</p>
+          <p style={{ color: "#76867f", marginTop: 8 }}>Please reload the page.</p>
           <button
             onClick={reset}
             style={{
               marginTop: 16,
-              background: "#0f8a7e",
+              background: "#ee7118",
               color: "#fff",
               border: "none",
-              borderRadius: 14,
+              borderRadius: 999,
               padding: "12px 22px",
-              fontWeight: 600,
+              fontWeight: 800,
               fontSize: 15,
               cursor: "pointer",
             }}

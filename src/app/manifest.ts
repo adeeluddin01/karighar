@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Book verified plumbers, electricians and AC technicians in Karachi.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#1e3a8a",
+    background_color: "#f2f5f3",
+    theme_color: "#1f5f4b",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

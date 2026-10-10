@@ -4,7 +4,9 @@ import Link from "next/link";
 
 export default function Error({ reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center px-5 text-center">
+    // `legacy-ui` scopes the .btn-* component rules in globals.css; this page
+    // renders outside AppShell, which normally carries that class.
+    <div className="legacy-ui flex min-h-[70vh] flex-col items-center justify-center px-5 text-center">
       <div className="text-4xl">⚠️</div>
       <h1 className="mt-3 text-xl font-bold">Something went wrong</h1>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">

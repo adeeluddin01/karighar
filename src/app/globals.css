@@ -1,80 +1,157 @@
 @import "tailwindcss";
+@import "./karighar-mobile.css";
 
 /* ============================================================
    KARIGHAR design tokens
-   Ported from the `karighar (1).html` prototype (oklch teal/mint).
+   Ported from `Karighar Redesign.html`: a light sage ground with
+   white cards, the logo's forest green for identity, leaf green for
+   live/verified state and saffron for the single action per screen.
+
+   The raw redesign tokens come first; the `--background`/`--primary`/…
+   names the rest of the app (and the Tailwind bridge) already use are
+   aliased onto them, so every existing call site lands on-palette and
+   dark mode only has to redefine the raw set.
    ============================================================ */
 :root {
+  color-scheme: light;
+
+  /* --- raw redesign palette --- */
+  --ground: #e3eae5;        /* ground behind the app column on wide screens */
+  --scr: #f2f5f3;           /* app screen background */
+  --card: #ffffff;
+  --card-2: #eaf0ec;        /* tinted wells, inputs, tiles */
+  --line: #dbe3de;
+  --ink: #14201b;
+  --ink-2: #44524c;
+  --mute: #76867f;
+  --brand: #1f5f4b;         /* forest: the logo green, used as a surface with white text */
+  --brand-fg: #1b6a52;      /* forest for text and icons on light surfaces */
+  --brand-2: #139a72;       /* leaf: active map pin, success, live dot */
+  --brand-tint: #dcefe6;
+  --hero-a: #1d5c49;
+  --hero-b: #2f8f6e;
+  --act: #ee7118;           /* saffron: the one action colour */
+  --act-tint: #fdeadb;
+  --warn: #d2931a;
+  --warn-tint: #fbf0d3;
+  --bad: #d4443b;
+  --bad-tint: #fbe3e1;
+  --navbg: #ffffff;
+  --navpill: #17251f;
+  --navfg: #ffffff;
+  --map-base: #edf1ee;
+  --map-road: #ffffff;
+  --map-block: #f6dfc3;
+  --map-park: #d6e9d7;
+  --map-bldg: #dfe6e1;
+  --shadow: 0 10px 30px rgba(20, 32, 27, 0.08);
+  --shadow-lg: 0 30px 60px rgba(20, 32, 27, 0.18);
+
+  --f-display: var(--font-urbanist), "Segoe UI", system-ui, sans-serif;
+  --f-body: var(--font-manrope), "Segoe UI", system-ui, sans-serif;
+  --r: 22px;
+  --r-sm: 16px;
+
+  /* --- aliases the rest of the app already references --- */
   --radius: 1rem;
-
-  --background: oklch(97.5% 0.004 160);
-  --foreground: oklch(20% 0.02 200);
-  --card: oklch(100% 0 0);
-
-  --primary: oklch(52% 0.12 172);
-  --primary-dark: oklch(42% 0.1 174);
-  --primary-light: oklch(95% 0.035 170);
-  --primary-foreground: oklch(99% 0.005 170);
-
-  --secondary: oklch(95.5% 0.006 170);
-  --secondary-foreground: oklch(25% 0.02 200);
-
-  --muted: oklch(95.5% 0.006 170);
-  --muted-foreground: oklch(52% 0.015 200);
-  --accent-foreground: oklch(42% 0.1 174);
-
-  --success: oklch(60% 0.15 150);
-  --success-light: oklch(95% 0.05 150);
-  --warning: oklch(72% 0.15 70);
-  --warning-light: oklch(96% 0.05 80);
-  --warning-foreground: oklch(50% 0.12 70);
-  --destructive: oklch(60% 0.2 25);
-  --destructive-light: oklch(95% 0.03 25);
-  --destructive-foreground: oklch(99% 0 0);
-
-  --border: oklch(92% 0.006 170);
-  --star: oklch(78% 0.16 85);
-
-  --shadow-soft: 0 1px 2px oklch(20% 0.02 200 / 0.04), 0 4px 16px -6px oklch(20% 0.02 200 / 0.06);
-  --shadow-lift: 0 12px 32px -12px oklch(42% 0.1 174 / 0.25);
+  --background: var(--scr);
+  --foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-dark: #17493a;
+  --primary-light: var(--brand-tint);
+  --primary-foreground: #ffffff;
+  --secondary: var(--card-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--card-2);
+  --muted-foreground: var(--mute);
+  --accent-foreground: var(--brand-fg);
+  --success: var(--brand-2);
+  --success-light: var(--brand-tint);
+  --warning: var(--warn);
+  --warning-light: var(--warn-tint);
+  --warning-foreground: var(--warn);
+  --destructive: var(--bad);
+  --destructive-light: var(--bad-tint);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --star: var(--warn);
+  --shadow-soft: var(--shadow);
+  --shadow-lift: var(--shadow-lg);
 }
 
-/* Dark theme — follows the OS unless the user forced light. */
+/* Dark theme — follows the OS unless the user forced light. Only the raw
+   redesign tokens are restated; the aliases above resolve through them. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --background: oklch(18% 0.015 200);
-    --foreground: oklch(95% 0.01 170);
-    --card: oklch(23% 0.015 200);
-    --primary-light: oklch(30% 0.05 172);
-    --secondary: oklch(28% 0.015 200);
-    --secondary-foreground: oklch(92% 0.01 170);
-    --muted: oklch(28% 0.015 200);
-    --muted-foreground: oklch(70% 0.015 190);
-    --accent-foreground: oklch(85% 0.08 170);
-    --border: oklch(32% 0.015 200);
-    --success-light: oklch(30% 0.06 150);
-    --warning-light: oklch(32% 0.06 80);
-    --warning-foreground: oklch(85% 0.12 80);
-    --destructive-light: oklch(30% 0.06 25);
+    color-scheme: dark;
+    --ground: #0a1210;
+    --scr: #101a16;
+    --card: #182521;
+    --card-2: #1f2e28;
+    --line: #283a33;
+    --ink: #e9f1ec;
+    --ink-2: #b6c4bd;
+    --mute: #8a9a92;
+    --brand: #1e6650;
+    --brand-fg: #4ccf9e;
+    --brand-2: #3cc392;
+    --brand-tint: #1a3429;
+    --hero-a: #174d3c;
+    --hero-b: #1f7a5c;
+    --act: #f2832f;
+    --act-tint: #3c2412;
+    --warn: #e8b64c;
+    --warn-tint: #3a2e12;
+    --bad: #f06b62;
+    --bad-tint: #3f1e1b;
+    --navbg: #1c2924;
+    --navpill: #eef5f1;
+    --navfg: #14201b;
+    --map-base: #17231e;
+    --map-road: #2a3a33;
+    --map-block: #3b3426;
+    --map-park: #1d3429;
+    --map-bldg: #20302a;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.5);
+    --primary-dark: #164c3b;
   }
 }
 
 /* …and the same set again for an explicit choice, so the toggle wins both ways. */
 :root[data-theme="dark"] {
-  --background: oklch(18% 0.015 200);
-  --foreground: oklch(95% 0.01 170);
-  --card: oklch(23% 0.015 200);
-  --primary-light: oklch(30% 0.05 172);
-  --secondary: oklch(28% 0.015 200);
-  --secondary-foreground: oklch(92% 0.01 170);
-  --muted: oklch(28% 0.015 200);
-  --muted-foreground: oklch(70% 0.015 190);
-  --accent-foreground: oklch(85% 0.08 170);
-  --border: oklch(32% 0.015 200);
-  --success-light: oklch(30% 0.06 150);
-  --warning-light: oklch(32% 0.06 80);
-  --warning-foreground: oklch(85% 0.12 80);
-  --destructive-light: oklch(30% 0.06 25);
+  color-scheme: dark;
+  --ground: #0a1210;
+  --scr: #101a16;
+  --card: #182521;
+  --card-2: #1f2e28;
+  --line: #283a33;
+  --ink: #e9f1ec;
+  --ink-2: #b6c4bd;
+  --mute: #8a9a92;
+  --brand: #1e6650;
+  --brand-fg: #4ccf9e;
+  --brand-2: #3cc392;
+  --brand-tint: #1a3429;
+  --hero-a: #174d3c;
+  --hero-b: #1f7a5c;
+  --act: #f2832f;
+  --act-tint: #3c2412;
+  --warn: #e8b64c;
+  --warn-tint: #3a2e12;
+  --bad: #f06b62;
+  --bad-tint: #3f1e1b;
+  --navbg: #1c2924;
+  --navpill: #eef5f1;
+  --navfg: #14201b;
+  --map-base: #17231e;
+  --map-road: #2a3a33;
+  --map-block: #3b3426;
+  --map-park: #1d3429;
+  --map-bldg: #20302a;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 30px 60px rgba(0, 0, 0, 0.5);
+  --primary-dark: #164c3b;
 }
 
 /* ============================================================
@@ -82,17 +159,27 @@
    (bg-card, text-muted-foreground, border-border, …)
    ============================================================ */
 @theme inline {
-  --font-sans: var(--font-jakarta);
+  --font-sans: var(--f-body);
+  --font-display: var(--f-display);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-ground: var(--ground);
   --color-border: var(--border);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
 
   --color-primary: var(--primary);
   --color-primary-dark: var(--primary-dark);
   --color-primary-light: var(--primary-light);
   --color-primary-foreground: var(--primary-foreground);
+
+  /* Saffron — the one action colour per screen. */
+  --color-action: var(--act);
+  --color-action-tint: var(--act-tint);
 
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -110,27 +197,9 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-star: var(--star);
 
-  /* The `brand-*` ramp predates this redesign and is referenced across the app.
-     It now resolves to the teal scale so every call site stays on-palette. */
-  --color-brand-50: oklch(97.5% 0.015 170);
-  --color-brand-100: oklch(95% 0.035 170);
-  --color-brand-200: oklch(90% 0.055 171);
-  --color-brand-300: oklch(82% 0.08 171);
-  --color-brand-400: oklch(68% 0.105 172);
-  --color-brand-500: oklch(58% 0.118 172);
-  --color-brand-600: oklch(52% 0.12 172);
-  --color-brand-700: oklch(42% 0.1 174);
-  --color-brand-800: oklch(34% 0.08 176);
-  --color-brand-900: oklch(27% 0.06 178);
-
-  --color-accent-400: oklch(58% 0.118 172);
-  --color-accent-500: oklch(52% 0.12 172);
-  --color-accent-600: oklch(42% 0.1 174);
-
   --shadow-soft: var(--shadow-soft);
   --shadow-lift: var(--shadow-lift);
 }
-
 /* ============================================================
    Base
    ============================================================ */
@@ -158,20 +227,44 @@ body {
 }
 
 /* ============================================================
-   Components — ported from the prototype's stylesheet.
-   Layout/spacing helpers are deliberately NOT ported; Tailwind
-   utilities cover those and `.grid`/`.container` would collide.
+   Phone lane / web lane
+
+   The redesign is a phone design and owns everything below `md` (768px) —
+   the same breakpoint where the web layout's sidebar appears. Pages that
+   prerender static content render both lanes and let these rules pick one
+   (see components/LaneSplit.tsx); pages that fetch mount just one
+   (components/Lanes.tsx).
+   ============================================================ */
+@media (max-width: 767.98px) {
+  .lane-web {
+    display: none !important;
+  }
+}
+@media (min-width: 768px) {
+  .lane-phone {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   Components — the pre-redesign component layer, still used by the
+   provider and admin screens (AppShell / AdminShell).
+
+   Scoped under `.legacy-ui` (stamped on AppShell) because several of
+   these class names — .opt, .hero, .pill, .chip, .live — are also the
+   redesign's, and an unscoped rule here would leak properties the
+   `.kg` rules don't happen to restate. The two systems never meet.
    ============================================================ */
 
 /* --- surfaces --- */
-.surface {
+.legacy-ui .surface {
   background: var(--card);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-soft);
   border-radius: 1.25rem;
 }
 
-.hero {
+.legacy-ui .hero {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: var(--primary-foreground);
   border-radius: 1.5rem;
@@ -179,7 +272,7 @@ body {
   position: relative;
   overflow: hidden;
 }
-.hero::after {
+.legacy-ui .hero::after {
   content: "";
   position: absolute;
   right: -3rem;
@@ -189,33 +282,11 @@ body {
   border-radius: 50%;
   background: oklch(100% 0 0 / 0.08);
 }
-.hero-search {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  background: var(--card);
-  color: var(--foreground);
-  border-radius: 0.9rem;
-  padding: 0 1rem;
-  margin-top: 1.25rem;
-  position: relative;
-  z-index: 1;
-}
-.hero-search input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.9rem 0;
-  background: none;
-  border: 0;
-  outline: 0;
-  color: inherit;
-  font: inherit;
-}
 
-.stat {
+.legacy-ui .stat {
   padding: 1.1rem;
 }
-.stat .v {
+.legacy-ui .stat .v {
   font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -223,9 +294,9 @@ body {
 }
 
 /* --- buttons --- */
-.btn-primary,
-.btn-ghost,
-.btn-danger {
+.legacy-ui .btn-primary,
+.legacy-ui .btn-ghost,
+.legacy-ui .btn-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -236,46 +307,46 @@ body {
   transition: background 0.15s, transform 0.15s;
   cursor: pointer;
 }
-.btn-primary:disabled,
-.btn-ghost:disabled,
-.btn-danger:disabled {
+.legacy-ui .btn-primary:disabled,
+.legacy-ui .btn-ghost:disabled,
+.legacy-ui .btn-danger:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.btn-primary {
+.legacy-ui .btn-primary {
   background: var(--primary);
   color: var(--primary-foreground);
 }
-.btn-primary:hover:not(:disabled) {
+.legacy-ui .btn-primary:hover:not(:disabled) {
   background: var(--primary-dark);
 }
-.btn-primary:active:not(:disabled) {
+.legacy-ui .btn-primary:active:not(:disabled) {
   transform: scale(0.98);
 }
-.btn-ghost {
+.legacy-ui .btn-ghost {
   background: var(--secondary);
   color: var(--secondary-foreground);
 }
-.btn-ghost:hover:not(:disabled) {
+.legacy-ui .btn-ghost:hover:not(:disabled) {
   background: var(--border);
 }
-.btn-ghost:active:not(:disabled) {
+.legacy-ui .btn-ghost:active:not(:disabled) {
   transform: scale(0.98);
 }
-.btn-danger {
+.legacy-ui .btn-danger {
   background: var(--destructive-light);
   color: var(--destructive);
 }
-.btn-danger:hover:not(:disabled) {
+.legacy-ui .btn-danger:hover:not(:disabled) {
   background: var(--destructive);
   color: var(--destructive-foreground);
 }
-.btn-sm {
+.legacy-ui .btn-sm {
   padding: 0.5rem 0.9rem;
   font-size: 0.85rem;
   border-radius: 0.7rem;
 }
-.btn-round {
+.legacy-ui .btn-round {
   padding: 0;
   width: 2.75rem;
   height: 2.75rem;
@@ -283,13 +354,13 @@ body {
 }
 
 /* --- inputs --- */
-.lbl {
+.legacy-ui .lbl {
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--foreground);
 }
-.field {
+.legacy-ui .field {
   display: flex;
   align-items: center;
   border: 1px solid var(--border);
@@ -298,12 +369,12 @@ body {
   padding: 0 1rem;
   transition: border-color 0.15s;
 }
-.field:focus-within {
+.legacy-ui .field:focus-within {
   border-color: var(--primary);
 }
-.field input,
-.field select,
-.field textarea {
+.legacy-ui .field input,
+.legacy-ui .field select,
+.legacy-ui .field textarea {
   flex: 1;
   min-width: 0;
   width: 100%;
@@ -314,28 +385,28 @@ body {
   border: 0;
   outline: 0;
 }
-.field select {
+.legacy-ui .field select {
   appearance: none;
   -webkit-appearance: none;
 }
-.field textarea {
+.legacy-ui .field textarea {
   resize: vertical;
   min-height: 5.5rem;
 }
-.field .pre {
+.legacy-ui .field .pre {
   font-weight: 500;
   color: var(--muted-foreground);
 }
-.field.err {
+.legacy-ui .field.err {
   border-color: var(--destructive);
 }
-.errtxt {
+.legacy-ui .errtxt {
   color: var(--destructive);
   font-size: 0.8rem;
 }
 
 /* --- chips, pills --- */
-.chip {
+.legacy-ui .chip {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -349,17 +420,17 @@ body {
   cursor: pointer;
   transition: all 0.15s;
 }
-.chip:hover {
+.legacy-ui .chip:hover {
   border-color: var(--primary);
 }
-.chip.on {
+.legacy-ui .chip.on {
   background: var(--primary-light);
   border-color: var(--primary);
   color: var(--accent-foreground);
   font-weight: 600;
 }
 
-.pill {
+.legacy-ui .pill {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -368,29 +439,29 @@ body {
   font-size: 0.72rem;
   font-weight: 700;
 }
-.pill.ok {
+.legacy-ui .pill.ok {
   background: var(--success-light);
   color: var(--success);
 }
-.pill.warn {
+.legacy-ui .pill.warn {
   background: var(--warning-light);
   color: var(--warning-foreground);
 }
-.pill.bad {
+.legacy-ui .pill.bad {
   background: var(--destructive-light);
   color: var(--destructive);
 }
-.pill.info {
+.legacy-ui .pill.info {
   background: var(--primary-light);
   color: var(--accent-foreground);
 }
-.pill.gray {
+.legacy-ui .pill.gray {
   background: var(--secondary);
   color: var(--muted-foreground);
 }
 
 /* --- selectable option cards --- */
-.opt {
+.legacy-ui .opt {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -406,17 +477,17 @@ body {
   transition: all 0.15s;
   box-shadow: var(--shadow-soft);
 }
-.opt:hover {
+.legacy-ui .opt:hover {
   border-color: var(--primary);
   transform: translateY(-2px);
   box-shadow: var(--shadow-lift);
 }
-.opt.on {
+.legacy-ui .opt.on {
   border-color: var(--primary);
   background: var(--primary-light);
 }
 
-.emoji {
+.legacy-ui .emoji {
   display: grid;
   place-items: center;
   width: 2.75rem;
@@ -426,13 +497,13 @@ body {
   font-size: 1.4rem;
   flex-shrink: 0;
 }
-.emoji.lg {
+.legacy-ui .emoji.lg {
   width: 4rem;
   height: 4rem;
   border-radius: 1.1rem;
 }
 
-.avatar {
+.legacy-ui .avatar {
   display: grid;
   place-items: center;
   width: 2.75rem;
@@ -443,55 +514,55 @@ body {
   font-weight: 700;
   flex-shrink: 0;
 }
-.avatar.sm {
+.legacy-ui .avatar.sm {
   width: 2.2rem;
   height: 2.2rem;
   font-size: 0.8rem;
 }
-.avatar.lg {
+.legacy-ui .avatar.lg {
   width: 3.5rem;
   height: 3.5rem;
   font-size: 1.2rem;
 }
 
 /* --- misc structure --- */
-.progress {
+.legacy-ui .progress {
   display: flex;
   gap: 0.375rem;
 }
-.progress span {
+.legacy-ui .progress span {
   height: 0.375rem;
   flex: 1;
   border-radius: 999px;
   background: var(--border);
   transition: background 0.2s;
 }
-.progress span.on {
+.legacy-ui .progress span.on {
   background: var(--primary);
 }
 
-.sep {
+.legacy-ui .sep {
   height: 1px;
   background: var(--border);
   margin: 1rem 0;
 }
 
-.kv {
+.legacy-ui .kv {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   font-size: 0.9rem;
   padding: 0.35rem 0;
 }
-.kv > :first-child {
+.legacy-ui .kv > :first-child {
   color: var(--muted-foreground);
 }
-.kv > :last-child {
+.legacy-ui .kv > :last-child {
   font-weight: 600;
   text-align: right;
 }
 
-.toggle {
+.legacy-ui .toggle {
   width: 3rem;
   height: 1.75rem;
   border-radius: 999px;
@@ -501,7 +572,7 @@ body {
   cursor: pointer;
   transition: background 0.2s;
 }
-.toggle::after {
+.legacy-ui .toggle::after {
   content: "";
   position: absolute;
   top: 0.2rem;
@@ -513,22 +584,22 @@ body {
   transition: transform 0.2s;
   box-shadow: 0 1px 3px #0003;
 }
-.toggle.on {
+.legacy-ui .toggle.on {
   background: var(--primary);
 }
-.toggle.on::after {
+.legacy-ui .toggle.on::after {
   transform: translateX(1.25rem);
 }
 
-.tabs {
+.legacy-ui .tabs {
   display: inline-flex;
   gap: 0.25rem;
   background: var(--secondary);
   padding: 0.25rem;
   border-radius: 0.9rem;
 }
-.tabs button,
-.tabs a {
+.legacy-ui .tabs button,
+.legacy-ui .tabs a {
   padding: 0.45rem 0.9rem;
   border-radius: 0.7rem;
   font-size: 0.85rem;
@@ -537,20 +608,20 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
-.tabs button.on,
-.tabs a.on {
+.legacy-ui .tabs button.on,
+.legacy-ui .tabs a.on {
   background: var(--card);
   color: var(--foreground);
   box-shadow: var(--shadow-soft);
 }
 
 /* --- tables (scoped: bare element selectors would leak into Maps' DOM) --- */
-.data-table {
+.legacy-ui .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
-.data-table th {
+.legacy-ui .data-table th {
   text-align: left;
   font-weight: 600;
   color: var(--muted-foreground);
@@ -559,72 +630,20 @@ body {
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
-.data-table td {
+.legacy-ui .data-table td {
   padding: 0.75rem;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
-.data-table tr:last-child td {
+.legacy-ui .data-table tr:last-child td {
   border-bottom: 0;
 }
-.scroll-x {
+.legacy-ui .scroll-x {
   overflow-x: auto;
 }
 
-/* --- status timeline --- */
-.timeline {
-  position: relative;
-}
-.tl {
-  display: flex;
-  gap: 0.9rem;
-  position: relative;
-  padding-bottom: 1.25rem;
-}
-.tl:last-child {
-  padding-bottom: 0;
-}
-.tl::before {
-  content: "";
-  position: absolute;
-  left: 0.8rem;
-  top: 1.7rem;
-  bottom: -0.1rem;
-  width: 2px;
-  background: var(--border);
-}
-.tl:last-child::before {
-  display: none;
-}
-.tl.done::before {
-  background: var(--primary);
-}
-.tl .dot {
-  width: 1.65rem;
-  height: 1.65rem;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--secondary);
-  color: var(--muted-foreground);
-  flex-shrink: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
-  position: relative;
-  z-index: 1;
-}
-.tl.done .dot {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-.tl.now .dot {
-  background: var(--primary-light);
-  color: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-light), 0 0 0 6px var(--primary);
-}
-
 /* --- map frame --- */
-.mapbox {
+.legacy-ui .mapbox {
   position: relative;
   height: 15rem;
   border-radius: 1.1rem;
@@ -633,13 +652,13 @@ body {
 }
 
 /* --- weekly bars --- */
-.bars {
+.legacy-ui .bars {
   display: flex;
   align-items: flex-end;
   gap: 0.6rem;
   height: 11rem;
 }
-.bars > div {
+.legacy-ui .bars > div {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -648,7 +667,7 @@ body {
   gap: 0.35rem;
   height: 100%;
 }
-.bars i {
+.legacy-ui .bars i {
   display: block;
   width: 100%;
   border-radius: 0.5rem 0.5rem 0.2rem 0.2rem;
@@ -656,86 +675,30 @@ body {
   transition: height 0.5s;
   min-height: 4px;
 }
-.bars > div.cur i {
+.legacy-ui .bars > div.cur i {
   background: var(--primary);
 }
-.bars small {
+.legacy-ui .bars small {
   font-size: 0.7rem;
   color: var(--muted-foreground);
 }
 
 /* --- empty state --- */
-.empty {
+.legacy-ui .empty {
   text-align: center;
   padding: 2.5rem 1rem;
 }
-.empty .big {
+.legacy-ui .empty .big {
   font-size: 2.5rem;
 }
 
-/* --- modal --- */
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: oklch(20% 0.02 200 / 0.5);
-  backdrop-filter: blur(3px);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: kg-fade 0.15s;
-}
-@media (min-width: 640px) {
-  .overlay {
-    align-items: center;
-  }
-}
-.modal {
-  background: var(--card);
-  color: var(--foreground);
-  width: 100%;
-  max-width: 28rem;
-  max-height: 92vh;
-  overflow-y: auto;
-  border-radius: 1.5rem 1.5rem 0 0;
-  padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
-  animation: kg-up 0.22s ease;
-  box-shadow: 0 24px 60px -20px #0006;
-}
-@media (min-width: 640px) {
-  .modal {
-    border-radius: 1.5rem;
-  }
-}
-.modal.lg {
-  max-width: 34rem;
-}
-.mhead {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-.mhead > button {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  background: var(--secondary);
-  color: inherit;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
 /* --- code inputs --- */
-.otp {
+.legacy-ui .otp {
   display: flex;
   gap: 0.6rem;
   justify-content: center;
 }
-.otp input {
+.legacy-ui .otp input {
   width: 3.4rem;
   height: 3.8rem;
   text-align: center;
@@ -747,11 +710,11 @@ body {
   color: inherit;
   outline: 0;
 }
-.otp input:focus {
+.legacy-ui .otp input:focus {
   border-color: var(--primary);
 }
 
-.success {
+.legacy-ui .success {
   width: 4.5rem;
   height: 4.5rem;
   border-radius: 50%;
@@ -794,26 +757,26 @@ body {
 }
 
 /* --- chat --- */
-.chat {
+.legacy-ui .chat {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   overflow-y: auto;
   padding: 0.25rem;
 }
-.msg {
+.legacy-ui .msg {
   max-width: 80%;
   padding: 0.55rem 0.85rem;
   border-radius: 1rem;
   font-size: 0.875rem;
 }
-.msg.me {
+.legacy-ui .msg.me {
   align-self: flex-end;
   background: var(--primary);
   color: var(--primary-foreground);
   border-bottom-right-radius: 0.3rem;
 }
-.msg.them {
+.legacy-ui .msg.them {
   align-self: flex-start;
   background: var(--secondary);
   color: var(--secondary-foreground);
@@ -821,27 +784,158 @@ body {
 }
 
 /* --- ratings --- */
-.star {
+.legacy-ui .star {
   color: var(--star);
 }
-.rate button {
+.legacy-ui .rate button {
   font-size: 2rem;
   color: var(--border);
   cursor: pointer;
   transition: color 0.1s;
 }
-.rate button.on {
+.legacy-ui .rate button.on {
   color: var(--star);
 }
 
 /* --- live indicator --- */
-.live {
+.legacy-ui .live {
   display: inline-block;
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;
   background: var(--success);
   animation: kg-pulse 1.4s infinite;
+}
+
+/* --- restored with their components: HeroSearch, JobTimeline, Modal.
+       (An earlier pass deleted these as dead; the desktop lane uses them.) --- */
+.legacy-ui .hero-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: 0.9rem;
+  padding: 0 1rem;
+  margin-top: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+.legacy-ui .hero-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.9rem 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  font: inherit;
+}
+
+.legacy-ui .timeline {
+  position: relative;
+}
+.legacy-ui .tl {
+  display: flex;
+  gap: 0.9rem;
+  position: relative;
+  padding-bottom: 1.25rem;
+}
+.legacy-ui .tl:last-child {
+  padding-bottom: 0;
+}
+.legacy-ui .tl::before {
+  content: "";
+  position: absolute;
+  left: 0.8rem;
+  top: 1.7rem;
+  bottom: -0.1rem;
+  width: 2px;
+  background: var(--border);
+}
+.legacy-ui .tl:last-child::before {
+  display: none;
+}
+.legacy-ui .tl.done::before {
+  background: var(--primary);
+}
+.legacy-ui .tl .dot {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  position: relative;
+  z-index: 1;
+}
+.legacy-ui .tl.done .dot {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.legacy-ui .tl.now .dot {
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow:
+    0 0 0 4px var(--primary-light),
+    0 0 0 6px var(--primary);
+}
+
+.legacy-ui .overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(20, 32, 27, 0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: kg-fade 0.15s;
+}
+.legacy-ui .modal {
+  background: var(--card);
+  color: var(--foreground);
+  width: 100%;
+  max-width: 28rem;
+  max-height: 92vh;
+  overflow-y: auto;
+  border-radius: 1.5rem 1.5rem 0 0;
+  padding: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  animation: kg-up 0.22s ease;
+  box-shadow: 0 24px 60px -20px #0006;
+}
+@media (min-width: 640px) {
+  .legacy-ui .overlay {
+    align-items: center;
+  }
+  .legacy-ui .modal {
+    border-radius: 1.5rem;
+  }
+}
+.legacy-ui .modal.lg {
+  max-width: 34rem;
+}
+.legacy-ui .mhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.legacy-ui .mhead > button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--secondary);
+  color: inherit;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
 /* ============================================================

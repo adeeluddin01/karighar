@@ -3,8 +3,13 @@ import { BottomNav } from "@/components/BottomNav";
 import { Sidebar } from "@/components/Sidebar";
 import { clsx } from "@/lib/clsx";
 
-// Page frame, matching the prototype's `shell()`: sticky sidebar + main column on
-// md+, slim top bar + fixed bottom tab bar below it.
+// Page frame for the provider and admin areas: sticky sidebar + main column on
+// md+, slim top bar + floating tab bar below it.
+//
+// The customer screens use the redesigned `.kg` surface instead (see
+// components/kg/Screen.tsx). `legacy-ui` scopes the pre-redesign component
+// layer in globals.css to this subtree so its class names — .opt, .hero,
+// .pill, .chip — can't reach the redesigned screens.
 export function AppShell({
   children,
   width = "wide",
@@ -13,7 +18,7 @@ export function AppShell({
   width?: "wide" | "narrow" | "full";
 }) {
   return (
-    <>
+    <div className="legacy-ui">
       <AppHeader />
       <div className="mx-auto flex w-full gap-5 md:p-5">
         <Sidebar />
@@ -30,6 +35,6 @@ export function AppShell({
         </main>
       </div>
       <BottomNav />
-    </>
+    </div>
   );
 }
