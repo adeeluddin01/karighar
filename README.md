@@ -15,7 +15,16 @@ Open http://localhost:3000 — the landing page runs without any backend yet.
 ## Connect Supabase (needed for auth, booking, providers)
 
 1. Create a free project at https://supabase.com.
-2. In the project's **SQL Editor**, run these files in order:
+2. In the project's **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+
+   **That's the whole thing** — tables, triggers, security policies, the
+   verification storage bucket, realtime, and the seeded Karachi catalog.
+   Every patch below is already folded into it, so a new project needs
+   nothing else.
+
+<details>
+<summary>Upgrading an <strong>existing</strong> database? Run the patches you've missed, in order.</summary>
+
    - [`supabase/schema.sql`](supabase/schema.sql) — tables, security policies, seeded Karachi catalog.
    - [`supabase/patch_v2.sql`](supabase/patch_v2.sql) — provider job access, rating trigger, verification storage bucket.
    - [`supabase/patch_v3_realtime.sql`](supabase/patch_v3_realtime.sql) — **required** for live chat, live location tracking, and live status updates.
@@ -28,6 +37,8 @@ Open http://localhost:3000 — the landing page runs without any backend yet.
    - [`supabase/patch_v10_fix_notify_cast.sql`](supabase/patch_v10_fix_notify_cast.sql) — **required (critical)**: fixes an enum-cast crash that blocked all status updates past "assigned".
    - [`supabase/patch_v11_lock_provider_pii.sql`](supabase/patch_v11_lock_provider_pii.sql) — **required (security)**: `providers` was world-readable, exposing CNIC numbers and document paths to anyone with the anon key. Locks the table to owner/admin and serves public pro data from the `public_provider_profiles` view instead. Re-creates that view, so it also covers a project where patch_v7 was skipped.
      *(Patches are idempotent and safe to re-run.)*
+
+</details>
 
 See [`../LAUNCH_READINESS.md`](../LAUNCH_READINESS.md) for the full architect audit and
 [`DEPLOYMENT.md`](DEPLOYMENT.md) for the production (Vercel) checklist.

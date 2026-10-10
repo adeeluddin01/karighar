@@ -5,8 +5,12 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
 ## 1. Supabase (production project)
 
 1. Create a **new** Supabase project for production (keep dev separate).
-2. In **SQL Editor**, run in order:
-   1. `supabase/schema.sql`
+2. In **SQL Editor**, run `supabase/schema.sql` — and nothing else. It is the
+   complete schema; every patch below is already folded in.
+
+   Only an **existing** database needs the patches, in order, from wherever it
+   left off:
+   1. `supabase/schema.sql`   ← fresh projects: this file alone is enough
    2. `supabase/patch_v2.sql`
    3. `supabase/patch_v3_realtime.sql`
    4. `supabase/patch_v4_business_logic.sql`   ← integrity, accounting, notifications

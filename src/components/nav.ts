@@ -104,6 +104,36 @@ export const ROLE_MAP: Record<Role, string> = {
   admin: "/admin/jobs",
 };
 
+/**
+ * The "work with us" entry point, which changes with how far along the
+ * provider application is. Shown on both Profile and Settings, so it lives
+ * here rather than being written out twice. Null when there's nothing to
+ * offer (admins).
+ */
+export function proEntry(role?: string | null, providerStatus?: string | null) {
+  // An admin is never going to apply; don't offer it to them.
+  if (role === "admin") return null;
+  if (role === "provider" && providerStatus === "approved") {
+    return {
+      href: "/pro/dashboard",
+      label: "Pro dashboard",
+      hint: "Your jobs, earnings and commission",
+    };
+  }
+  if (role === "provider") {
+    return {
+      href: "/pro/onboarding",
+      label: "Finish pro verification",
+      hint: `Application ${providerStatus ?? "in progress"}`,
+    };
+  }
+  return {
+    href: "/pro",
+    label: "Become a pro",
+    hint: "Get matched to jobs near you and keep 80–85% of each one",
+  };
+}
+
 export const ROLE_ROUTES = { home: ROLE_HOME, map: ROLE_MAP } as const;
 export type RoleRouteKey = keyof typeof ROLE_ROUTES;
 

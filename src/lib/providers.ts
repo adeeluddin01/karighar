@@ -90,6 +90,9 @@ export async function fetchPublicPros(
   // while `providers` is still world-readable — patch_v11 closes that, because
   // the table also holds CNIC numbers. Both changes are in that one patch, so
   // a project that applies v11 gets the view and never lands here.
+  //
+  // It can't match the view exactly: the view also requires the profile's
+  // role to be 'provider', and `profiles` isn't readable from here.
   let f = supabase
     .from("providers")
     .select("profile_id,bio,rating_avg,jobs_completed,service_areas")

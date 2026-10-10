@@ -9,6 +9,7 @@ import { useToast } from "@/components/Toast";
 import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Pill, Skel, Well } from "@/components/kg/parts";
+import { proEntry } from "@/components/nav";
 import { useTheme, type Theme } from "@/lib/theme";
 import { BRAND } from "@/lib/config";
 import { clsx } from "@/lib/clsx";
@@ -42,7 +43,7 @@ const THEMES: { key: Theme; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { user, loading } = useRequireAuth("/settings");
+  const { user, profile, providerStatus, loading } = useRequireAuth("/settings");
   const router = useRouter();
   const toast = useToast();
   const [notif, setNotif] = useLocalToggle("pref_notifications", true);
@@ -68,6 +69,8 @@ export default function SettingsScreen() {
     router.push("/");
     router.refresh();
   }
+
+  const pro = proEntry(profile?.role, providerStatus);
 
   if (loading || !user) {
     return (
@@ -133,6 +136,22 @@ export default function SettingsScreen() {
             />
           </label>
         </div>
+
+        {pro && (
+          <>
+            <h3 className="lbl">Work with us</h3>
+            <div className="menu card">
+              <Link href={pro.href}>
+                <Well icon="wrench" size="sm" />
+                <div>
+                  <b>{pro.label}</b>
+                  <small>{pro.hint}</small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </Link>
+            </div>
+          </>
+        )}
 
         <h3 className="lbl">Account</h3>
         <div className="menu card">

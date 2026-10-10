@@ -31,6 +31,13 @@
 -- ============================================================
 
 -- ---------- 1. the public, safe projection ----------
+-- Both halves of the condition matter. patch_v7's version checked only
+-- `status = 'approved'`, so ANY account with an approved `providers` row was
+-- listed as a bookable pro — including one whose profile is still a customer
+-- (e.g. a row inserted by hand, or an onboarding that never flipped the role).
+-- `role = 'provider' AND status = 'approved'` is exactly what roleOf() in
+-- src/components/nav.ts treats as a provider, so the view and the app now
+-- agree on who is one.
 create or replace view public_provider_profiles as
   select prov.profile_id as id,
          pr.full_name,
@@ -41,7 +48,8 @@ create or replace view public_provider_profiles as
          prov.service_areas
   from providers prov
   join profiles pr on pr.id = prov.profile_id
-  where prov.status = 'approved';
+  where prov.status = 'approved'
+    and pr.role = 'provider';
 
 -- Owner's rights (the default) are what let the view read past the RLS below.
 -- Stated explicitly so a future default flip doesn't silently break it.
@@ -71,3 +79,22 @@ create policy prov_self on providers for all
 --   select cnic_no from providers;
 -- while this still returns the approved pros:
 --   select * from public_provider_profiles;
+
+-- ---------- 4. find accounts the stricter view now excludes ----------
+-- A `providers` row whose profile isn't role='provider' will no longer appear.
+-- That's usually a data mistake rather than a missing pro, so list them:
+--
+--   select p.id, p.full_name, p.role, pv.status
+--   from providers pv join profiles p on p.id = pv.profile_id
+--   where pv.status = 'approved' and p.role <> 'provider';
+--
+-- Then pick the repair that matches what you meant. Either promote that
+-- account (it really is the pro):
+--
+--   update profiles set role = 'provider' where id = '<profile-id>';
+--
+-- or move the providers row to the account that should own it:
+--
+--   update providers set profile_id = '<real-pro-id>' where profile_id = '<wrong-id>';
+--
+-- Left as comments on purpose — only you know which was intended.

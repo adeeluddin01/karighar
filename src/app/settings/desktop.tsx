@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, Chip, PageHeader, Pill, Spinner, Toggle } from "@/components/ui";
+import { Icon } from "@/components/Icon";
+import { proEntry } from "@/components/nav";
 import { BRAND } from "@/lib/config";
 
 const THEME_KEY = "karighar-theme";
@@ -67,7 +69,7 @@ function useTheme() {
 }
 
 export default function SettingsPage() {
-  const { user, loading } = useRequireAuth("/settings");
+  const { user, profile, providerStatus, loading } = useRequireAuth("/settings");
   const router = useRouter();
   const [notif, toggleNotif] = useLocalToggle("pref_notifications", true);
   const [urdu, toggleUrdu] = useLocalToggle("pref_urdu", false);
@@ -87,6 +89,8 @@ export default function SettingsPage() {
     router.push("/");
     router.refresh();
   }
+
+  const pro = proEntry(profile?.role, providerStatus);
 
   if (loading || !user) {
     return (
@@ -135,6 +139,17 @@ export default function SettingsPage() {
           </Pill>
         )}
       </Card>
+
+      {pro && (
+        <Card className="mt-4">
+          <h2 className="text-base font-bold">{pro.label}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{pro.hint}</p>
+          <Link href={pro.href} className="btn-ghost btn-sm mt-3 inline-flex">
+            {pro.label}
+            <Icon name="chevron" size="sm" />
+          </Link>
+        </Card>
+      )}
 
       <Card className="mt-4">
         <h2 className="text-base font-bold">About &amp; legal</h2>

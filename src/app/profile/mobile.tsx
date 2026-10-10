@@ -9,13 +9,14 @@ import { useToast } from "@/components/Toast";
 import { Screen, Scroll, Tabs } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Ava, Pill, Skel, Well } from "@/components/kg/parts";
+import { proEntry } from "@/components/nav";
 import { useDarkMode } from "@/lib/theme";
 import { areaOf, joinAddress, splitAddress } from "@/lib/area";
 import { KARACHI_AREAS, type Provider } from "@/lib/types";
 import { BRAND } from "@/lib/config";
 
 export default function ProfileScreen() {
-  const { user, profile, loading } = useRequireAuth("/profile");
+  const { user, profile, providerStatus, loading } = useRequireAuth("/profile");
   const router = useRouter();
   const toast = useToast();
 
@@ -90,13 +91,9 @@ export default function ProfileScreen() {
   const area = areaOf(address);
 
   // Where the "for technicians" card sends you depends on how far along the
-  // application is.
-  const proLink =
-    provider?.status === "approved"
-      ? "/pro/dashboard"
-      : provider
-        ? "/pro/onboarding"
-        : "/pro";
+  // application is. Shared with Settings so the two can't drift; the card
+  // keeps its own, more inviting copy. Null for an admin, who gets no card.
+  const pro = proEntry(profile?.role, providerStatus);
 
   return (
     <Screen>
@@ -152,20 +149,26 @@ export default function ProfileScreen() {
           </div>
         </div>
 
-        <Link className="promo" href={proLink}>
-          <div>
-            <span className="eyebrow">For technicians</span>
-            <b>{provider?.status === "approved" ? "Open your pro dashboard" : `Earn with ${BRAND.name}`}</b>
-            <p>
-              {provider?.status === "approved"
-                ? "Jobs near you, your earnings and what you owe in commission."
-                : "Get matched to jobs near you and keep 80–85% of every job. CNIC and a selfie to verify, approval in 1–2 days."}
-            </p>
-          </div>
-          <span className="ic">
-            <KIcon name="arrow" />
-          </span>
-        </Link>
+        {pro && (
+          <Link className="promo" href={pro.href}>
+            <div>
+              <span className="eyebrow">For technicians</span>
+              <b>
+                {provider?.status === "approved"
+                  ? "Open your pro dashboard"
+                  : `Earn with ${BRAND.name}`}
+              </b>
+              <p>
+                {provider?.status === "approved"
+                  ? "Jobs near you, your earnings and what you owe in commission."
+                  : "Get matched to jobs near you and keep 80–85% of every job. CNIC and a selfie to verify, approval in 1–2 days."}
+              </p>
+            </div>
+            <span className="ic">
+              <KIcon name="arrow" />
+            </span>
+          </Link>
+        )}
 
         <h3 className="lbl">Account</h3>
         <div className="menu card">
