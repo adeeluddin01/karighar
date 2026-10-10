@@ -82,6 +82,31 @@ export const PHONE_NAV: Record<Role, PhoneNavLink[]> = {
   ],
 };
 
+/* ============================================================
+   Role landing pages
+   ============================================================ */
+
+// `/` and `/map` are the *customer* Home and Map. A provider or admin who
+// lands on either — from sign-in, a bookmark, or tapping the logo — belongs on
+// their own equivalent instead. Both destinations are already in NAV above, so
+// these invent no new routes.
+export const ROLE_HOME: Record<Role, string> = {
+  guest: "/",
+  customer: "/",
+  provider: "/pro/dashboard",
+  admin: "/admin",
+};
+
+export const ROLE_MAP: Record<Role, string> = {
+  guest: "/map",
+  customer: "/map",
+  provider: "/pro/map",
+  admin: "/admin/jobs",
+};
+
+export const ROLE_ROUTES = { home: ROLE_HOME, map: ROLE_MAP } as const;
+export type RoleRouteKey = keyof typeof ROLE_ROUTES;
+
 // A provider only gets the provider nav once their verification is
 // `approved`. Someone who has applied but is still pending (or was rejected
 // / suspended) sees the default customer view — their verification status

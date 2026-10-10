@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { resolveSignInDest } from "@/lib/roleHome";
 import { AppShell } from "@/components/AppShell";
 import { Spinner } from "@/components/ui";
 
@@ -21,9 +22,12 @@ export default function AuthCallbackPage() {
 
     (async () => {
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error) {
-          router.replace(next);
+          // Same role-aware landing as the password form.
+          router.replace(
+            data.user ? await resolveSignInDest(supabase, data.user.id, next) : next
+          );
           return;
         }
       }

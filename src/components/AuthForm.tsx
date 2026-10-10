@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { resolveSignInDest } from "@/lib/roleHome";
 import { normalizePkPhone } from "@/lib/validate";
 import { Button, Card, Field, Input } from "@/components/ui";
 
@@ -75,13 +76,14 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
       router.push(asProvider ? "/pro/onboarding" : next);
       router.refresh();
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
         setBusy(false);
         return;
       }
-      router.push(next);
+      // A provider or admin belongs in their own area, not the customer Home.
+      router.push(await resolveSignInDest(supabase, data.user.id, next));
       router.refresh();
     }
   }

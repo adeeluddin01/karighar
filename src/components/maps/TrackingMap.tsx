@@ -69,4 +69,4 @@ export function TrackingMap({ jobId, destination }: { jobId: string; destination
   );
 }
 
-const PRO_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="9" fill="#0f8a7e" stroke="white" stroke-width="3"/></svg>`;
+const PRO_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="9" fill="#139a72" stroke="white" stroke-width="3"/></svg>`;

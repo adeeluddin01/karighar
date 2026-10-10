@@ -46,7 +46,7 @@ export default function ProviderMapPage() {
     <AppShell>
       <PageHeader
         title="Jobs map"
-        subtitle="Teal pins are your active jobs, amber pins are available jobs. Tap a pin to open it."
+        subtitle="Green pins are your active jobs, orange pins are available jobs. Tap a pin to open it."
       />
 
       {!GOOGLE_MAPS_KEY ? (
@@ -63,7 +63,7 @@ export default function ProviderMapPage() {
                   key={j.id}
                   position={{ lat: j.lat!, lng: j.lng! }}
                   title={j.title}
-                  icon={pin("#0f8a7e")}
+                  icon={pin("#139a72")}
                   onClick={() => router.push(`/pro/jobs/view/?id=${j.id}`)}
                 />
               ))}
@@ -72,7 +72,7 @@ export default function ProviderMapPage() {
                   key={j.id}
                   position={{ lat: j.lat!, lng: j.lng! }}
                   title={`${j.title} (available)`}
-                  icon={pin("#f59e0b")}
+                  icon={pin("#ee7118")}
                   onClick={() => router.push(`/pro/dashboard`)}
                 />
               ))}

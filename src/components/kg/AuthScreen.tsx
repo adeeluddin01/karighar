@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { resolveSignInDest } from "@/lib/roleHome";
 import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KAuthForm } from "@/components/kg/AuthForm";
 import { KIcon } from "@/components/kg/icons";
@@ -42,8 +44,16 @@ export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
           mode={mode}
           asProvider={asProvider}
           onGoogleRedirect={() => dest}
-          onDone={() => {
-            router.push(dest);
+          onDone={async () => {
+            // A provider signing in belongs on their dashboard, not the
+            // customer Home — resolve that here so they don't bounce.
+            const supabase = createClient();
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            router.push(
+              asProvider || !user ? dest : await resolveSignInDest(supabase, user.id, dest)
+            );
             router.refresh();
           }}
         />
