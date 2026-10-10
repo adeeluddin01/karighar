@@ -25,6 +25,7 @@ import {
   Textarea,
   formatPKR,
 } from "@/components/ui";
+import { fetchPublicPros } from "@/lib/providers";
 import { JOB_STATUS_LABEL, type Job, type Bid, type Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 
@@ -70,12 +71,14 @@ function BookingDetailContent() {
     }
 
     if (j.provider_id) {
-      const [{ data: prof }, { data: prov }] = await Promise.all([
+      // Ratings come from the public view: `providers` itself is owner/admin
+      // only, because it holds CNIC numbers (patch_v11).
+      const [{ data: prof }, prov] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", j.provider_id).single(),
-        supabase.from("providers").select("rating_avg").eq("profile_id", j.provider_id).single(),
+        fetchPublicPros(supabase, { id: j.provider_id }),
       ]);
       setProviderProfile(prof as Profile | null);
-      setProviderRating(prov ? (prov as { rating_avg: number }).rating_avg : null);
+      setProviderRating(prov.pros[0]?.rating_avg ?? null);
     }
 
     if (j.type === "custom" && j.status === "bidding") {
@@ -90,16 +93,12 @@ function BookingDetailContent() {
       const { data: profs } = proIds.length
         ? await supabase.from("profiles").select("*").in("id", proIds)
         : { data: [] };
-      const { data: provs } = proIds.length
-        ? await supabase.from("providers").select("profile_id,rating_avg").in("profile_id", proIds)
-        : { data: [] };
+      const { pros: rated } = await fetchPublicPros(supabase, { ids: proIds });
       setBids(
         list.map((b) => ({
           ...b,
           pro: (profs as Profile[])?.find((p) => p.id === b.provider_id),
-          rating: (provs as { profile_id: string; rating_avg: number }[])?.find(
-            (p) => p.profile_id === b.provider_id
-          )?.rating_avg,
+          rating: rated.find((p) => p.id === b.provider_id)?.rating_avg,
         }))
       );
     }

@@ -4,20 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/lib/useUser";
 import { Icon } from "@/components/Icon";
-import { BOTTOM_NAV_LIMIT, NAV, isActive, roleOf } from "@/components/nav";
+import { PHONE_NAV, isActive, roleOf } from "@/components/nav";
 import { clsx } from "@/lib/clsx";
 
 // Mobile tab bar for the pro and admin areas (the customer screens have their
 // own <TabBar> inside the `.kg` surface). Same shape as the redesign's: a
 // floating white pill where only the active tab shows its label, in a dark
-// inner pill. Role-aware, and present for guests too so an unauthenticated
-// visitor can still move around on a phone.
+// inner pill.
+//
+// Both bars read the same PHONE_NAV, so the tabs don't change shape when a
+// provider moves between a customer screen and their own area.
 export function BottomNav() {
   const { user, profile, providerStatus, loading } = useUser();
   const pathname = usePathname();
   if (loading) return null;
 
-  const tabs = NAV[roleOf(!!user, profile?.role, providerStatus)].slice(0, BOTTOM_NAV_LIMIT);
+  const tabs = PHONE_NAV[roleOf(!!user, profile?.role, providerStatus)];
 
   return (
     <nav

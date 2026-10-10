@@ -16,6 +16,7 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    8. `supabase/patch_v8_role_escalation.sql`   ← security: block admin self-escalation
    9. `supabase/patch_v9_fix_jobs_rls.sql`   ← CRITICAL: providers can see/accept the open job pool
    10. `supabase/patch_v10_fix_notify_cast.sql`   ← CRITICAL: unblocks status updates past 'assigned'
+   11. `supabase/patch_v11_lock_provider_pii.sql`   ← SECURITY: stops `providers` leaking CNIC numbers to the anon key
 3. **Authentication → URL Configuration:** set **Site URL** to your domain
    (e.g. `https://thekarighar.com`) and add it to **Redirect URLs** plus
    `https://thekarighar.com/auth/callback`.

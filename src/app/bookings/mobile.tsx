@@ -9,6 +9,7 @@ import { KIcon } from "@/components/kg/icons";
 import { EmptyK, Pill, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { STATUS_PILL, isActiveJob, jobRef, whenLabel } from "@/components/kg/job";
+import { fetchPublicPros } from "@/lib/providers";
 import { formatPKR } from "@/lib/money";
 import type { Job, Service, ServiceCategory } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
@@ -52,18 +53,14 @@ export default function BookingsScreen() {
 
       // Pro names and "already rated" flags, in one round-trip each.
       const proIds = [...new Set(list.map((j) => j.provider_id).filter((v): v is string => !!v))];
-      const [{ data: pros }, { data: reviews }] = await Promise.all([
-        proIds.length
-          ? supabase.from("public_provider_profiles").select("id,full_name").in("id", proIds)
-          : Promise.resolve({ data: [] }),
+      const [pros, { data: reviews }] = await Promise.all([
+        fetchPublicPros(supabase, { ids: proIds }),
         supabase
           .from("reviews")
           .select("job_id")
           .eq("customer_id", user.id),
       ]);
-      const proName = new Map(
-        ((pros as { id: string; full_name: string | null }[]) ?? []).map((p) => [p.id, p.full_name])
-      );
+      const proName = new Map(pros.pros.map((p) => [p.id, p.full_name]));
       const ratedJobs = new Set(((reviews as { job_id: string }[]) ?? []).map((r) => r.job_id));
 
       setJobs(

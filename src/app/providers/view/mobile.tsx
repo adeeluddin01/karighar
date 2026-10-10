@@ -7,18 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Screen, Scroll, TopBar, Cta } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Ava, EmptyK, Pill, Skel } from "@/components/kg/parts";
+import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
 import { formatPKR } from "@/lib/money";
 import type { Service } from "@/lib/types";
 
-type PublicProfile = {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  bio: string | null;
-  rating_avg: number;
-  jobs_completed: number;
-  service_areas: string[];
-};
 type Review = { id: string; rating: number; comment: string | null; created_at: string };
 
 function Stars({ n }: { n: number }) {
@@ -39,7 +31,7 @@ function Stars({ n }: { n: number }) {
 
 function ProviderProfileContent() {
   const id = useSearchParams().get("id") ?? "";
-  const [profile, setProfile] = useState<PublicProfile | null>(null);
+  const [profile, setProfile] = useState<PublicPro | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [from, setFrom] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,8 +43,8 @@ function ProviderProfileContent() {
     }
     const supabase = createClient();
     (async () => {
-      const [{ data: prof }, { data: revs }, { data: services }] = await Promise.all([
-        supabase.from("public_provider_profiles").select("*").eq("id", id).maybeSingle(),
+      const [found, { data: revs }, { data: services }] = await Promise.all([
+        fetchPublicPros(supabase, { id }),
         supabase
           .from("reviews")
           .select("id,rating,comment,created_at")
@@ -61,7 +53,7 @@ function ProviderProfileContent() {
           .limit(20),
         supabase.from("services").select("base_price").eq("is_active", true),
       ]);
-      setProfile(prof as PublicProfile | null);
+      setProfile(found.pros[0] ?? null);
       setReviews((revs as Review[]) ?? []);
       const prices = ((services as Pick<Service, "base_price">[]) ?? [])
         .map((s) => s.base_price)
@@ -107,12 +99,12 @@ function ProviderProfileContent() {
 
   return (
     <Screen>
-      <TopBar title={profile.full_name ?? "Pro"} back="/map" />
+      <TopBar title={proName(profile)} back="/map" />
       <Scroll underTop pad="cta">
         <div className="me card">
-          <Ava name={profile.full_name} size="xl" verified />
+          <Ava name={proName(profile)} size="xl" verified />
           <div>
-            <b>{profile.full_name ?? "Pro"}</b>
+            <b>{proName(profile)}</b>
             <small>
               {profile.service_areas?.length ? profile.service_areas.join(" · ") : "Karachi"}
             </small>

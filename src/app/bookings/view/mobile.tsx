@@ -13,6 +13,7 @@ import { TrackMap } from "@/components/kg/TrackMap";
 import { ChatSheet } from "@/components/kg/ChatSheet";
 import { ReportSheet } from "@/components/kg/ReportSheet";
 import { STATUS_PILL, jobRef, scheduleLabel, whenLabel } from "@/components/kg/job";
+import { fetchPublicPros } from "@/lib/providers";
 import { formatPKR } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Bid, type Job, type Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
@@ -97,16 +98,12 @@ function BookingContent() {
     }
 
     if (j.provider_id) {
-      const [{ data: prof }, { data: prov }] = await Promise.all([
+      const [{ data: prof }, prov] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", j.provider_id).single(),
-        supabase
-          .from("public_provider_profiles")
-          .select("rating_avg")
-          .eq("id", j.provider_id)
-          .maybeSingle(),
+        fetchPublicPros(supabase, { id: j.provider_id }),
       ]);
       setPro(prof as Profile | null);
-      setProRating(prov ? Number((prov as { rating_avg: number }).rating_avg) : null);
+      setProRating(prov.pros[0] ? prov.pros[0].rating_avg : null);
     }
 
     if (j.type === "custom" && j.status === "bidding") {
@@ -118,18 +115,8 @@ function BookingContent() {
         .order("amount");
       const list = (bidData as Bid[]) ?? [];
       const proIds = [...new Set(list.map((b) => b.provider_id))];
-      const { data: profs } = proIds.length
-        ? await supabase
-            .from("public_provider_profiles")
-            .select("id,full_name,rating_avg")
-            .in("id", proIds)
-        : { data: [] };
-      const byId = new Map(
-        ((profs as { id: string; full_name: string | null; rating_avg: number }[]) ?? []).map((p) => [
-          p.id,
-          p,
-        ])
-      );
+      const { pros: bidders } = await fetchPublicPros(supabase, { ids: proIds });
+      const byId = new Map(bidders.map((p) => [p.id, p]));
       setBids(
         list.map((b) => ({
           ...b,

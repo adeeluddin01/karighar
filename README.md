@@ -26,6 +26,7 @@ Open http://localhost:3000 — the landing page runs without any backend yet.
    - [`supabase/patch_v8_role_escalation.sql`](supabase/patch_v8_role_escalation.sql) — **required (security)**: blocks users from making themselves admin.
    - [`supabase/patch_v9_fix_jobs_rls.sql`](supabase/patch_v9_fix_jobs_rls.sql) — **required (critical)**: fixes job visibility so approved providers can see/accept the open job pool.
    - [`supabase/patch_v10_fix_notify_cast.sql`](supabase/patch_v10_fix_notify_cast.sql) — **required (critical)**: fixes an enum-cast crash that blocked all status updates past "assigned".
+   - [`supabase/patch_v11_lock_provider_pii.sql`](supabase/patch_v11_lock_provider_pii.sql) — **required (security)**: `providers` was world-readable, exposing CNIC numbers and document paths to anyone with the anon key. Locks the table to owner/admin and serves public pro data from the `public_provider_profiles` view instead. Re-creates that view, so it also covers a project where patch_v7 was skipped.
      *(Patches are idempotent and safe to re-run.)*
 
 See [`../LAUNCH_READINESS.md`](../LAUNCH_READINESS.md) for the full architect audit and

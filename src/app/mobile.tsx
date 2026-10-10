@@ -13,16 +13,9 @@ import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Job, type Service, type ServiceCategory } from "@/lib/types";
 import { areaOf } from "@/lib/area";
+import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
 
 type Cat = ServiceCategory & { services: Service[] };
-type PublicPro = {
-  id: string;
-  full_name: string | null;
-  rating_avg: number;
-  jobs_completed: number;
-  service_areas: string[];
-};
-
 // The statuses that put a booking on the Home screen's live banner.
 const LIVE: Job["status"][] = ["assigned", "en_route", "arrived", "in_progress"];
 
@@ -53,15 +46,10 @@ export default function HomeScreen() {
     if (isPhone !== true) return;
     const supabase = createClient();
     (async () => {
-      const [{ data: categories }, { data: services }, { data: topPros }] = await Promise.all([
+      const [{ data: categories }, { data: services }, topPros] = await Promise.all([
         supabase.from("service_categories").select("*").order("sort_order"),
         supabase.from("services").select("*").eq("is_active", true),
-        supabase
-          .from("public_provider_profiles")
-          .select("id,full_name,rating_avg,jobs_completed,service_areas")
-          .order("rating_avg", { ascending: false })
-          .order("jobs_completed", { ascending: false })
-          .limit(8),
+        fetchPublicPros(supabase, { limit: 8 }),
       ]);
       setCats(
         ((categories as ServiceCategory[]) ?? []).map((c) => ({
@@ -69,7 +57,7 @@ export default function HomeScreen() {
           services: ((services as Service[]) ?? []).filter((s) => s.category_id === c.id),
         }))
       );
-      setPros((topPros as PublicPro[]) ?? []);
+      setPros(topPros.pros);
     })();
   }, [isPhone]);
 
@@ -99,16 +87,12 @@ export default function HomeScreen() {
         setLive(null);
         return;
       }
-      let proName: string | null = null;
+      let name: string | null = null;
       if (job.provider_id) {
-        const { data: pro } = await supabase
-          .from("public_provider_profiles")
-          .select("full_name")
-          .eq("id", job.provider_id)
-          .maybeSingle();
-        proName = (pro as { full_name: string | null } | null)?.full_name ?? null;
+        const { pros } = await fetchPublicPros(supabase, { id: job.provider_id });
+        name = pros[0]?.full_name ?? null;
       }
-      setLive({ ...job, proName });
+      setLive({ ...job, proName: name });
     })();
   }, [user, isPhone]);
 
@@ -296,9 +280,9 @@ export default function HomeScreen() {
             <div className="hrow">
               {pros.slice(0, 6).map((p) => (
                 <Link key={p.id} className="pro-card" href={`/providers/view/?id=${p.id}`}>
-                  <Ava name={p.full_name} size="lg" />
+                  <Ava name={proName(p)} size="lg" />
                   <div>
-                    <b>{p.full_name ?? "Pro"}</b>
+                    <b>{proName(p)}</b>
                     <small>{p.service_areas?.[0] ?? "Karachi"}</small>
                     <Rate
                       value={Number(p.rating_avg)}

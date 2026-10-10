@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { KIcon, type KIconName } from "@/components/kg/icons";
+import { PHONE_NAV, isActive, roleOf } from "@/components/nav";
+import { useUser } from "@/lib/useUser";
 import { clsx } from "@/lib/clsx";
 
 /* ============================================================
@@ -106,24 +108,25 @@ export function Cta({ children, className }: { children: React.ReactNode; classN
    Tab bar
    ============================================================ */
 
-const TABS: { href: string; icon: KIconName; label: string }[] = [
-  { href: "/", icon: "home", label: "Home" },
-  { href: "/bookings", icon: "cal", label: "Bookings" },
-  { href: "/map", icon: "map", label: "Map" },
-  { href: "/profile", icon: "user", label: "Profile" },
-];
-
 /**
  * The white pill tab bar with a dark active pill that grows to show its
- * label — the redesign's `nav.nav`. Four fixed customer destinations; the
- * provider and admin areas keep their own shell.
+ * label — the redesign's `nav.nav`.
+ *
+ * Role-aware, from the same PHONE_NAV that drives <BottomNav> on the
+ * provider/admin pages: a provider looking at a customer screen gets their own
+ * destinations, just as they get their own sidebar on desktop.
  */
 export function TabBar() {
   const pathname = usePathname();
+  const { user, profile, providerStatus } = useUser();
+  // While the session resolves this reads as `guest`, whose tabs match the
+  // customer set — so the common case never flickers.
+  const tabs = PHONE_NAV[roleOf(!!user, profile?.role, providerStatus)];
+
   return (
     <nav className="nav" aria-label="Tabs">
-      {TABS.map((t) => {
-        const on = t.href === "/" ? pathname === "/" : pathname.startsWith(t.href);
+      {tabs.map((t) => {
+        const on = isActive(pathname, t.href);
         return (
           <Link
             key={t.href}
@@ -132,7 +135,7 @@ export function TabBar() {
             aria-label={t.label}
             aria-current={on ? "page" : undefined}
           >
-            <KIcon name={t.icon} />
+            <KIcon name={t.kicon} />
             <span>{t.label}</span>
           </Link>
         );
