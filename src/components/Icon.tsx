@@ -47,6 +47,9 @@ import {
   IdCard,
   CreditCard,
   Tag,
+  Maximize2,
+  Minimize2,
+  Navigation,
   type LucideIcon,
 } from "lucide-react";
 
@@ -95,6 +98,9 @@ const ICONS: Record<string, LucideIcon> = {
   idcard: IdCard,
   creditcard: CreditCard,
   tag: Tag,
+  expand: Maximize2,
+  shrink: Minimize2,
+  navigate: Navigation,
 };
 
 export type IconName = keyof typeof ICONS;

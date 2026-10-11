@@ -18,3 +18,33 @@ export const NAV_MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: "road", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
   { featureType: "water", elementType: "labels", stylers: [{ visibility: "off" }] },
 ];
+
+// Stripped further still, for the provider's jobs map: every point-of-interest
+// icon, label and transit marker is gone, so at any zoom the only things on
+// the map are the road network and the job dots. Street names stay — a
+// technician still has to navigate by them.
+export const BARE_MAP_STYLE: google.maps.MapTypeStyle[] = [
+  ...NAV_MAP_STYLE,
+  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.business", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "transit.station", stylers: [{ visibility: "off" }] },
+  { featureType: "road.highway", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "road.arterial", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "road.local", elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ visibility: "off" }] },
+];
+
+/**
+ * Deep link to turn-by-turn directions in Google Maps — the native app on a
+ * phone, the website on desktop. `destination` is a coordinate so it lands on
+ * the exact pin rather than a geocoded guess at the address.
+ */
+export function googleDirectionsUrl({ lat, lng }: LatLng) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${lat},${lng}`,
+    travelmode: "driving",
+  });
+  return `https://www.google.com/maps/dir/?${params}`;
+}
