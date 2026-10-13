@@ -22,6 +22,21 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    10. `supabase/patch_v10_fix_notify_cast.sql`   ← CRITICAL: unblocks status updates past 'assigned'
    11. `supabase/patch_v11_lock_provider_pii.sql`   ← SECURITY: stops `providers` leaking CNIC numbers to the anon key
    12. `supabase/patch_v12_customer_reviews_and_alerts.sql`   ← provider→customer ratings, signup role/phone metadata, chat notifications
+   13. `supabase/patch_v13_restore_notifications_layer.sql`   ← CRITICAL for any project missing patch_v4/v5: restores the `notifications` table, `notify_user()` and `record_settlement()`
+
+   **Check this on any existing project**, whatever its history — some were
+   built from a schema.sql predating patch_v4 and never got the notifications
+   layer:
+
+   ```sql
+   select to_regclass('public.notifications') as tbl,
+          to_regproc('public.notify_user')    as fn;
+   ```
+
+   If either column is `null`, run `patch_v13`. It is not optional: the
+   patch_v12 triggers call `notify_user()`, and plpgsql resolves that name at
+   execution rather than creation — so until v13 is applied, sending a chat
+   message and rating a customer both abort at runtime.
 3. **Authentication → URL Configuration.** Get this wrong and nobody can
    finish signing up — the confirmation email is built from these settings.
    - **Site URL:** `https://thekarighar.com`

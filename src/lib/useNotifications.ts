@@ -1,131 +1,121 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  LIMIT,
+  acquire,
+  addListener,
+  patch,
+  snapshot,
+  type Deps,
+} from "@/lib/notificationsStore";
 import type { Notification } from "@/lib/types";
 
-/* ============================================================
-   One notifications subscription, shared.
-
-   The same load-plus-realtime query was written out four times — the bell, the
-   two /notifications lanes, and an unread head-count on the phone Bookings
-   screen — and they had drifted: only the bell subscribed to realtime, and
-   the desktop list marked rows read in the database without updating what was
-   on screen.
-
-   `notifications` is already in the `supabase_realtime` publication, so the
-   INSERT subscription below genuinely fires.
-   ============================================================ */
-
-const DEFAULT_LIMIT = 15;
-
 /**
- * Rows are stored alongside the user they were fetched for, so switching
- * account *derives* "not loaded yet" instead of needing a reset write inside
- * the effect — which would be a cascading render (react-hooks/set-state-in-effect).
+ * React binding over the shared notifications store.
+ *
+ * All the interesting behaviour — one query and one realtime channel per
+ * user, however many components ask for them — lives in notificationsStore,
+ * which has no React in it and is tested directly. See the comment there for
+ * why sharing is mandatory rather than merely tidy.
  */
-type Loaded = { uid: string; items: Notification[] };
+
+// Talking to Supabase, kept out of the store so the store stays testable.
+const deps: Deps = {
+  async fetchPage(uid, limit) {
+    const { data } = await createClient()
+      .from("notifications")
+      .select("*")
+      .eq("user_id", uid)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    return (data as Notification[]) ?? [];
+  },
+
+  subscribeToInserts(uid, onInsert) {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`notif:${uid}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${uid}` },
+        (payload) => onInsert(payload.new as Notification)
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  },
+};
 
 export function useNotifications(
   userId?: string | null,
   opts?: {
+    /** How many rows this consumer shows. */
     limit?: number;
     /** Fired only for rows arriving live — never for the initial page. */
     onNew?: (n: Notification) => void;
   }
 ) {
-  const limit = opts?.limit ?? DEFAULT_LIMIT;
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const uid = userId || null;
+  const limit = opts?.limit ?? LIMIT;
 
-  // `null` means "not known yet", so callers can tell it from a genuine empty
-  // list and show a skeleton.
-  const items = userId && loaded?.uid === userId ? loaded.items : null;
-
-  // Held in a ref so changing the callback doesn't tear down the channel.
+  // Held in a ref so passing an inline callback doesn't churn the store.
   const onNew = useRef(opts?.onNew);
   useEffect(() => {
     onNew.current = opts?.onNew;
   });
 
+  const subscribe = useCallback(
+    (cb: () => void) => (uid ? addListener(uid, cb) : () => {}),
+    [uid]
+  );
+
+  // Must not create a store: this runs during render. The snapshot keeps its
+  // array identity until the store publishes, which is what
+  // useSyncExternalStore needs in order not to loop.
+  const getSnapshot = useCallback(() => snapshot(uid), [uid]);
+  const all = useSyncExternalStore(subscribe, getSnapshot, () => null);
+
   useEffect(() => {
-    if (!userId) return;
-    const supabase = createClient();
-    let active = true;
-
-    supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(limit)
-      .then(({ data }) => {
-        if (active) setLoaded({ uid: userId, items: (data as Notification[]) ?? [] });
-      });
-
-    const channel = supabase
-      .channel(`notif:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          if (!active) return;
-          const row = payload.new as Notification;
-          setLoaded((prev) => {
-            if (!prev || prev.uid !== userId) return prev;
-            // Realtime can replay; don't double-insert a row we already hold.
-            if (prev.items.some((i) => i.id === row.id)) return prev;
-            return { uid: userId, items: [row, ...prev.items].slice(0, limit) };
-          });
-          onNew.current?.(row);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
-  }, [userId, limit]);
-
-  const patch = useCallback((fn: (items: Notification[]) => Notification[]) => {
-    setLoaded((prev) => (prev ? { uid: prev.uid, items: fn(prev.items) } : prev));
-  }, []);
+    if (!uid) return;
+    return acquire(uid, deps, (n) => onNew.current?.(n));
+  }, [uid]);
 
   const markRead = useCallback(
     async (id: string) => {
+      if (!uid) return;
       // Optimistic: the badge should drop the moment the row is opened.
-      patch((list) => list.map((i) => (i.id === id ? { ...i, read: true } : i)));
+      patch(uid, (list) => list.map((i) => (i.id === id ? { ...i, read: true } : i)));
       await createClient().from("notifications").update({ read: true }).eq("id", id);
     },
-    [patch]
+    [uid]
   );
 
   const markAll = useCallback(async () => {
-    if (!userId) return;
-    patch((list) => list.map((i) => ({ ...i, read: true })));
+    if (!uid) return;
+    patch(uid, (list) => list.map((i) => ({ ...i, read: true })));
     await createClient()
       .from("notifications")
       .update({ read: true })
-      .eq("user_id", userId)
+      .eq("user_id", uid)
       .eq("read", false);
-  }, [userId, patch]);
+  }, [uid]);
 
   return {
-    items,
-    unread: (items ?? []).filter((i) => !i.read).length,
+    // `null` means "not known yet", so callers can tell it from a genuine
+    // empty list and show a skeleton.
+    items: all === null ? null : all.length > limit ? all.slice(0, limit) : all,
+    unread: (all ?? []).filter((i) => !i.read).length,
     markRead,
     markAll,
   };
 }
 
 /**
- * Just the badge number. Built on the same hook so a screen showing only a
- * dot still shares one channel and one query shape with the full list.
+ * Just the badge number. Shares the store above, so a screen showing only a
+ * dot adds no extra query and no extra channel.
  */
 export function useUnreadCount(userId?: string | null): number {
   return useNotifications(userId).unread;
