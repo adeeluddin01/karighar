@@ -63,6 +63,9 @@ function ProJobDetailContent() {
   const [rateNote, setRateNote] = useState("");
   // In-app routing, shared with /pro/map.
   const route = useRouteToJob();
+  // Set from <Directions>'s onError — an event callback, not an effect. Once
+  // the Directions API has refused, stop offering the in-app route.
+  const [inAppBroken, setInAppBroken] = useState(false);
   // The position already being shared through job_tracking, if any — routing
   // from it avoids asking for location permission a second time.
   const livePos = useRef<LatLng | null>(null);
@@ -179,6 +182,8 @@ function ProJobDetailContent() {
     !myRating && ["completed", "paid", "rated"].includes(job.status) && !!job.customer_id;
   const pin: LatLng | null =
     job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null;
+  // "" when there is neither a pin nor an address, so the link hides itself.
+  const directionsHref = googleDirectionsUrl(pin, { address: job.address });
 
   return (
     <AppShell>
@@ -219,34 +224,38 @@ function ProJobDetailContent() {
                 </div>
               </div>
 
-              {/* Directions drawn on this same map, so the pro never has to
-                  leave the job screen to see where they're going. */}
-              {pin && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {route.active ? (
+              {/* Google Maps leads here too: it needs neither the Directions
+                  API nor a location prompt. Drawing the route on this map is
+                  the extra, and it removes itself once the API refuses. */}
+              <div className="mb-3 flex flex-wrap gap-2">
+                {directionsHref && (
+                  <a
+                    href={directionsHref}
+                    target="_blank"
+                    rel="noopener"
+                    className="btn-primary btn-sm"
+                  >
+                    <Icon name="navigate" size="sm" /> Open in Google Maps
+                  </a>
+                )}
+                {pin &&
+                  !inAppBroken &&
+                  (route.active ? (
                     <Button size="sm" variant="ghost" onClick={route.clearRoute}>
                       <Icon name="x" size="sm" /> Clear route
                     </Button>
                   ) : (
                     <Button
                       size="sm"
+                      variant="ghost"
                       disabled={route.locating}
                       onClick={() => route.startDirections(pin, livePos.current)}
                     >
-                      <Icon name="navigate" size="sm" />
-                      {route.locating ? "Locating…" : "Directions"}
+                      <Icon name="send" size="sm" />
+                      {route.locating ? "Locating…" : "Show route here"}
                     </Button>
-                  )}
-                  <a
-                    href={googleDirectionsUrl(pin, { address: job.address })}
-                    target="_blank"
-                    rel="noopener"
-                    className="btn-ghost btn-sm"
-                  >
-                    <Icon name="send" size="sm" /> Google Maps
-                  </a>
-                </div>
-              )}
+                  ))}
+              </div>
 
               <ProviderTracker jobId={jobId} autoStart={job.status === "en_route"} />
               <div className="mt-3">
@@ -262,15 +271,30 @@ function ProJobDetailContent() {
                     origin={route.origin}
                     destination={route.destination}
                     onResult={route.onResult}
-                    onError={route.onError}
+                    onError={(message) => {
+                      setInAppBroken(true);
+                      route.onError(message);
+                    }}
                   />
                 </TrackingMap>
               </div>
 
               {route.routeError && (
-                <p className="mt-3 rounded-xl bg-warning-light p-3 text-sm text-warning-foreground">
-                  {route.routeError}
-                </p>
+                <div className="mt-3 rounded-xl bg-warning-light p-3">
+                  <p className="text-sm text-warning-foreground">{route.routeError}</p>
+                  {/* Never a dead end — the external link needs none of what
+                      just failed. */}
+                  {directionsHref && (
+                    <a
+                      href={directionsHref}
+                      target="_blank"
+                      rel="noopener"
+                      className="btn-primary btn-sm mt-3"
+                    >
+                      <Icon name="navigate" size="sm" /> Open in Google Maps instead
+                    </a>
+                  )}
+                </div>
               )}
             </Card>
           )}

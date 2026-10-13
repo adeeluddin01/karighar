@@ -47,6 +47,7 @@ import {
   IdCard,
   CreditCard,
   Tag,
+  LocateFixed,
   Maximize2,
   Minimize2,
   Navigation,
@@ -101,6 +102,7 @@ const ICONS: Record<string, LucideIcon> = {
   expand: Maximize2,
   shrink: Minimize2,
   navigate: Navigation,
+  locate: LocateFixed,
 };
 
 export type IconName = keyof typeof ICONS;

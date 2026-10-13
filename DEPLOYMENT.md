@@ -23,6 +23,7 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    11. `supabase/patch_v11_lock_provider_pii.sql`   ← SECURITY: stops `providers` leaking CNIC numbers to the anon key
    12. `supabase/patch_v12_customer_reviews_and_alerts.sql`   ← provider→customer ratings, signup role/phone metadata, chat notifications
    13. `supabase/patch_v13_restore_notifications_layer.sql`   ← CRITICAL for any project missing patch_v4/v5: restores the `notifications` table, `notify_user()` and `record_settlement()`
+   14. `supabase/patch_v14_house_promos.sql`   ← `house_promos`: Karighar's own promo banners, editable without a redeploy
 
    **Check this on any existing project**, whatever its history — some were
    built from a schema.sql predating patch_v4 and never got the notifications
@@ -56,6 +57,20 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
 5. (Optional) **Providers → Google:** paste client ID/secret; add
    `https://YOUR-PROJECT.supabase.co/auth/v1/callback` as an authorized redirect in Google Cloud.
 6. **Database → Backups:** ensure daily backups are enabled (paid plan).
+
+## 1b. Promo banners (optional)
+
+The banner on the pro dashboard is a row in **`house_promos`**, so copy can
+change from Supabase → Table editor without rebuilding the static export.
+
+- `audience` — `provider`, `customer` or `all`
+- `is_active` + `starts_at` / `ends_at` — RLS only returns rows that are
+  currently live, so a draft is invisible even to someone poking the API
+- `priority` — highest wins when several are live; the app shows one
+- `cta_label` + `href` — omit both for a banner with no button
+
+`patch_v14` seeds one example referral promo with `is_active = false`. Flip it
+to `true` to publish it. Nothing renders when no row is live.
 
 ## 2. Google Maps
 

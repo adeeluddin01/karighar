@@ -7,6 +7,7 @@ import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
+import { HousePromo } from "@/components/HousePromo";
 import {
   Avatar,
   Button,
@@ -211,6 +212,11 @@ export default function ProDashboard() {
           className="col-span-2 sm:col-span-1"
         />
       </div>
+
+      {/* Karighar's own promo to its pros — copy comes from `house_promos`,
+          so marketing can change it without a redeploy. Renders nothing when
+          none is live. */}
+      <HousePromo audience="provider" />
 
       {/* Tabs */}
       <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">

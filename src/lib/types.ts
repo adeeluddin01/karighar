@@ -132,6 +132,21 @@ export type Notification = {
   created_at: string;
 };
 
+/**
+ * A Karighar promo banner. Copy lives in the database so it can change
+ * without a redeploy; RLS only returns rows that are currently live.
+ */
+export type HousePromo = {
+  id: string;
+  audience: "provider" | "customer" | "all";
+  eyebrow: string | null;
+  title: string;
+  body: string | null;
+  cta_label: string | null;
+  href: string | null;
+  priority: number;
+};
+
 /** Customer -> provider. One per job; `reviews.job_id` is unique. */
 export type Review = {
   id: string;

@@ -14,7 +14,7 @@
 -- rate-limit), v7 (public provider view, cancel_reason), v8 (no admin
 -- self-escalation), v9 (job visibility fix), v10 (status-notify enum cast),
 -- v11 (provider PII lockdown), v12 (provider->customer ratings, signup
--- role/phone metadata, chat notifications).
+-- role/phone metadata, chat notifications), v14 (house promo banners).
 -- ============================================================
 
 -- ---------- Extensions ----------
@@ -230,6 +230,26 @@ create table notifications (
   created_at timestamptz not null default now()
 );
 create index notifications_user_idx on notifications(user_id, read);
+
+-- Karighar's own promo banners. Content lives here so marketing copy can be
+-- changed from the table editor without a redeploy, which a static export
+-- would otherwise need.
+create table house_promos (
+  id         uuid primary key default gen_random_uuid(),
+  audience   text not null default 'provider'
+             check (audience in ('provider', 'customer', 'all')),
+  eyebrow    text,
+  title      text not null,
+  body       text,
+  cta_label  text,
+  href       text,
+  priority   int not null default 0,     -- highest wins when several are live
+  is_active  boolean not null default true,
+  starts_at  timestamptz,
+  ends_at    timestamptz,
+  created_at timestamptz not null default now()
+);
+create index house_promos_live_idx on house_promos(audience, is_active, priority desc);
 
 -- ============================================================
 -- Helpers & triggers
@@ -579,6 +599,7 @@ alter table messages           enable row level security;
 alter table provider_ledger    enable row level security;
 alter table disputes           enable row level security;
 alter table notifications      enable row level security;
+alter table house_promos       enable row level security;
 
 -- Profiles: everyone reads own; admin reads all; owner updates own.
 create policy profiles_self  on profiles for select using (id = auth.uid() or is_admin());
@@ -670,6 +691,18 @@ create policy disp_rw on disputes for all
 create policy disp_admin on disputes for all using (is_admin()) with check (is_admin());
 
 -- Notifications are private to their recipient.
+-- Promos are public, but only while live: the window is enforced in the
+-- policy rather than the query, so a draft or an expired promo cannot be
+-- pulled out of the table with the anon key by asking differently. Admins
+-- manage them and, policies being permissive, also see drafts.
+create policy promo_read on house_promos for select using (
+  is_active
+  and (starts_at is null or starts_at <= now())
+  and (ends_at   is null or ends_at   >= now())
+);
+create policy promo_admin on house_promos for all
+  using (is_admin()) with check (is_admin());
+
 create policy notif_own on notifications for select using (user_id = auth.uid());
 create policy notif_update on notifications for update
   using (user_id = auth.uid()) with check (user_id = auth.uid());

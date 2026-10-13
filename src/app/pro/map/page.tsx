@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button, Card, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MapGate } from "@/components/maps/MapGate";
+import { MapController } from "@/components/maps/MapController";
 import { Directions, FitToJobs } from "@/components/maps/JobsMapParts";
 import { useRouteToJob } from "@/components/maps/useRouteToJob";
 import { BARE_MAP_STYLE, GOOGLE_MAPS_KEY, KARACHI_CENTER, googleDirectionsUrl, type LatLng } from "@/lib/maps";
@@ -19,6 +20,21 @@ type Pinned = Job & { lat: number; lng: number };
 const MINE = "#139a72"; // leaf — your active jobs
 const OPEN = "#ee7118"; // saffron — available to claim
 
+// Keeps the floating card clear of <BottomNav> (fixed, 66px) on phones. In
+// fullscreen the map is z-50, so without this the card paints over the tab bar.
+const BOTTOM_SLOT =
+  "absolute inset-x-3 z-10 bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-3";
+
+/**
+ * External Google Maps directions to a job. Origin is deliberately omitted —
+ * Google then routes from the device itself, which needs neither the
+ * Directions API nor location permission. The address keeps the link usable
+ * for a job that was never pinned.
+ */
+function directionsHref(job: Pinned) {
+  return googleDirectionsUrl({ lat: job.lat, lng: job.lng }, { address: job.address });
+}
+
 export default function ProviderMapPage() {
   const { user, loading } = useRequireAuth("/pro/map");
   const [mine, setMine] = useState<Pinned[]>([]);
@@ -26,8 +42,16 @@ export default function ProviderMapPage() {
 
   const [selected, setSelected] = useState<Pinned | null>(null);
   const [full, setFull] = useState(false);
+  // Set from <Directions>'s onError — an event callback, not an effect. Once
+  // the Directions API has actually refused, stop offering the in-app button
+  // rather than hard-coding "the key doesn't have it".
+  const [inAppBroken, setInAppBroken] = useState(false);
   // Shared with the active-job screen — see useRouteToJob.
   const route = useRouteToJob();
+
+  // The one job a pro is most likely to be driving to. With several active
+  // jobs there is no single answer, so fall back to tapping a dot.
+  const soleActive = mine.length === 1 ? mine[0] : null;
 
   useEffect(() => {
     if (!user) return;
@@ -81,7 +105,7 @@ export default function ProviderMapPage() {
     <AppShell>
       <PageHeader
         title="Jobs map"
-        subtitle="Only your jobs are drawn on it — green dots are yours, orange dots are up for grabs. Tap one for directions."
+        subtitle="Green dots are your jobs, orange ones are up for grabs. Tap a dot for directions, or use the locate button to put yourself on the map."
       />
 
       {!GOOGLE_MAPS_KEY ? (
@@ -139,16 +163,30 @@ export default function ProviderMapPage() {
                     onClick={() => setSelected(j)}
                   />
                 ))}
-                {route.origin && route.active && (
-                  <Dot at={route.origin} title="You" color="#17251f" r={11} z={3} />
-                )}
+                {/* Shown whenever the position is known, not only mid-route.
+                    Gating this on `route.active` meant a provider could never
+                    see themselves, because starting a route is exactly what
+                    fails when the Directions API is off. */}
+                {route.origin && <Dot at={route.origin} title="You" color="#17251f" r={11} z={3} />}
 
-                <FitToJobs points={points} paused={route.active} refitKey={full ? "full" : "inline"} />
+                {/* Pans to the user after locating; identity-keyed, and
+                    `locate()` returns a fresh object each call so repeat
+                    taps re-centre. */}
+                <MapController target={route.origin} />
+
+                <FitToJobs
+                  points={points}
+                  paused={route.active || route.located}
+                  refitKey={full ? "full" : "inline"}
+                />
                 <Directions
                   origin={route.origin}
                   destination={route.destination}
                   onResult={route.onResult}
-                  onError={route.onError}
+                  onError={(message) => {
+                    setInAppBroken(true);
+                    route.onError(message);
+                  }}
                 />
               </Map>
 
@@ -160,6 +198,20 @@ export default function ProviderMapPage() {
                 className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-xl bg-card shadow-soft"
               >
                 <Icon name={full ? "shrink" : "expand"} size="sm" />
+              </button>
+
+              {/* Put yourself on the map, independent of any route. Outside
+                  <Map> like the toggle above, so nothing here constructs a
+                  google.maps.* value before the API has loaded. */}
+              <button
+                type="button"
+                onClick={route.locate}
+                disabled={route.locating}
+                aria-label="Show my location"
+                aria-busy={route.locating}
+                className="absolute right-3 top-[3.75rem] z-10 grid h-10 w-10 place-items-center rounded-xl bg-card shadow-soft disabled:opacity-60"
+              >
+                <Icon name="locate" size="sm" />
               </button>
 
               {route.active && (
@@ -177,25 +229,51 @@ export default function ProviderMapPage() {
                 </div>
               )}
 
-              {selected && (
-                <div className="absolute inset-x-3 bottom-3 z-10">
+              {selected ? (
+                <div className={BOTTOM_SLOT}>
                   <JobCard
                     job={selected}
                     mine={mine.some((j) => j.id === selected.id)}
                     locating={route.locating}
+                    inAppBroken={inAppBroken}
                     onDirections={() => route.startDirections({ lat: selected.lat, lng: selected.lng })}
                     onClose={() => setSelected(null)}
                   />
                 </div>
+              ) : (
+                // With exactly one active job, don't make the pro hunt for
+                // its dot — the job they're driving to is not ambiguous.
+                soleActive && (
+                  <div className={BOTTOM_SLOT}>
+                    <ActiveJobBar job={soleActive} />
+                  </div>
+                )
               )}
             </MapGate>
           </APIProvider>
         </div>
       )}
 
-      {route.routeError && (
+      {(route.routeError || route.locateError) && (
         <Card className="mt-4 bg-warning-light">
-          <p className="text-sm text-warning-foreground">{route.routeError}</p>
+          {route.locateError && (
+            <p className="text-sm text-warning-foreground">{route.locateError}</p>
+          )}
+          {route.routeError && (
+            <p className="text-sm text-warning-foreground">{route.routeError}</p>
+          )}
+          {/* Never a dead end: in-app routing needs the Directions API, the
+              external link needs nothing at all. */}
+          {route.routeError && (selected ?? soleActive) && (
+            <a
+              href={directionsHref(selected ?? soleActive!)}
+              target="_blank"
+              rel="noopener"
+              className="btn-primary btn-sm mt-3"
+            >
+              <Icon name="navigate" size="sm" /> Open in Google Maps instead
+            </a>
+          )}
         </Card>
       )}
 
@@ -210,12 +288,15 @@ function JobCard({
   job,
   mine,
   locating,
+  inAppBroken,
   onDirections,
   onClose,
 }: {
   job: Pinned;
   mine: boolean;
   locating: boolean;
+  /** The Directions API has already refused once — stop offering it. */
+  inAppBroken: boolean;
   onDirections: () => void;
   onClose: () => void;
 }) {
@@ -242,20 +323,25 @@ function JobCard({
         </div>
       </div>
 
+      {/* Google Maps leads: it works with no Directions API and no location
+          permission. The in-app route is the extra, and it removes itself
+          once the API has actually turned it down. */}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" onClick={onDirections} disabled={locating}>
-          <Icon name="navigate" size="sm" />
-          {locating ? "Locating…" : "Directions here"}
-        </Button>
         <a
-          href={googleDirectionsUrl({ lat: job.lat, lng: job.lng })}
+          href={directionsHref(job)}
           target="_blank"
           rel="noopener"
-          className="btn-ghost btn-sm"
+          className="btn-primary btn-sm"
         >
-          <Icon name="send" size="sm" />
-          Google Maps
+          <Icon name="navigate" size="sm" />
+          Open in Google Maps
         </a>
+        {!inAppBroken && (
+          <Button size="sm" variant="ghost" onClick={onDirections} disabled={locating}>
+            <Icon name="send" size="sm" />
+            {locating ? "Locating…" : "Show route here"}
+          </Button>
+        )}
         <Link
           href={mine ? `/pro/jobs/view/?id=${job.id}` : "/pro/dashboard"}
           className="btn-ghost btn-sm"
@@ -304,5 +390,39 @@ function Dot({
         anchor: new google.maps.Point(size / 2, size / 2),
       }}
     />
+  );
+}
+
+/**
+ * Shown when a pro has exactly one active job and nothing is selected. The
+ * job they are driving to is not in doubt, so directions shouldn't require
+ * finding and tapping its dot first.
+ */
+function ActiveJobBar({ job }: { job: Pinned }) {
+  return (
+    <Card className="shadow-lift">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-muted-foreground">Your active job</p>
+          <p className="truncate font-bold">{job.title}</p>
+          <p className="truncate text-sm text-muted-foreground">{job.address}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <a
+            href={directionsHref(job)}
+            target="_blank"
+            rel="noopener"
+            className="btn-primary btn-sm"
+          >
+            <Icon name="navigate" size="sm" />
+            Directions
+          </a>
+          <Link href={`/pro/jobs/view/?id=${job.id}`} className="btn-ghost btn-sm">
+            Open job
+            <Icon name="chevron" size="sm" />
+          </Link>
+        </div>
+      </div>
+    </Card>
   );
 }

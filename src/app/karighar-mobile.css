@@ -80,9 +80,15 @@
   .kg .scroll {
     position: absolute;
     inset: 0;
-    overflow-y: auto;
+    /* Single-axis on purpose. With only `overflow-y` set, the other axis
+       computes from `visible` to `auto`, leaving a live horizontal scroller
+       that iOS can lock a gesture onto at touchstart — the page then refuses
+       to move vertically. `hidden` rather than `clip`: `clip` needs Safari
+       16+, and the phones hitting this are older than that. */
+    overflow: hidden auto;
     overscroll-behavior-y: contain;
-    -webkit-overflow-scrolling: touch;
+    /* No `-webkit-overflow-scrolling: touch`: a no-op since iOS 13, and on
+       iOS 12 and earlier it is what causes "the scroll dies after a flick". */
     padding: calc(var(--sat) + 10px) 18px calc(124px + var(--sab));
     scrollbar-width: none;
     display: flex;
@@ -237,11 +243,15 @@
     background: var(--brand-2);
     color: #fff;
   }
+  /* No `backdrop-filter` here, deliberately. These sit inside `.scroll`, and
+     a backdrop-filter layer within an accelerated overflow scroller is a
+     long-standing WebKit bug that leaves the scroller frozen or blank on iOS.
+     The alpha is raised to make up for the lost blur; both of these sit over
+     a flat brand gradient, so the difference is barely visible. */
   .kg .ic.glass {
-    background: rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.3);
     color: #fff;
     box-shadow: none;
-    backdrop-filter: blur(6px);
   }
   .kg .ic .ndot {
     position: absolute;
@@ -498,10 +508,30 @@
     border-color: var(--brand-2);
   }
 
+  /* iOS Safari zooms the page when a focused field is under 16px, and the
+     zoom leaves the `position: fixed` shell offset with a scroller that no
+     longer responds. Lifting these to 16px on touch devices prevents it.
+     The alternative — `maximum-scale=1` / `user-scalable=no` on the viewport
+     — would also disable pinch-zoom, which is an accessibility regression,
+     so it is deliberately not used. Pointer-scoped, so the desktop lane and
+     its typography are untouched. */
+  @media (pointer: coarse) {
+    .kg .in input,
+    .kg .in select {
+      font-size: 16px;
+    }
+    .kg .ta {
+      font-size: 16px;
+    }
+  }
+
   .kg .chips {
     display: flex;
     gap: 8px;
     overflow-x: auto;
+    /* See the note on .hrow: stops a fling that reaches the end of the rail
+       from chaining out into the page scroller. */
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     padding-bottom: 2px;
   }
@@ -842,12 +872,12 @@
     gap: 8px;
     margin-top: 12px;
   }
+  /* Raised alpha in place of a blur — see the note on `.ic.glass`. */
   .kg .hero-stats div {
     flex: 1;
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.22);
     border-radius: 12px;
     padding: 7px 10px;
-    backdrop-filter: blur(4px);
   }
   .kg .hero-stats small {
     color: rgba(255, 255, 255, 0.75);
@@ -891,10 +921,17 @@
     color: var(--mute);
   }
 
+  /* The full-bleed rail on Home. Negative margins make it span the whole
+     scrollport, so most vertical drags on that band begin on this inner
+     scroller — `overscroll-behavior-x` keeps a fling that hits either end
+     from chaining into the page scroller and stalling it.
+     Not `touch-action`: that intersects down the ancestor chain, so pinning
+     an axis here (or on .scroll) would stop the rail panning at all. */
   .kg .hrow {
     display: flex;
     gap: 10px;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
     margin: 0 -18px;
     padding: 0 18px 4px;
@@ -1477,6 +1514,8 @@
     align-self: flex-start;
     max-width: 100%;
     overflow-x: auto;
+    /* See the note on .hrow. */
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
   }
   .kg .seg::-webkit-scrollbar {
@@ -1861,5 +1900,29 @@
   /* Centres a single block (an empty state, a spinner) in the whole screen. */
   .kg .scroll.kg-center {
     justify-content: center;
+  }
+
+  /* ---------- pin the document behind the phone shell ----------
+     `.kg` is fixed over the whole viewport and owns its own scroller, so the
+     document behind it should not scroll or rubber-band — on iOS that
+     bounce can swallow a gesture the inner pane was meant to get.
+
+     Scoped two ways on purpose:
+
+     - `:has(.kg)` rather than a blanket `body` rule, because `/pro/*` and
+       `/admin/*` render the legacy AppShell on phones and genuinely need the
+       document to scroll. It also keeps this clear of the two places that
+       set `document.body.style.overflow` by hand (Modal.tsx, pro/map).
+     - inside this phone-only media query, because `/` renders through
+       <LaneSplit>, which mounts BOTH lanes — `.kg` is in the DOM on desktop
+       too (merely `display: none`), so an unscoped rule, or the equivalent
+       mount-effect in Screen.tsx, would pin the desktop document and break
+       Home on the web.
+
+     `:has()` is Safari 15.4+ / Chrome 105+; older engines just skip it and
+     keep today's behaviour. */
+  body:has(.kg) {
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 }
