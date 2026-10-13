@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
+import { useNotifications } from "@/lib/useNotifications";
+import { notifHref } from "@/lib/notifHref";
+import { ROLE_HOME, roleOf } from "@/components/nav";
 import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { EmptyK, Skel, Well } from "@/components/kg/parts";
@@ -21,45 +22,25 @@ function iconFor(type: string) {
 }
 
 export default function NotificationsScreen() {
-  const { user, loading } = useRequireAuth("/notifications");
+  const { user, profile, providerStatus, loading } = useRequireAuth("/notifications");
   const router = useRouter();
-  const [items, setItems] = useState<Notification[] | null>(null);
-
-  useEffect(() => {
-    if (!user) return;
-    createClient()
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setItems((data as Notification[]) ?? []));
-  }, [user]);
+  // The shared hook brings the realtime subscription this screen never had.
+  const { items, unread, markRead, markAll } = useNotifications(user?.id, { limit: 50 });
+  const role = roleOf(!!user, profile?.role, providerStatus);
 
   async function open(n: Notification) {
-    if (!n.read) {
-      await createClient().from("notifications").update({ read: true }).eq("id", n.id);
-      setItems((prev) => prev?.map((i) => (i.id === n.id ? { ...i, read: true } : i)) ?? prev);
-    }
-    if (n.job_id) router.push(`/bookings/view/?id=${n.job_id}`);
+    if (!n.read) await markRead(n.id);
+    // A provider sent to /bookings/view/ would land on a customer page their
+    // RLS blocks.
+    const href = notifHref(n, role);
+    if (href) router.push(href);
   }
-
-  async function markAll() {
-    if (!user) return;
-    await createClient()
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", user.id)
-      .eq("read", false);
-    setItems((prev) => prev?.map((i) => ({ ...i, read: true })) ?? prev);
-  }
-
-  const unread = (items ?? []).filter((i) => !i.read).length;
 
   return (
     <Screen>
       <TopBar
         title="Notifications"
-        back="/profile"
+        back={role === "customer" || role === "guest" ? "/profile/" : ROLE_HOME[role]}
         action={
           unread > 0 ? (
             <button type="button" className="ic" onClick={markAll} aria-label="Mark all read">

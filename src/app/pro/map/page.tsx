@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import { createClient } from "@/lib/supabase/client";
@@ -9,7 +9,8 @@ import { AppShell } from "@/components/AppShell";
 import { Button, Card, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { MapGate } from "@/components/maps/MapGate";
-import { Directions, FitToJobs, type RouteInfo } from "@/components/maps/JobsMapParts";
+import { Directions, FitToJobs } from "@/components/maps/JobsMapParts";
+import { useRouteToJob } from "@/components/maps/useRouteToJob";
 import { BARE_MAP_STYLE, GOOGLE_MAPS_KEY, KARACHI_CENTER, googleDirectionsUrl, type LatLng } from "@/lib/maps";
 import type { Job } from "@/lib/types";
 
@@ -24,12 +25,9 @@ export default function ProviderMapPage() {
   const [open, setOpen] = useState<Pinned[]>([]);
 
   const [selected, setSelected] = useState<Pinned | null>(null);
-  const [origin, setOrigin] = useState<LatLng | null>(null);
-  const [routeTo, setRouteTo] = useState<Pinned | null>(null);
-  const [route, setRoute] = useState<RouteInfo | null>(null);
-  const [routeError, setRouteError] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
   const [full, setFull] = useState(false);
+  // Shared with the active-job screen — see useRouteToJob.
+  const route = useRouteToJob();
 
   useEffect(() => {
     if (!user) return;
@@ -68,35 +66,6 @@ export default function ProviderMapPage() {
     () => [...mine, ...open].map((j) => ({ lat: j.lat, lng: j.lng })),
     [mine, open]
   );
-
-  /** Ask the browser where we are, then route to `job`. */
-  const startDirections = useCallback((job: Pinned) => {
-    setRouteError(null);
-    setRoute(null);
-    if (!navigator.geolocation) {
-      setRouteError("This browser can't share your location, so in-app directions aren't available.");
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        setOrigin({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setRouteTo(job);
-      },
-      () => {
-        setLocating(false);
-        setRouteError("Location permission denied — allow it, or open the route in Google Maps.");
-      },
-      { enableHighAccuracy: true, timeout: 10_000 }
-    );
-  }, []);
-
-  const clearRoute = useCallback(() => {
-    setRouteTo(null);
-    setRoute(null);
-    setRouteError(null);
-  }, []);
 
   if (loading || !user) {
     return (
@@ -170,16 +139,16 @@ export default function ProviderMapPage() {
                     onClick={() => setSelected(j)}
                   />
                 ))}
-                {origin && routeTo && (
-                  <Dot at={origin} title="You" color="#17251f" r={11} z={3} />
+                {route.origin && route.active && (
+                  <Dot at={route.origin} title="You" color="#17251f" r={11} z={3} />
                 )}
 
-                <FitToJobs points={points} paused={!!routeTo} refitKey={full ? "full" : "inline"} />
+                <FitToJobs points={points} paused={route.active} refitKey={full ? "full" : "inline"} />
                 <Directions
-                  origin={routeTo ? origin : null}
-                  destination={routeTo ? { lat: routeTo.lat, lng: routeTo.lng } : null}
-                  onResult={setRoute}
-                  onError={setRouteError}
+                  origin={route.origin}
+                  destination={route.destination}
+                  onResult={route.onResult}
+                  onError={route.onError}
                 />
               </Map>
 
@@ -193,14 +162,14 @@ export default function ProviderMapPage() {
                 <Icon name={full ? "shrink" : "expand"} size="sm" />
               </button>
 
-              {routeTo && (
+              {route.active && (
                 <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-xl bg-card px-3 py-2 shadow-soft">
                   <span className="text-sm font-semibold">
-                    {route ? `${route.distance} · ${route.duration}` : "Finding route…"}
+                    {route.route ? `${route.route.distance} · ${route.route.duration}` : "Finding route…"}
                   </span>
                   <button
                     type="button"
-                    onClick={clearRoute}
+                    onClick={route.clearRoute}
                     className="text-xs font-semibold text-muted-foreground hover:text-foreground"
                   >
                     Clear
@@ -213,8 +182,8 @@ export default function ProviderMapPage() {
                   <JobCard
                     job={selected}
                     mine={mine.some((j) => j.id === selected.id)}
-                    locating={locating}
-                    onDirections={() => startDirections(selected)}
+                    locating={route.locating}
+                    onDirections={() => route.startDirections({ lat: selected.lat, lng: selected.lng })}
                     onClose={() => setSelected(null)}
                   />
                 </div>
@@ -224,9 +193,9 @@ export default function ProviderMapPage() {
         </div>
       )}
 
-      {routeError && (
+      {route.routeError && (
         <Card className="mt-4 bg-warning-light">
-          <p className="text-sm text-warning-foreground">{routeError}</p>
+          <p className="text-sm text-warning-foreground">{route.routeError}</p>
         </Card>
       )}
 

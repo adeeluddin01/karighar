@@ -61,9 +61,13 @@ Now `/admin` unlocks (verify providers, manage catalog, monitor jobs).
 
 ### Google Maps
 
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` must have **Maps JavaScript API** and **Geocoding API**
-enabled (Google Cloud Console → APIs). If you set HTTP-referrer restrictions, allow
-`http://localhost:3000/*` and your production domain.
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` must have **Maps JavaScript API**, **Geocoding API**
+and **Directions API** enabled (Google Cloud Console → APIs). If you set HTTP-referrer
+restrictions, allow `http://localhost:3000/*` and your production domain.
+
+The Directions API is what draws the route *inside* the app on the provider's
+jobs map and active-job screen. Without it those buttons report that it needs
+enabling, and the external "Open in Google Maps" link still works.
 
 ### Google sign-in (optional)
 

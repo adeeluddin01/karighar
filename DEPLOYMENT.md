@@ -21,9 +21,22 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    9. `supabase/patch_v9_fix_jobs_rls.sql`   ← CRITICAL: providers can see/accept the open job pool
    10. `supabase/patch_v10_fix_notify_cast.sql`   ← CRITICAL: unblocks status updates past 'assigned'
    11. `supabase/patch_v11_lock_provider_pii.sql`   ← SECURITY: stops `providers` leaking CNIC numbers to the anon key
-3. **Authentication → URL Configuration:** set **Site URL** to your domain
-   (e.g. `https://thekarighar.com`) and add it to **Redirect URLs** plus
-   `https://thekarighar.com/auth/callback`.
+   12. `supabase/patch_v12_customer_reviews_and_alerts.sql`   ← provider→customer ratings, signup role/phone metadata, chat notifications
+3. **Authentication → URL Configuration.** Get this wrong and nobody can
+   finish signing up — the confirmation email is built from these settings.
+   - **Site URL:** `https://thekarighar.com`
+   - **Redirect URLs** — one per line, note the **trailing slashes**:
+     ```
+     https://thekarighar.com/**
+     https://thekarighar.com/auth/callback/
+     https://thekarighar.com/signin/
+     http://localhost:3000/**
+     ```
+   The app now sends an explicit `emailRedirectTo`, but GoTrue only honours it
+   if it matches this allow-list — otherwise it silently falls back to the
+   Site URL, and the "confirmation email points at localhost" bug looks
+   unfixed. The trailing slash matters because `trailingSlash: true` exports
+   `auth/callback/index.html`.
 4. **Authentication → Providers → Email:** keep "Confirm email" **ON** for production.
 5. (Optional) **Providers → Google:** paste client ID/secret; add
    `https://YOUR-PROJECT.supabase.co/auth/v1/callback` as an authorized redirect in Google Cloud.
@@ -31,7 +44,10 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
 
 ## 2. Google Maps
 
-- Google Cloud Console → enable **Maps JavaScript API** + **Geocoding API**.
+- Google Cloud Console → enable **Maps JavaScript API** + **Geocoding API** +
+  **Directions API**. The last one powers the in-app route drawn on the
+  provider's jobs map and active-job screen; without it those show
+  "needs the Directions API enabled" and fall back to the external link.
 - **Enable billing** on the project (required even for the free tier).
 - Restrict the API key by **HTTP referrer** to your domain(s) + `localhost` for dev.
 
@@ -57,19 +73,19 @@ update profiles set role = 'admin' where id = 'YOUR-USER-ID';
 
 ## 5. Pre-launch checklist
 
-- [ ] All 4 SQL files run on prod
+- [ ] `schema.sql` (fresh) or every outstanding `patch_v*.sql` in order, run on prod
 - [ ] Maps billing enabled + key restricted
 - [ ] Site URL + OAuth redirects set for the real domain
 - [ ] Env vars set in Vercel; build green; custom domain live
 - [ ] First admin created; test the full flow on prod (book → accept → complete → pay → rate)
 - [ ] Recruit + verify 10–20 launch providers (Phase 0 supply)
 - [ ] Swap placeholders: support email/WhatsApp (`src/lib/config.ts`), legal entity in Terms/Privacy
-- [ ] Health check green: `https://thekarighar.com/api/health`
 - [ ] (P1) Add Sentry for error monitoring; enable Supabase backups
 
 ## 6. Smoke test after every deploy
 
-1. `/api/health` returns `{"status":"ok"}`
-2. Sign up → book a fixed service → confirm it appears in `/bookings`
-3. As a second account, onboard as a Pro; approve via admin; accept the job; advance to paid
-4. Customer sees live status + gets notifications; rating works
+1. Sign up → confirm the emailed link points at the real domain → book a
+   fixed service → confirm it appears in `/bookings`
+2. As a second account, onboard as a Pro; approve via admin; accept the job; advance to paid
+3. Customer sees live status + gets notifications; both ratings work
+   (customer rates the pro, pro rates the customer)

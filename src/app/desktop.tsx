@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CATALOG, formatPKR } from "@/lib/catalog";
 import { AppShell } from "@/components/AppShell";
+import { BecomeProCard } from "@/components/BecomeProCard";
 import { HeroSearch } from "@/components/HeroSearch";
 import { Icon, type IconName } from "@/components/Icon";
 import { Card, LinkButton } from "@/components/ui";
@@ -147,13 +148,8 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Pro / business */}
-      <div className="mt-8 flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Are you a professional?</span>
-        <Link href="/pro" className="font-semibold text-primary">
-          Join as a technician →
-        </Link>
-      </div>
+      {/* Pro / business — the supply side of the marketplace. */}
+      <BecomeProCard />
 
       {/* Footer */}
       <footer className="mt-10 border-t border-border pt-6 text-sm text-muted-foreground">

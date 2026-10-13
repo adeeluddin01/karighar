@@ -8,12 +8,14 @@ import { useUser } from "@/lib/useUser";
 import { useIsPhone } from "@/components/Lanes";
 import { Screen, Scroll, Tabs } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
+import { AlertsBell } from "@/components/kg/AlertsBell";
 import { Ava, Pill, Rate, Sec, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Job, type Service, type ServiceCategory } from "@/lib/types";
 import { areaOf } from "@/lib/area";
 import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
+import { proPromo } from "@/components/nav";
 
 type Cat = ServiceCategory & { services: Service[] };
 // The statuses that put a booking on the Home screen's live banner.
@@ -28,8 +30,9 @@ function cheapest(services: Service[]) {
 }
 
 export default function HomeScreen() {
-  const { user, profile } = useUser();
+  const { user, profile, providerStatus } = useUser();
   const router = useRouter();
+  const promo = proPromo(profile?.role, providerStatus);
   // Home renders both lanes so the web one keeps its prerendered content for
   // crawlers (see LaneSplit) — which means this tree also mounts on desktop,
   // hidden. Gate the queries so they only run when this lane is the live one.
@@ -134,14 +137,19 @@ export default function HomeScreen() {
               <b>{profile?.full_name || (user ? "Your profile" : "Welcome")}</b>
             </div>
           </Link>
-          <Link className="loc" href={user ? "/profile" : "/signin"}>
-            <small>Location</small>
-            <b>
-              <KIcon name="pin" />
-              {area ?? "Karachi"}
-              <KIcon name="chev-d" xs />
-            </b>
-          </Link>
+          {/* `.hh` is space-between, so the location and the bell share one
+              group to keep it a two-column header. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
+            <Link className="loc" href={user ? "/profile" : "/signin"}>
+              <small>Location</small>
+              <b>
+                <KIcon name="pin" />
+                {area ?? "Karachi"}
+                <KIcon name="chev-d" xs />
+              </b>
+            </Link>
+            <AlertsBell />
+          </div>
         </header>
 
         <form
@@ -305,6 +313,21 @@ export default function HomeScreen() {
                 Save your addresses, track your pro live on the map and keep every receipt in one
                 place.
               </p>
+            </div>
+            <span className="ic">
+              <KIcon name="arrow" />
+            </span>
+          </Link>
+        )}
+
+        {/* Recruitment: the supply side of the marketplace. Copy comes from
+            proPromo() so this lane and the web one can't drift. */}
+        {promo && (
+          <Link className="promo" href={promo.href}>
+            <div>
+              <span className="eyebrow">{promo.eyebrow}</span>
+              <b>{promo.title}</b>
+              <p>{promo.body}</p>
             </div>
             <span className="ic">
               <KIcon name="arrow" />

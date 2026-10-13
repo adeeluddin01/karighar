@@ -1,42 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
+import { useNotifications } from "@/lib/useNotifications";
+import { notifHref } from "@/lib/notifHref";
+import { roleOf } from "@/components/nav";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { clsx } from "@/lib/clsx";
 import type { Notification } from "@/lib/types";
 
 export default function NotificationsPage() {
-  const { user, loading } = useRequireAuth("/notifications");
+  const { user, profile, providerStatus, loading } = useRequireAuth("/notifications");
   const router = useRouter();
-  const [items, setItems] = useState<Notification[]>([]);
-
-  useEffect(() => {
-    if (!user) return;
-    createClient()
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setItems((data as Notification[]) || []));
-  }, [user]);
+  // The shared hook adds realtime, and marking read now updates the list —
+  // it previously wrote to the database only, so the row stayed bold.
+  const { items, unread, markRead, markAll } = useNotifications(user?.id, { limit: 50 });
+  const role = roleOf(!!user, profile?.role, providerStatus);
 
   async function open(n: Notification) {
-    if (!n.read) await createClient().from("notifications").update({ read: true }).eq("id", n.id);
-    if (n.job_id) router.push(`/bookings/view/?id=${n.job_id}`);
-  }
-
-  async function markAll() {
-    if (!user) return;
-    await createClient()
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", user.id)
-      .eq("read", false);
-    setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+    if (!n.read) await markRead(n.id);
+    // A provider sent to /bookings/view/ would land on a customer page their
+    // RLS blocks.
+    const href = notifHref(n, role);
+    if (href) router.push(href);
   }
 
   if (loading || !user) {
@@ -46,8 +33,6 @@ export default function NotificationsPage() {
       </AppShell>
     );
   }
-
-  const unread = items.filter((i) => !i.read).length;
 
   return (
     <AppShell width="narrow">
@@ -63,7 +48,9 @@ export default function NotificationsPage() {
         }
       />
 
-      {items.length === 0 ? (
+      {items === null ? (
+        <Spinner label="Loading…" />
+      ) : items.length === 0 ? (
         <EmptyState icon="bell" title="Nothing yet" hint="Updates about your bookings land here." />
       ) : (
         <Card padded={false} className="overflow-hidden">

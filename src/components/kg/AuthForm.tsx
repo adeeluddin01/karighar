@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { normalizePkPhone } from "@/lib/validate";
+import {
+  CONFIRM_EMAIL_NOTICE,
+  authErrorMessage,
+  signInWithEmail,
+  signUpWithEmail,
+  startGoogleOAuth,
+} from "@/lib/authActions";
 import { KIcon } from "@/components/kg/icons";
 
 /**
@@ -16,15 +22,25 @@ export function KAuthForm({
   mode,
   asProvider,
   submitLabel,
-  onGoogleRedirect,
+  arrivalError,
+  onLeaveForAuth,
   onDone,
 }: {
   mode: "signin" | "signup";
   /** Sign-ups that should land in the pro application instead. */
   asProvider?: boolean;
   submitLabel?: string;
-  /** Called right before the OAuth redirect; returns the path to land back on. */
-  onGoogleRedirect: () => string;
+  /**
+   * An `?error=` code handed back by /auth/callback/, shown above the form.
+   * Nothing read that param before, so a failed sign-in showed a blank form.
+   */
+  arrivalError?: string | null;
+  /**
+   * Called before any flow that navigates away (OAuth, or an email signup
+   * awaiting confirmation). Return the path to land back on; stash any draft
+   * here.
+   */
+  onLeaveForAuth: () => string;
   /** A session now exists. */
   onDone: () => void;
 }) {
@@ -38,13 +54,7 @@ export function KAuthForm({
 
   async function google() {
     setError(null);
-    const next = onGoogleRedirect();
-    const { error } = await createClient().auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    });
+    const { error } = await startGoogleOAuth(createClient(), onLeaveForAuth());
     if (error) setError(error.message);
   }
 
@@ -56,53 +66,33 @@ export function KAuthForm({
     const supabase = createClient();
 
     if (mode === "signup") {
-      const normPhone = normalizePkPhone(phone);
-      if (!normPhone) {
-        setError("Enter a valid Pakistani mobile number, e.g. 0300 1234567");
-        setBusy(false);
-        return;
-      }
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName, phone: normPhone } },
-      });
-      if (error) {
-        setError(error.message);
-        setBusy(false);
-        return;
-      }
-      if (!data.session) {
-        setNotice("Account created. Check your email to confirm it, then sign in here.");
-        setBusy(false);
-        return;
-      }
-      // Signed in immediately — persist name/phone + role.
-      await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          phone: normPhone,
-          role: asProvider ? "provider" : "customer",
-        })
-        .eq("id", data.session.user.id);
+      const result = await signUpWithEmail(
+        supabase,
+        { email, password, fullName, phone, asProvider },
+        onLeaveForAuth()
+      );
       setBusy(false);
-      onDone();
+      if (result.kind === "error") setError(result.message);
+      else if (result.kind === "confirm-email") setNotice(CONFIRM_EMAIL_NOTICE);
+      else onDone();
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-      setBusy(false);
-      return;
-    }
+    const { error } = await signInWithEmail(supabase, email, password);
     setBusy(false);
-    onDone();
+    if (error) setError(error.message);
+    else onDone();
   }
 
   return (
     <>
+      {arrivalError && (
+        <div className="note bad">
+          <KIcon name="alert" />
+          <p>{authErrorMessage(arrivalError)}</p>
+        </div>
+      )}
+
       <button type="button" className="btn ghost wide" onClick={google}>
         <GoogleMark />
         Continue with Google

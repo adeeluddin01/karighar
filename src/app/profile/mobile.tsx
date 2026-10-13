@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
+import { useUnreadCount } from "@/lib/useNotifications";
 import { useToast } from "@/components/Toast";
 import { Screen, Scroll, Tabs } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
@@ -12,17 +13,23 @@ import { Ava, Pill, Skel, Well } from "@/components/kg/parts";
 import { proEntry } from "@/components/nav";
 import { useDarkMode } from "@/lib/theme";
 import { areaOf, joinAddress, splitAddress } from "@/lib/area";
-import { KARACHI_AREAS, type Provider } from "@/lib/types";
+import { KARACHI_AREAS, type Customer, type Provider } from "@/lib/types";
 import { BRAND } from "@/lib/config";
 
 export default function ProfileScreen() {
   const { user, profile, providerStatus, loading } = useRequireAuth("/profile");
+  const unreadAlerts = useUnreadCount(user?.id);
   const router = useRouter();
   const toast = useToast();
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [address, setAddress] = useState<string | null>(null);
-  const [counts, setCounts] = useState<{ jobs: number; done: number; reviews: number } | null>(null);
+  const [counts, setCounts] = useState<{
+    jobs: number;
+    done: number;
+    ratingAvg: number;
+    jobsRated: number;
+  } | null>(null);
   const [dark, setDark] = useDarkMode();
 
   const [editMe, setEditMe] = useState(false);
@@ -32,9 +39,11 @@ export default function ProfileScreen() {
     if (!user) return;
     const supabase = createClient();
     (async () => {
-      const [{ data: customer }, { count: jobs }, { count: done }, { count: reviews }] =
+      const [{ data: customer }, { count: jobs }, { count: done }] =
         await Promise.all([
-          supabase.from("customers").select("default_address").eq("profile_id", user.id).maybeSingle(),
+          // `*` rather than named columns so the page still renders if
+          // patch_v12 (rating_avg / jobs_rated) hasn't been applied yet.
+          supabase.from("customers").select("*").eq("profile_id", user.id).maybeSingle(),
           supabase
             .from("jobs")
             .select("id", { count: "exact", head: true })
@@ -44,13 +53,15 @@ export default function ProfileScreen() {
             .select("id", { count: "exact", head: true })
             .eq("customer_id", user.id)
             .in("status", ["paid", "rated"]),
-          supabase
-            .from("reviews")
-            .select("id", { count: "exact", head: true })
-            .eq("customer_id", user.id),
         ]);
-      setAddress((customer as { default_address: string | null } | null)?.default_address ?? null);
-      setCounts({ jobs: jobs ?? 0, done: done ?? 0, reviews: reviews ?? 0 });
+      const row = customer as Partial<Customer> | null;
+      setAddress(row?.default_address ?? null);
+      setCounts({
+        jobs: jobs ?? 0,
+        done: done ?? 0,
+        ratingAvg: row?.rating_avg ?? 0,
+        jobsRated: row?.jobs_rated ?? 0,
+      });
     })();
   }, [user]);
 
@@ -144,8 +155,8 @@ export default function ProfileScreen() {
             <small>Completed</small>
           </div>
           <div>
-            <b>{counts?.reviews ?? "—"}</b>
-            <small>Reviews</small>
+            <b>{counts && counts.jobsRated > 0 ? counts.ratingAvg.toFixed(1) : "—"}</b>
+            <small>{counts && counts.jobsRated > 0 ? "Your rating" : "Not rated yet"}</small>
           </div>
         </div>
 
@@ -232,11 +243,15 @@ export default function ProfileScreen() {
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
-          <Link href="/notifications">
+          <Link href="/notifications/">
             <Well icon="bell" size="sm" />
             <div>
               <b>Notifications</b>
-              <small>Job updates and messages</small>
+              <small>
+                {unreadAlerts > 0
+                  ? `${unreadAlerts} unread`
+                  : "Job updates and messages"}
+              </small>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>

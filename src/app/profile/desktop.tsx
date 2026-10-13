@@ -18,7 +18,7 @@ import {
   Rating,
   Spinner,
 } from "@/components/ui";
-import type { Provider } from "@/lib/types";
+import type { Customer, Provider } from "@/lib/types";
 
 export default function ProfilePage() {
   const { user, profile, loading } = useRequireAuth("/profile");
@@ -28,6 +28,7 @@ export default function ProfilePage() {
   const [provider, setProvider] = useState<Provider | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [myRating, setMyRating] = useState<Partial<Customer> | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -41,6 +42,16 @@ export default function ProfilePage() {
         .eq("profile_id", user.id)
         .maybeSingle()
         .then(({ data }) => setProvider(data as Provider | null));
+    }
+    if (user) {
+      // `*` rather than named columns so this still works if patch_v12
+      // (rating_avg / jobs_rated) hasn't been applied yet.
+      createClient()
+        .from("customers")
+        .select("*")
+        .eq("profile_id", user.id)
+        .maybeSingle()
+        .then(({ data }) => setMyRating(data as Partial<Customer> | null));
     }
   }, [profile, user]);
 
@@ -85,6 +96,18 @@ export default function ProfilePage() {
           </p>
         </div>
       </div>
+
+      {(myRating?.jobs_rated ?? 0) > 0 && (
+        <Card className="mt-4">
+          <KV label="Your rating as a customer">
+            <Rating value={myRating?.rating_avg} />
+          </KV>
+          <KV label="Ratings received">{myRating?.jobs_rated}</KV>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Left by the pros who did your jobs. Pros see this before accepting.
+          </p>
+        </Card>
+      )}
 
       {provider?.status === "approved" && (
         <Card className="mt-4">

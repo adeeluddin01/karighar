@@ -37,14 +37,32 @@ export const BARE_MAP_STYLE: google.maps.MapTypeStyle[] = [
 
 /**
  * Deep link to turn-by-turn directions in Google Maps — the native app on a
- * phone, the website on desktop. `destination` is a coordinate so it lands on
- * the exact pin rather than a geocoded guess at the address.
+ * phone, the website on desktop.
+ *
+ * A coordinate destination lands on the exact pin rather than a geocoded guess
+ * at the address. When a job has no pin, `address` keeps the link on the
+ * directions endpoint instead of degrading to a plain map *search*, which is
+ * what several callers used to do.
+ *
+ * Returns "" when there is nothing to route to, so callers can hide the button.
  */
-export function googleDirectionsUrl({ lat, lng }: LatLng) {
+export function googleDirectionsUrl(
+  destination: LatLng | null | undefined,
+  opts?: { origin?: LatLng | null; address?: string | null }
+) {
+  const dest = destination
+    ? `${destination.lat},${destination.lng}`
+    : opts?.address?.trim() || "";
+  if (!dest) return "";
+
   const params = new URLSearchParams({
     api: "1",
-    destination: `${lat},${lng}`,
+    destination: dest,
     travelmode: "driving",
   });
+  // Omitted by default: Google then routes from the device's own location,
+  // which is what a technician tapping this actually wants.
+  if (opts?.origin) params.set("origin", `${opts.origin.lat},${opts.origin.lng}`);
+
   return `https://www.google.com/maps/dir/?${params}`;
 }

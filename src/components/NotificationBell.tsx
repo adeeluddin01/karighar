@@ -1,67 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Icon } from "@/components/Icon";
+import { useToast } from "@/components/Toast";
+import { roleOf } from "@/components/nav";
+import { useUser } from "@/lib/useUser";
+import { useNotifications } from "@/lib/useNotifications";
+import { notifHref } from "@/lib/notifHref";
 import type { Notification } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 
 // Bell + dropdown showing recent notifications with an unread badge.
 export function NotificationBell({ userId }: { userId: string }) {
-  const [items, setItems] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const toast = useToast();
+  const { profile, providerStatus } = useUser();
+  const role = roleOf(true, profile?.role, providerStatus);
 
-  const load = useCallback(async () => {
-    const { data } = await createClient()
-      .from("notifications")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(15);
-    setItems((data as Notification[]) || []);
-  }, [userId]);
-
-  useEffect(() => {
-    load();
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`notif:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => setItems((prev) => [payload.new as Notification, ...prev].slice(0, 15))
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, load]);
-
-  const unread = items.filter((i) => !i.read).length;
+  const { items, unread, markRead, markAll } = useNotifications(userId, {
+    // Only fires for rows arriving live, so the initial page never toasts.
+    onNew: (n) => toast(n.title, "info"),
+  });
 
   async function openItem(n: Notification) {
     setOpen(false);
-    if (!n.read) {
-      await createClient().from("notifications").update({ read: true }).eq("id", n.id);
-      setItems((prev) => prev.map((i) => (i.id === n.id ? { ...i, read: true } : i)));
-    }
-    if (n.job_id) router.push(`/bookings/view/?id=${n.job_id}`);
-  }
-
-  async function markAll() {
-    await createClient()
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", userId)
-      .eq("read", false);
-    setItems((prev) => prev.map((i) => ({ ...i, read: true })));
+    if (!n.read) await markRead(n.id);
+    // Role-aware: a provider sent to /bookings/view/ would land on a customer
+    // page their RLS blocks.
+    const href = notifHref(n, role);
+    if (href) router.push(href);
   }
 
   return (
@@ -69,7 +38,7 @@ export function NotificationBell({ userId }: { userId: string }) {
       <button
         onClick={() => setOpen((o) => !o)}
         className="relative rounded-xl p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
-        aria-label="Notifications"
+        aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
       >
         <Icon name="bell" />
         {unread > 0 && (
@@ -96,7 +65,9 @@ export function NotificationBell({ userId }: { userId: string }) {
               )}
             </div>
             <div className="max-h-96 overflow-y-auto">
-              {items.length === 0 ? (
+              {items === null ? (
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</p>
+              ) : items.length === 0 ? (
                 <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                   No notifications yet.
                 </p>

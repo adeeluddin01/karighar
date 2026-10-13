@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/lib/useUser";
+import { useUnreadCount } from "@/lib/useNotifications";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/ui";
 import { NAV, isActive, roleOf } from "@/components/nav";
@@ -19,6 +20,7 @@ export function Sidebar() {
 
   const role = roleOf(!!user, profile?.role, providerStatus);
   const links = NAV[role];
+  const unread = useUnreadCount(user?.id);
 
   async function signOut() {
     await createClient().auth.signOut();
@@ -49,6 +51,13 @@ export function Sidebar() {
           >
             <Icon name={l.icon} />
             {l.label}
+            {/* Desktop had no bell anywhere — <AppHeader> carries one but is
+                md:hidden — so the unread count rides on the Alerts row. */}
+            {l.href === "/notifications" && unread > 0 && (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-destructive-foreground">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

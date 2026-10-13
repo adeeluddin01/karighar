@@ -21,7 +21,12 @@ import {
   Tabs,
   formatPKR,
 } from "@/components/ui";
-import { JOB_STATUS_LABEL, type Job, type Provider } from "@/lib/types";
+import {
+  JOB_STATUS_LABEL,
+  type Job,
+  type Provider,
+  type PublicCustomerRating,
+} from "@/lib/types";
 
 type Tab = "open" | "active";
 
@@ -37,6 +42,7 @@ export default function ProDashboard() {
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [custRatings, setCustRatings] = useState<Map<string, PublicCustomerRating>>(new Map());
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -63,8 +69,26 @@ export default function ProDashboard() {
           .not("status", "in", "(rated,cancelled)")
           .order("created_at", { ascending: false }),
       ]);
-      setAvailable((open as Job[]) || []);
-      setMine((assigned as Job[]) || []);
+      const openJobs = (open as Job[]) || [];
+      const myJobs = (assigned as Job[]) || [];
+      setAvailable(openJobs);
+      setMine(myJobs);
+
+      // One batched read of the ratings view — it carries the aggregates only,
+      // so this works for the open pool too, where the provider has no
+      // relationship to the customer yet.
+      const ids = [...new Set([...openJobs, ...myJobs].map((j) => j.customer_id))];
+      if (ids.length) {
+        const { data: ratings } = await supabase
+          .from("public_customer_ratings")
+          .select("*")
+          .in("id", ids);
+        setCustRatings(
+          new Map(
+            ((ratings as PublicCustomerRating[]) ?? []).map((r) => [r.id, r])
+          )
+        );
+      }
     }
     setFetching(false);
   }, [user]);
@@ -228,11 +252,14 @@ export default function ProDashboard() {
                       <span className="mt-2 block font-bold">{formatPKR(job.price)}</span>
                     </span>
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Icon name="calendar" size="sm" />
-                    {job.scheduled_at
-                      ? new Date(job.scheduled_at).toLocaleString("en-PK")
-                      : "Flexible time"}
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Icon name="calendar" size="sm" />
+                      {job.scheduled_at
+                        ? new Date(job.scheduled_at).toLocaleString("en-PK")
+                        : "Flexible time"}
+                    </span>
+                    <CustomerRating rating={custRatings.get(job.customer_id)} />
                   </span>
                 </Link>
               ))
@@ -246,11 +273,14 @@ export default function ProDashboard() {
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
                       {job.description && <p className="mt-1 text-sm">{job.description}</p>}
-                      <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Icon name="calendar" size="sm" />
-                        {job.scheduled_at
-                          ? new Date(job.scheduled_at).toLocaleString("en-PK")
-                          : "Flexible time"}
+                      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          <Icon name="calendar" size="sm" />
+                          {job.scheduled_at
+                            ? new Date(job.scheduled_at).toLocaleString("en-PK")
+                            : "Flexible time"}
+                        </span>
+                        <CustomerRating rating={custRatings.get(job.customer_id)} />
                       </p>
                     </div>
                     <div className="whitespace-nowrap text-right">
@@ -304,5 +334,23 @@ export default function ProDashboard() {
         </div>
       )}
     </AppShell>
+  );
+}
+
+/**
+ * The customer's rating, as a pro sees it before accepting. A customer with no
+ * ratings yet reads as "New customer" rather than 0.0 stars.
+ */
+function CustomerRating({ rating }: { rating?: PublicCustomerRating }) {
+  if (!rating || rating.jobs_rated === 0) {
+    return <span>New customer</span>;
+  }
+  return (
+    <span className="flex items-center gap-1.5">
+      <Rating value={rating.rating_avg} />
+      <span>
+        ({rating.jobs_rated} {rating.jobs_rated === 1 ? "rating" : "ratings"})
+      </span>
+    </span>
   );
 }

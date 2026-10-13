@@ -15,6 +15,7 @@ import { formatPKR } from "@/lib/money";
 import { KARACHI_AREAS, type Service, type ServiceCategory } from "@/lib/types";
 import { joinAddress, splitAddress } from "@/lib/area";
 import type { LatLng } from "@/lib/maps";
+import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
 import { clsx } from "@/lib/clsx";
 
 // Visit windows, kept 24h so `new Date(`${date}T${time}`)` still does the
@@ -37,9 +38,12 @@ const CUSTOM = "custom";
 // Persists the in-progress booking across a sign-in/sign-up detour so the
 // form isn't lost — either in the inline modal or across a Google OAuth
 // redirect (which necessarily leaves and returns to this page).
-const DRAFT_KEY = "kg-draft-book-service";
+// Namespaced per lane: the web lane stores a *different* shape (it has a
+// wizard `step`), and the resume effect below books automatically — so a
+// draft read across lanes could auto-book garbage.
+const DRAFT_KEY = "kg-draft-book-service-phone";
 
-type Draft = {
+type Draft = Versioned & {
   serviceId: string;
   pickedId: string;
   when: When;
@@ -84,18 +88,23 @@ function fmtDay(iso: string) {
   });
 }
 
+// Shape guard for this lane's draft: `pickedId`/`when` are what distinguish
+// it from the web lane's. Anything else is dropped rather than restored.
+function isPhoneDraft(v: unknown): v is Draft {
+  return (
+    isRecord(v) &&
+    typeof v.serviceId === "string" &&
+    typeof v.pickedId === "string" &&
+    typeof v.when === "string"
+  );
+}
+
 // Read-only: does not clear the draft, so it stays safe to call twice (React
 // Strict Mode double-invokes lazy initializers).
-function readDraft(serviceId: string): Draft | null {
+function loadDraft(serviceId: string): Draft | null {
   if (typeof window === "undefined" || !serviceId) return null;
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as Draft;
-    return draft.serviceId === serviceId ? draft : null;
-  } catch {
-    return null;
-  }
+  const draft = readDraft(DRAFT_KEY, isPhoneDraft);
+  return draft && draft.serviceId === serviceId ? draft : null;
 }
 
 function BookServiceContent() {
@@ -104,7 +113,7 @@ function BookServiceContent() {
 
   // A draft left behind by a Google OAuth round-trip (same-tab sign-in never
   // needs this — the form is already sitting in React state).
-  const [draft] = useState<Draft | null>(() => readDraft(serviceId));
+  const [draft] = useState<Draft | null>(() => loadDraft(serviceId));
 
   const [cat, setCat] = useState<ServiceCategory | null>(null);
   const [siblings, setSiblings] = useState<Service[]>([]);
@@ -123,6 +132,9 @@ function BookServiceContent() {
   const [error, setError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const attemptedResumeRef = useRef(false);
+  // Latches on the first successful insert, so a double tap or an effect
+  // replay cannot create two jobs.
+  const bookedRef = useRef(false);
 
   const days = useMemo(() => nextDays(), []);
   const todaySlot = useMemo(() => slotLeftToday(), []);
@@ -187,11 +199,7 @@ function BookServiceContent() {
   // storage so a later visit doesn't restore stale data.
   useEffect(() => {
     if (!draft) return;
-    try {
-      sessionStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // ignore
-    }
+    clearDraft(DRAFT_KEY);
   }, [draft]);
 
   // Once the service has loaded, finish the booking the user already filled
@@ -225,18 +233,15 @@ function BookServiceContent() {
     return { date: "", time: "", label: "Pick a time" };
   }, [when, date, time, todaySlot]);
 
-  function saveDraft() {
-    const d: Draft = { serviceId, pickedId, when, area, address, pos, date, time, notes };
-    try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
-    } catch {
-      // sessionStorage unavailable (e.g. private mode) — Google sign-in just
-      // won't be able to resume; email/password sign-in in the modal still will.
-    }
+  function stashDraft() {
+    saveDraft(DRAFT_KEY, { serviceId, pickedId, when, area, address, pos, date, time, notes });
   }
 
   async function createBooking(userId: string) {
-    if (!service) return;
+    if (!service || bookedRef.current) return;
+    // The resume-after-sign-in effect and the auth sheet's onSuccess both land
+    // here, and the insert is not idempotent server-side.
+    bookedRef.current = true;
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -274,6 +279,7 @@ function BookServiceContent() {
 
     if (jobErr) {
       setError(jobErr.message);
+      bookedRef.current = false; // let them retry
       setBusy(false);
       return;
     }
@@ -588,8 +594,8 @@ function BookServiceContent() {
             } = await createClient().auth.getUser();
             if (user) await createBooking(user.id);
           }}
-          onGoogleRedirect={() => {
-            saveDraft();
+          onLeaveForAuth={() => {
+            stashDraft();
             return `/book/service/?id=${serviceId}`;
           }}
         />

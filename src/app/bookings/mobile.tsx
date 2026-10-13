@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { Screen, Scroll, Tabs } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
+import { AlertsBell } from "@/components/kg/AlertsBell";
 import { EmptyK, Pill, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { STATUS_PILL, isActiveJob, jobRef, whenLabel } from "@/components/kg/job";
@@ -20,14 +21,13 @@ type Enriched = Job & { proName?: string | null; icon?: string | null; rated?: b
 export default function BookingsScreen() {
   const { user, loading } = useRequireAuth("/bookings");
   const [jobs, setJobs] = useState<Enriched[] | null>(null);
-  const [unread, setUnread] = useState(0);
   const [pane, setPane] = useState<Pane>("active");
 
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
     (async () => {
-      const [{ data: rows }, { data: services }, { data: cats }, { count }] = await Promise.all([
+      const [{ data: rows }, { data: services }, { data: cats }] = await Promise.all([
         supabase
           .from("jobs")
           .select("*")
@@ -35,14 +35,8 @@ export default function BookingsScreen() {
           .order("created_at", { ascending: false }),
         supabase.from("services").select("id,category_id"),
         supabase.from("service_categories").select("id,icon"),
-        supabase
-          .from("notifications")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("read", false),
       ]);
       const list = (rows as Job[]) ?? [];
-      setUnread(count ?? 0);
 
       const svc = new Map(
         ((services as Pick<Service, "id" | "category_id">[]) ?? []).map((s) => [s.id, s.category_id])
@@ -89,14 +83,7 @@ export default function BookingsScreen() {
       <Scroll>
         <header className="hh">
           <h1>My bookings</h1>
-          <Link
-            className="ic"
-            href="/notifications"
-            aria-label={unread ? `Notifications, ${unread} new` : "Notifications"}
-          >
-            <KIcon name="bell" />
-            {unread > 0 && <i className="ndot" />}
-          </Link>
+          <AlertsBell />
         </header>
 
         <div className="seg" role="tablist" aria-label="Bookings">

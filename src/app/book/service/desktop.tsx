@@ -22,6 +22,7 @@ import {
 } from "@/components/ui";
 import { KARACHI_AREAS, type Service } from "@/lib/types";
 import type { LatLng } from "@/lib/maps";
+import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
 import { Icon } from "@/components/Icon";
 
 const STEPS = ["Address", "Schedule", "Confirm"] as const;
@@ -40,9 +41,12 @@ const SLOTS = [
 // Persists the in-progress booking across a sign-in/sign-up detour so the
 // form isn't lost — either in the inline modal or across a Google OAuth
 // redirect (which necessarily leaves and returns to this page).
-const DRAFT_KEY = "kg-draft-book-service";
+// Namespaced per lane: the phone lane stores a *different* shape under its own
+// key, and the resume effect below books automatically — so a draft read
+// across lanes could auto-book garbage.
+const DRAFT_KEY = "kg-draft-book-service-web";
 
-type Draft = {
+type Draft = Versioned & {
   serviceId: string;
   step: number;
   area: string;
@@ -78,16 +82,21 @@ function fmtDate(iso: string) {
 
 // Read-only: does not clear the draft, so it stays safe to call twice (React
 // Strict Mode double-invokes lazy initializers).
-function readDraft(serviceId: string): Draft | null {
+// Shape guard for this lane's draft: `step` is what distinguishes it from the
+// phone lane's. Anything else is dropped rather than restored.
+function isWebDraft(v: unknown): v is Draft {
+  return (
+    isRecord(v) &&
+    typeof v.serviceId === "string" &&
+    typeof v.step === "number" &&
+    typeof v.address === "string"
+  );
+}
+
+function loadDraft(serviceId: string): Draft | null {
   if (typeof window === "undefined" || !serviceId) return null;
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const draft = JSON.parse(raw) as Draft;
-    return draft.serviceId === serviceId ? draft : null;
-  } catch {
-    return null;
-  }
+  const draft = readDraft(DRAFT_KEY, isWebDraft);
+  return draft && draft.serviceId === serviceId ? draft : null;
 }
 
 function BookServiceContent() {
@@ -96,7 +105,7 @@ function BookServiceContent() {
 
   // A draft left behind by a Google OAuth round-trip (same-tab sign-in never
   // needs this — the form is already sitting in React state).
-  const [draft] = useState<Draft | null>(() => readDraft(serviceId));
+  const [draft] = useState<Draft | null>(() => loadDraft(serviceId));
 
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +121,9 @@ function BookServiceContent() {
   const [error, setError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const attemptedResumeRef = useRef(false);
+  // Latches on the first successful insert, so a double submit or an
+  // effect replay cannot create two jobs.
+  const bookedRef = useRef(false);
 
   const days = nextDays();
 
@@ -133,11 +145,7 @@ function BookServiceContent() {
   // this doesn't need to go through a setState call.
   useEffect(() => {
     if (!draft) return;
-    try {
-      sessionStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // ignore
-    }
+    clearDraft(DRAFT_KEY);
   }, [draft]);
 
   // Once the service has loaded, try to finish the booking the user already
@@ -156,18 +164,15 @@ function BookServiceContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, loading, service]);
 
-  function saveDraft() {
-    const draft: Draft = { serviceId, step, area, address, pos, date, time, notes };
-    try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // sessionStorage unavailable (e.g. private mode) — Google sign-in just
-      // won't be able to resume; email/password sign-in in the modal still will.
-    }
+  function stashDraft() {
+    saveDraft(DRAFT_KEY, { serviceId, step, area, address, pos, date, time, notes });
   }
 
   async function createBooking(userId: string) {
-    if (!service) return;
+    if (!service || bookedRef.current) return;
+    // The resume-after-sign-in effect and the modal's onSuccess both land
+    // here, and neither insert is idempotent server-side.
+    bookedRef.current = true;
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -203,6 +208,7 @@ function BookServiceContent() {
     if (jobErr) {
       setError(jobErr.message);
       setBusy(false);
+      bookedRef.current = false; // let them retry
       return;
     }
     router.push(`/bookings/view/?id=${job!.id}&new=1`);
@@ -210,6 +216,18 @@ function BookServiceContent() {
 
   async function confirm(e: React.FormEvent) {
     e.preventDefault();
+
+    // Submitting from an earlier step means Enter in a field, or the Continue
+    // button: advance, never book. Without this the wizard booked from step 1
+    // — the form holds a single `required` text input and (because `Button`
+    // defaults to type="button") no submit button, which is exactly the shape
+    // where the browser performs an implicit submission.
+    if (step < STEPS.length) {
+      if (canContinue) setStep(step + 1);
+      return;
+    }
+    if (busy || bookedRef.current) return;
+
     setBusy(true);
     setError(null);
 
@@ -384,11 +402,7 @@ function BookServiceContent() {
         )}
 
         {step < STEPS.length ? (
-          <Button
-            className="mt-6 w-full"
-            disabled={!canContinue}
-            onClick={() => setStep(step + 1)}
-          >
+          <Button type="submit" className="mt-6 w-full" disabled={!canContinue}>
             Continue
           </Button>
         ) : (
@@ -410,8 +424,8 @@ function BookServiceContent() {
             } = await createClient().auth.getUser();
             if (user) await createBooking(user.id);
           }}
-          onGoogleRedirect={() => {
-            saveDraft();
+          onLeaveForAuth={() => {
+            stashDraft();
             return `/book/service/?id=${serviceId}`;
           }}
         />

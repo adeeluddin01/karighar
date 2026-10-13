@@ -11,22 +11,27 @@ type Mode = "signin" | "signup";
  * Sign-in/sign-up gate shown in place, without navigating away — so a filled
  * form (booking screen, custom job, etc.) stays intact behind the sheet.
  *
- * The one unavoidable exception is Google OAuth: Supabase redirects the whole
- * page away and back via /auth/callback. Callers must persist their own draft
- * (e.g. to sessionStorage) inside `onGoogleRedirect` and restore it when the
- * page remounts with `next` pointing back at itself.
+ * Two flows unavoidably leave the page anyway — Google OAuth, and an email
+ * signup that has to be confirmed — and both come back via /auth/callback.
+ * Callers must persist their own draft (e.g. to sessionStorage) inside
+ * `onLeaveForAuth` and restore it when the page remounts with `next` pointing
+ * back at itself.
  */
 export function AuthGateSheet({
   onClose,
   onSuccess,
-  onGoogleRedirect,
+  onLeaveForAuth,
   title = "Sign in to continue",
   subtitle = "Your details are saved — sign in or create an account to finish.",
 }: {
   onClose: () => void;
   onSuccess: () => void;
-  /** Called right before the Google OAuth redirect fires. Return the path to land back on. */
-  onGoogleRedirect: () => string;
+  /**
+   * Called before any flow that navigates away (OAuth, or an email signup
+   * awaiting confirmation). Return the path to land back on; stash any draft
+   * here.
+   */
+  onLeaveForAuth: () => string;
   title?: string;
   subtitle?: string;
 }) {
@@ -83,7 +88,7 @@ export function AuthGateSheet({
         <KAuthForm
           mode={mode}
           submitLabel={mode === "signup" ? "Create account & continue" : "Sign in & continue"}
-          onGoogleRedirect={onGoogleRedirect}
+          onLeaveForAuth={onLeaveForAuth}
           onDone={onSuccess}
         />
       </div>

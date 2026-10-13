@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { siteUrl } from "@/lib/siteUrl";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, Chip, PageHeader, Pill, Spinner, Toggle } from "@/components/ui";
@@ -79,7 +80,7 @@ export default function SettingsPage() {
   async function resetPassword() {
     if (!user?.email) return;
     await createClient().auth.resetPasswordForEmail(user.email, {
-      redirectTo: `${window.location.origin}/signin`,
+      redirectTo: `${siteUrl()}/signin/`,
     });
     setPwMsg("Password reset link sent to your email.");
   }

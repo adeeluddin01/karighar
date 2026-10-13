@@ -1,15 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import { createClient } from "@/lib/supabase/client";
 import { MapController } from "@/components/maps/MapController";
 import { MapGate } from "@/components/maps/MapGate";
 import { GOOGLE_MAPS_KEY, KARACHI_CENTER, NAV_MAP_STYLE, type LatLng } from "@/lib/maps";
 
-// Customer-facing: shows the destination pin + the pro's live location.
-export function TrackingMap({ jobId, destination }: { jobId: string; destination: LatLng | null }) {
+/**
+ * The destination pin + the pro's live location.
+ *
+ * `children` render inside <Map>, which is what <Directions> needs in order to
+ * reach the map instance — that's how the provider's active-job screen draws a
+ * route on this same map.
+ */
+export function TrackingMap({
+  jobId,
+  destination,
+  audience = "customer",
+  onProPos,
+  children,
+}: {
+  jobId: string;
+  destination: LatLng | null;
+  /** Whose screen this is — the caption reads differently for each. */
+  audience?: "customer" | "provider";
+  /** The pro's live position, so a caller can route from it. */
+  onProPos?: (p: LatLng) => void;
+  children?: React.ReactNode;
+}) {
   const [proPos, setProPos] = useState<LatLng | null>(null);
+
+  // Kept in a ref so passing an inline callback doesn't re-run the
+  // subscription effect on every render.
+  const report = useRef(onProPos);
+  useEffect(() => {
+    report.current = onProPos;
+  });
 
   useEffect(() => {
     const supabase = createClient();
@@ -19,7 +46,11 @@ export function TrackingMap({ jobId, destination }: { jobId: string; destination
         .select("provider_lat,provider_lng")
         .eq("job_id", jobId)
         .maybeSingle();
-      if (data?.provider_lat != null) setProPos({ lat: data.provider_lat, lng: data.provider_lng });
+      if (data?.provider_lat != null) {
+        const at = { lat: data.provider_lat, lng: data.provider_lng };
+        setProPos(at);
+        report.current?.(at);
+      }
     })();
 
     const channel = supabase
@@ -29,8 +60,11 @@ export function TrackingMap({ jobId, destination }: { jobId: string; destination
         { event: "*", schema: "public", table: "job_tracking", filter: `job_id=eq.${jobId}` },
         (payload) => {
           const row = payload.new as { provider_lat: number | null; provider_lng: number | null };
-          if (row.provider_lat != null && row.provider_lng != null)
-            setProPos({ lat: row.provider_lat, lng: row.provider_lng });
+          if (row.provider_lat != null && row.provider_lng != null) {
+            const at = { lat: row.provider_lat, lng: row.provider_lng };
+            setProPos(at);
+            report.current?.(at);
+          }
         }
       )
       .subscribe();
@@ -57,13 +91,24 @@ export function TrackingMap({ jobId, destination }: { jobId: string; destination
             <MapController target={proPos} />
             {destination && <Marker position={destination} title="Service location" />}
             {proPos && (
-              <Marker position={proPos} title="Your pro" icon={{ url: "data:image/svg+xml;utf8," + encodeURIComponent(PRO_PIN) }} />
+              <Marker
+                position={proPos}
+                title={audience === "provider" ? "You" : "Your pro"}
+                icon={{ url: "data:image/svg+xml;utf8," + encodeURIComponent(PRO_PIN) }}
+              />
             )}
+            {children}
           </Map>
         </MapGate>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        {proPos ? "🔵 Your pro’s live location · 📍 service location" : "Waiting for your pro to share their location…"}
+        {audience === "provider"
+          ? proPos
+            ? "🔵 You · 📍 the job"
+            : "Start sharing your location to see yourself on the map…"
+          : proPos
+            ? "🔵 Your pro’s live location · 📍 service location"
+            : "Waiting for your pro to share their location…"}
       </p>
     </APIProvider>
   );

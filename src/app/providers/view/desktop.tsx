@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Avatar, Card, EmptyState, Pill, Spinner } from "@/components/ui";
+import type { Review as FullReview } from "@/lib/types";
 
 type PublicProfile = {
   id: string;
@@ -15,7 +16,8 @@ type PublicProfile = {
   jobs_completed: number;
   service_areas: string[];
 };
-type Review = { id: string; rating: number; comment: string | null; created_at: string };
+// Just the columns this page selects, off the shared row type.
+type Review = Pick<FullReview, "id" | "rating" | "comment" | "created_at">;
 
 function Stars({ n }: { n: number }) {
   const filled = Math.round(n || 0);

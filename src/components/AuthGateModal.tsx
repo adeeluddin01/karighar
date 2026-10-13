@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { normalizePkPhone } from "@/lib/validate";
+import {
+  CONFIRM_EMAIL_NOTICE,
+  signInWithEmail,
+  signUpWithEmail,
+  startGoogleOAuth,
+} from "@/lib/authActions";
 import { Modal } from "@/components/Modal";
 import { Button, Field, Input, Tabs } from "@/components/ui";
 
@@ -12,22 +17,27 @@ type Mode = "signin" | "signup";
  * Sign-in/sign-up gate shown in place, without navigating away — so a filled
  * form (booking wizard, custom job, etc.) stays intact behind the modal.
  *
- * The one unavoidable exception is Google OAuth: Supabase redirects the whole
- * page away and back via /auth/callback. Callers must persist their own draft
- * (e.g. to sessionStorage) inside `onGoogleRedirect` and restore it when the
- * page remounts with `next` pointing back at itself.
+ * Two flows unavoidably leave the page anyway — Google OAuth, and an email
+ * signup that has to be confirmed — and both come back via /auth/callback.
+ * Callers must persist their own draft (e.g. to sessionStorage) inside
+ * `onLeaveForAuth` and restore it when the page remounts with `next` pointing
+ * back at itself.
  */
 export function AuthGateModal({
   onClose,
   onSuccess,
-  onGoogleRedirect,
+  onLeaveForAuth,
   title = "Sign in to continue",
   subtitle = "Your details are saved — sign in or create an account to finish.",
 }: {
   onClose: () => void;
   onSuccess: () => void;
-  /** Called right before the Google OAuth redirect fires. Return the path to land back on. */
-  onGoogleRedirect: () => string;
+  /**
+   * Called before any flow that navigates away (OAuth, or an email signup
+   * awaiting confirmation). Return the path to land back on; stash any draft
+   * here.
+   */
+  onLeaveForAuth: () => string;
   title?: string;
   subtitle?: string;
 }) {
@@ -42,13 +52,7 @@ export function AuthGateModal({
 
   async function google() {
     setError(null);
-    const next = onGoogleRedirect();
-    const { error } = await createClient().auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    });
+    const { error } = await startGoogleOAuth(createClient(), onLeaveForAuth());
     if (error) setError(error.message);
   }
 
@@ -60,37 +64,20 @@ export function AuthGateModal({
     const supabase = createClient();
 
     if (mode === "signup") {
-      const normPhone = normalizePkPhone(phone);
-      if (!normPhone) {
-        setError("Enter a valid Pakistani mobile number, e.g. 0300 1234567");
-        setBusy(false);
-        return;
-      }
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName, phone: normPhone } },
-      });
-      if (error) {
-        setError(error.message);
-        setBusy(false);
-        return;
-      }
-      if (!data.session) {
-        setNotice(
-          "Account created. Check your email to confirm it, then sign in here to continue."
-        );
-        setBusy(false);
-        return;
-      }
-      await supabase
-        .from("profiles")
-        .update({ full_name: fullName, phone: normPhone, role: "customer" })
-        .eq("id", data.session.user.id);
+      // `onLeaveForAuth` stashes the caller's draft and returns where to come
+      // back to — needed here too, because a confirmation email takes the
+      // user away from this page just as OAuth does.
+      const result = await signUpWithEmail(
+        supabase,
+        { email, password, fullName, phone },
+        onLeaveForAuth()
+      );
       setBusy(false);
-      onSuccess();
+      if (result.kind === "error") setError(result.message);
+      else if (result.kind === "confirm-email") setNotice(CONFIRM_EMAIL_NOTICE);
+      else onSuccess();
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await signInWithEmail(supabase, email, password);
       if (error) {
         setError(error.message);
         setBusy(false);

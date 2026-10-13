@@ -9,9 +9,10 @@ import { KIcon } from "@/components/kg/icons";
 import { Ava, EmptyK, Pill, Skel } from "@/components/kg/parts";
 import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
 import { formatPKR } from "@/lib/money";
-import type { Service } from "@/lib/types";
+import type { Review as FullReview, Service } from "@/lib/types";
 
-type Review = { id: string; rating: number; comment: string | null; created_at: string };
+// Just the columns this page selects, off the shared row type.
+type Review = Pick<FullReview, "id" | "rating" | "comment" | "created_at">;
 
 function Stars({ n }: { n: number }) {
   const filled = Math.round(n || 0);

@@ -13,7 +13,8 @@
 -- ledger), v5 (settlements, dispute admin), v6 (price lock, booking
 -- rate-limit), v7 (public provider view, cancel_reason), v8 (no admin
 -- self-escalation), v9 (job visibility fix), v10 (status-notify enum cast),
--- v11 (provider PII lockdown).
+-- v11 (provider PII lockdown), v12 (provider->customer ratings, signup
+-- role/phone metadata, chat notifications).
 -- ============================================================
 
 -- ---------- Extensions ----------
@@ -57,7 +58,12 @@ create table customers (
   profile_id      uuid primary key references profiles(id) on delete cascade,
   default_address text,
   lat             double precision,
-  lng             double precision
+  lng             double precision,
+  -- Provider->customer ratings. `jobs_rated` is the count of ratings
+  -- received; cf. providers.jobs_completed, which despite its name is also a
+  -- review count.
+  rating_avg      numeric(2,1) not null default 0,
+  jobs_rated      int not null default 0
 );
 
 create table providers (
@@ -169,6 +175,21 @@ create table reviews (
   created_at  timestamptz not null default now()
 );
 
+-- The other direction: the provider rates the customer. A separate table
+-- rather than a column on `reviews`, whose unique `job_id` and triggers are
+-- load-bearing. Here `provider_id` is the author and `customer_id` the subject.
+create table customer_reviews (
+  id          uuid primary key default gen_random_uuid(),
+  job_id      uuid not null references jobs(id) on delete cascade unique,
+  provider_id uuid not null references providers(profile_id) on delete cascade,
+  customer_id uuid not null references customers(profile_id) on delete cascade,
+  rating      int not null check (rating between 1 and 5),
+  comment     text,
+  created_at  timestamptz not null default now()
+);
+create index customer_reviews_customer_idx on customer_reviews(customer_id);
+create index customer_reviews_provider_idx on customer_reviews(provider_id);
+
 create table messages (
   id         uuid primary key default gen_random_uuid(),
   job_id     uuid not null references jobs(id) on delete cascade,
@@ -214,11 +235,27 @@ create index notifications_user_idx on notifications(user_id, read);
 -- Helpers & triggers
 -- ============================================================
 -- Auto-create a profile row when a new auth user signs up.
+-- Name, phone AND role all arrive in raw_user_meta_data from signUp(): with
+-- email confirmation on there is no session, so the client cannot write them
+-- to `profiles` afterwards.
+--
+-- The role is whitelisted. Metadata is client-controlled and
+-- profiles_guard_role() below is an UPDATE trigger, so it does not protect
+-- this INSERT — without the whitelist anyone could sign up as an admin.
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, full_name, phone)
-  values (new.id, new.raw_user_meta_data->>'full_name', new.phone);
+  insert into public.profiles (id, role, full_name, phone)
+  values (
+    new.id,
+    case
+      when new.raw_user_meta_data->>'role' = 'provider' then 'provider'::user_role
+      else 'customer'::user_role
+    end,
+    new.raw_user_meta_data->>'full_name',
+    coalesce(new.phone, new.raw_user_meta_data->>'phone')
+  )
+  on conflict (id) do nothing;
   return new;
 end;
 $$;
@@ -253,6 +290,22 @@ end;
 $$;
 create trigger reviews_aggregate after insert or update or delete on reviews
   for each row execute function on_review_change();
+
+-- Same, for the provider->customer direction.
+create or replace function on_customer_review_change()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare cid uuid := coalesce(new.customer_id, old.customer_id);
+begin
+  update customers set
+    rating_avg = coalesce(
+      (select round(avg(rating)::numeric, 1) from customer_reviews where customer_id = cid), 0),
+    jobs_rated = (select count(*) from customer_reviews where customer_id = cid)
+  where profile_id = cid;
+  return new;
+end;
+$$;
+create trigger customer_reviews_aggregate after insert or update or delete on customer_reviews
+  for each row execute function on_customer_review_change();
 
 -- Block role self-escalation: a normal user may switch between customer and
 -- provider (signup / onboarding do that), but may not grant or remove 'admin'.
@@ -370,6 +423,28 @@ end; $$;
 create trigger reviews_before_insert before insert on reviews
   for each row execute function reviews_enforce();
 
+-- Mirror, with the parties swapped. 'rated' is in the list because the
+-- customer's own review already moved the job there — whoever rates second
+-- must still be allowed to. This is deliberately decoupled from jobs.status:
+-- 'rated' is terminal in the status machine, so the provider's rating must
+-- not try to advance it.
+create or replace function customer_reviews_enforce()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if not exists (
+    select 1 from jobs j
+    where j.id = new.job_id
+      and j.provider_id = auth.uid()
+      and j.customer_id = new.customer_id
+      and j.status in ('completed','paid','rated')
+  ) then
+    raise exception 'You can only rate the customer of your own completed job';
+  end if;
+  return new;
+end; $$;
+create trigger customer_reviews_before_insert before insert on customer_reviews
+  for each row execute function customer_reviews_enforce();
+
 -- ---------- Payment + provider ledger on completion (COD) ----------
 -- The customer pays the Pro cash, so the Pro holds the full amount and OWES
 -- the platform its commission.
@@ -442,6 +517,49 @@ end; $$;
 create trigger bids_after_insert after insert on bids
   for each row execute function bids_notify();
 
+-- Tell the customer their pro rated them.
+create or replace function customer_reviews_notify()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare jtitle text;
+begin
+  select title into jtitle from jobs where id = new.job_id;
+  perform notify_user(
+    new.customer_id, 'rating',
+    'Your pro rated you ' || new.rating || ' out of 5', jtitle, new.job_id);
+  return new;
+end; $$;
+create trigger customer_reviews_after_insert_notify after insert on customer_reviews
+  for each row execute function customer_reviews_notify();
+
+-- A new chat message alerts the other party.
+--
+-- Coalesced on purpose: one unread 'message' alert per job at a time, or a
+-- back-and-forth would bury every other notification. Once the reader has
+-- opened it, the next message raises a fresh one.
+create or replace function messages_notify()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare cust uuid; prov uuid; jtitle text; target uuid;
+begin
+  select customer_id, provider_id, title into cust, prov, jtitle
+    from jobs where id = new.job_id;
+
+  target := case when new.sender_id = cust then prov else cust end;
+  if target is null or target = new.sender_id then return new; end if;
+
+  if exists (
+    select 1 from notifications
+    where user_id = target and job_id = new.job_id
+      and type = 'message' and read = false
+  ) then
+    return new;
+  end if;
+
+  perform notify_user(target, 'message', 'New message', jtitle, new.job_id);
+  return new;
+end; $$;
+create trigger messages_after_insert_notify after insert on messages
+  for each row execute function messages_notify();
+
 -- ============================================================
 -- Row-Level Security
 -- ============================================================
@@ -456,6 +574,7 @@ alter table bids               enable row level security;
 alter table job_tracking       enable row level security;
 alter table payments           enable row level security;
 alter table reviews            enable row level security;
+alter table customer_reviews   enable row level security;
 alter table messages           enable row level security;
 alter table provider_ledger    enable row level security;
 alter table disputes           enable row level security;
@@ -482,6 +601,9 @@ create policy svc_admin on services for all using (is_admin()) with check (is_ad
 -- Customers/providers: owner manages own row; admin all.
 create policy cust_self on customers for all using (profile_id = auth.uid() or is_admin())
   with check (profile_id = auth.uid() or is_admin());
+-- No job-peer read on `customers`: providers get ratings from
+-- public_customer_ratings below, and the address they drive to is on `jobs`.
+-- RLS is row-level, so a policy here could not hide default_address/lat/lng.
 -- NOTE: no public read on `providers`. It holds cnic_no and the storage paths
 -- of identity documents, and RLS is row-level, not column-level — a
 -- `using (true)` select policy here would hand that to anyone with the anon
@@ -532,6 +654,12 @@ create policy msg_rw on messages for all
   with check (sender_id = auth.uid());
 create policy rev_read on reviews for select using (true);
 create policy rev_write on reviews for insert with check (customer_id = auth.uid());
+-- The other direction, same posture: public read (a customer's rating is
+-- meant to be visible to everyone, the customer included) and no
+-- update/delete policy, so ratings are immutable once left.
+create policy custrev_read on customer_reviews for select using (true);
+create policy custrev_write on customer_reviews for insert
+  with check (provider_id = auth.uid());
 create policy ledger_self on provider_ledger for select using (provider_id = auth.uid() or is_admin());
 create policy disp_rw on disputes for all
   using (raised_by = auth.uid() or is_admin()
@@ -580,6 +708,25 @@ end $$;
 
 grant select on public_provider_profiles to anon, authenticated;
 
+-- Customer ratings, the same way round. `customers` holds the address and
+-- lat/lng, and RLS is row-level rather than column-level, so a blanket read
+-- there would leak them — this view carries the aggregates ONLY, and runs
+-- with its owner's rights so it reads through cust_self.
+create or replace view public_customer_ratings as
+  select c.profile_id as id,
+         c.rating_avg,
+         c.jobs_rated
+  from customers c;
+
+do $$
+begin
+  execute 'alter view public_customer_ratings set (security_invoker = off)';
+exception when others then
+  raise notice 'security_invoker unsupported here; view already uses owner rights by default';
+end $$;
+
+grant select on public_customer_ratings to anon, authenticated;
+
 -- ============================================================
 -- Storage: private bucket for CNIC / selfie
 -- ============================================================
@@ -613,6 +760,7 @@ do $$ begin alter publication supabase_realtime add table jobs;          excepti
 do $$ begin alter publication supabase_realtime add table messages;      exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table job_tracking;  exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table notifications; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table customer_reviews; exception when duplicate_object then null; end $$;
 
 insert into services (category_id, name, description, base_price, unit, visit_fee)
 select c.id, s.name, s.description, s.base_price, s.unit, s.visit_fee from service_categories c

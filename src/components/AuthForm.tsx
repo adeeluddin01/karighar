@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { resolveSignInDest } from "@/lib/roleHome";
-import { normalizePkPhone } from "@/lib/validate";
+import {
+  CONFIRM_EMAIL_NOTICE,
+  authErrorMessage,
+  signInWithEmail,
+  signUpWithEmail,
+  startGoogleOAuth,
+} from "@/lib/authActions";
 import { Button, Card, Field, Input } from "@/components/ui";
 
 export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
@@ -22,14 +28,15 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // /auth/callback/ sends failures here as ?error=. Nothing read that param
+  // before, so a failed sign-in just redisplayed an empty form.
+  const arrivalError = search.get("error");
+
+  const dest = asProvider ? "/pro/onboarding" : next;
+
   async function google() {
     setError(null);
-    const supabase = createClient();
-    const dest = asProvider ? "/pro/onboarding" : next;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(dest)}` },
-    });
+    const { error } = await startGoogleOAuth(createClient(), dest);
     if (error) setError(error.message);
   }
 
@@ -41,42 +48,25 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
     const supabase = createClient();
 
     if (mode === "signup") {
-      const normPhone = normalizePkPhone(phone);
-      if (!normPhone) {
-        setError("Enter a valid Pakistani mobile number, e.g. 0300 1234567");
+      const result = await signUpWithEmail(
+        supabase,
+        { email, password, fullName, phone, asProvider },
+        dest
+      );
+      if (result.kind === "error") {
+        setError(result.message);
         setBusy(false);
         return;
       }
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName, phone: normPhone } },
-      });
-      if (error) {
-        setError(error.message);
+      if (result.kind === "confirm-email") {
+        setNotice(CONFIRM_EMAIL_NOTICE);
         setBusy(false);
         return;
       }
-      if (!data.session) {
-        setNotice(
-          "Account created. Please check your email to confirm, then sign in. (Tip: you can disable email confirmation in Supabase → Authentication → Sign In / Providers for faster testing.)"
-        );
-        setBusy(false);
-        return;
-      }
-      // Signed in immediately — persist name/phone + role.
-      await supabase
-        .from("profiles")
-        .update({
-          full_name: fullName,
-          phone: normPhone,
-          role: asProvider ? "provider" : "customer",
-        })
-        .eq("id", data.session.user.id);
-      router.push(asProvider ? "/pro/onboarding" : next);
+      router.push(dest);
       router.refresh();
     } else {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await signInWithEmail(supabase, email, password);
       if (error) {
         setError(error.message);
         setBusy(false);
@@ -102,6 +92,12 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
           ? "It takes less than a minute."
           : "Sign in to book and track services."}
       </p>
+
+      {arrivalError && (
+        <p className="mt-4 rounded-xl bg-destructive-light p-3 text-sm font-medium text-destructive">
+          {authErrorMessage(arrivalError)}
+        </p>
+      )}
 
       <button
         type="button"
@@ -182,14 +178,14 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
         {mode === "signup" ? (
           <>
             Already have an account?{" "}
-            <Link href={`/signin?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
+            <Link href={`/signin/?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
               Sign in
             </Link>
           </>
         ) : (
           <>
             New to KARIGHAR?{" "}
-            <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
+            <Link href={`/signup/?next=${encodeURIComponent(next)}`} className="font-semibold text-primary">
               Create an account
             </Link>
           </>

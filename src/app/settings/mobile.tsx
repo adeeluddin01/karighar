@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { siteUrl } from "@/lib/siteUrl";
 import { useRequireAuth } from "@/lib/useUser";
 import { useToast } from "@/components/Toast";
 import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
@@ -55,7 +56,7 @@ export default function SettingsScreen() {
     if (!user?.email) return;
     setBusy(true);
     const { error } = await createClient().auth.resetPasswordForEmail(user.email, {
-      redirectTo: `${window.location.origin}/signin`,
+      redirectTo: `${siteUrl()}/signin/`,
     });
     setBusy(false);
     toast(

@@ -10,13 +10,16 @@ import { Button, Card, Field, Input, PageHeader, Select, Textarea } from "@/comp
 import { Icon } from "@/components/Icon";
 import { KARACHI_AREAS, type ServiceCategory } from "@/lib/types";
 import type { LatLng } from "@/lib/maps";
+import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
 
 // Persists the in-progress job post across a sign-in/sign-up detour — either
 // the inline modal (same tab, no reload) or a Google OAuth redirect (which
 // necessarily leaves and returns to this page).
-const DRAFT_KEY = "kg-draft-book-custom";
+// Versioned + namespaced per lane, so a stale or foreign draft is dropped
+// rather than restored — the resume effect below posts the job automatically.
+const DRAFT_KEY = "kg-draft-book-custom-web";
 
-type Draft = {
+type Draft = Versioned & {
   categoryId: string;
   title: string;
   description: string;
@@ -27,16 +30,22 @@ type Draft = {
   time: string;
 };
 
+// Shape guard: a draft that doesn't match (older version, other screen) is
+// dropped rather than restored — the resume effect posts the job on its own.
+function isCustomDraft(v: unknown): v is Draft {
+  return (
+    isRecord(v) &&
+    typeof v.categoryId === "string" &&
+    typeof v.title === "string" &&
+    typeof v.description === "string"
+  );
+}
+
 // Read-only: does not clear the draft, so it stays safe to call twice (React
 // Strict Mode double-invokes lazy initializers).
-function readDraft(): Draft | null {
+function loadDraft(): Draft | null {
   if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    return raw ? (JSON.parse(raw) as Draft) : null;
-  } catch {
-    return null;
-  }
+  return readDraft(DRAFT_KEY, isCustomDraft);
 }
 
 export default function CustomJobPage() {
@@ -44,7 +53,7 @@ export default function CustomJobPage() {
 
   // A draft left behind by a Google OAuth round-trip (same-tab sign-in never
   // needs this — the form is already sitting in React state).
-  const [draft] = useState<Draft | null>(() => readDraft());
+  const [draft] = useState<Draft | null>(() => loadDraft());
 
   const [cats, setCats] = useState<ServiceCategory[]>([]);
   const [catsLoading, setCatsLoading] = useState(true);
@@ -60,6 +69,9 @@ export default function CustomJobPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const attemptedResumeRef = useRef(false);
+  // Latches on the first successful insert, so a double submit or an
+  // effect replay cannot post two jobs.
+  const postedRef = useRef(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -81,11 +93,7 @@ export default function CustomJobPage() {
   // this doesn't need to go through a setState call.
   useEffect(() => {
     if (!draft) return;
-    try {
-      sessionStorage.removeItem(DRAFT_KEY);
-    } catch {
-      // ignore
-    }
+    clearDraft(DRAFT_KEY);
   }, [draft]);
 
   // Once categories have loaded, try to finish posting the job the user
@@ -104,17 +112,15 @@ export default function CustomJobPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, catsLoading]);
 
-  function saveDraft() {
-    const draft: Draft = { categoryId, title, description, area, address, pos, date, time };
-    try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // sessionStorage unavailable (e.g. private mode) — Google sign-in just
-      // won't be able to resume; email/password sign-in in the modal still will.
-    }
+  function stashDraft() {
+    saveDraft(DRAFT_KEY, { categoryId, title, description, area, address, pos, date, time });
   }
 
   async function postJob(userId: string) {
+    // The resume-after-sign-in effect and the auth gate's onSuccess both land
+    // here, and the insert is not idempotent server-side.
+    if (postedRef.current) return;
+    postedRef.current = true;
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -149,6 +155,7 @@ export default function CustomJobPage() {
 
     if (jobErr) {
       setError(jobErr.message);
+      postedRef.current = false; // let them retry
       setBusy(false);
       return;
     }
@@ -272,8 +279,8 @@ export default function CustomJobPage() {
             } = await createClient().auth.getUser();
             if (user) await postJob(user.id);
           }}
-          onGoogleRedirect={() => {
-            saveDraft();
+          onLeaveForAuth={() => {
+            stashDraft();
             return "/book/custom";
           }}
         />

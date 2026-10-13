@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { googleDirectionsUrl } from "@/lib/maps";
 import { useRequireAuth } from "@/lib/useUser";
 import { useToast } from "@/components/Toast";
 import { Screen, Scroll, TopBar, Cta } from "@/components/kg/Screen";
@@ -948,6 +949,12 @@ function Bill({ job }: { job: Job }) {
 }
 
 function Details({ job }: { job: Job }) {
+  // "" when there is neither a pin nor an address, so the link hides.
+  const directionsHref = googleDirectionsUrl(
+    job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null,
+    { address: job.address }
+  );
+
   return (
     <div className="bill card">
       <div className="row">
@@ -966,7 +973,17 @@ function Details({ job }: { job: Job }) {
         <div>
           <b>Where</b>
         </div>
-        <small style={{ textAlign: "right", maxWidth: "60%" }}>{job.address}</small>
+        <small style={{ textAlign: "right", maxWidth: "60%" }}>
+          {job.address}
+          {directionsHref && (
+            <>
+              {" · "}
+              <a className="link" href={directionsHref} target="_blank" rel="noopener">
+                Directions
+              </a>
+            </>
+          )}
+        </small>
       </div>
       <div className="row">
         <div>

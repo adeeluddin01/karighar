@@ -43,7 +43,8 @@ export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
         <KAuthForm
           mode={mode}
           asProvider={asProvider}
-          onGoogleRedirect={() => dest}
+          arrivalError={search.get("error")}
+          onLeaveForAuth={() => dest}
           onDone={async () => {
             // A provider signing in belongs on their dashboard, not the
             // customer Home — resolve that here so they don't bounce.

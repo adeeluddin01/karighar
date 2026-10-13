@@ -25,6 +25,7 @@ export const NAV: Record<Role, NavLink[]> = {
     { href: "/pro/map", label: "Map", icon: "map" },
     { href: "/pro/services", label: "My Services", icon: "wrench" },
     { href: "/pro/history", label: "History", icon: "history" },
+    { href: "/notifications", label: "Alerts", icon: "bell" },
     { href: "/profile", label: "Profile", icon: "user" },
   ],
   admin: [
@@ -32,6 +33,7 @@ export const NAV: Record<Role, NavLink[]> = {
     { href: "/admin/providers", label: "Providers", icon: "users" },
     { href: "/admin/jobs", label: "Jobs", icon: "briefcase" },
     { href: "/admin/settlements", label: "Settlements", icon: "wallet" },
+    { href: "/notifications", label: "Alerts", icon: "bell" },
     { href: "/profile", label: "Profile", icon: "user" },
   ],
 };
@@ -53,6 +55,9 @@ export type PhoneNavLink = NavLink & { kicon: KIconName };
 // the sidebar is on desktop. What doesn't fit stays reachable from the screens
 // themselves — Profile links to notifications and support, the pro dashboard
 // links to history, admin overview links to settlements.
+//
+// Four items each, deliberately: a fifth doesn't fit at 360px (see above), so
+// alerts are NOT a tab. <AlertsBell> sits in each screen's header instead.
 export const PHONE_NAV: Record<Role, PhoneNavLink[]> = {
   // A signed-out visitor gets the customer shape; Bookings and Profile send
   // them to sign-in, which is the usual mobile pattern.
@@ -131,6 +136,43 @@ export function proEntry(role?: string | null, providerStatus?: string | null) {
     href: "/pro",
     label: "Become a pro",
     hint: "Get matched to jobs near you and keep 80–85% of each one",
+  };
+}
+
+/**
+ * The recruitment promo on the customer Home, in one place so the phone and
+ * web lanes cannot drift apart.
+ *
+ * `null` means show nothing: an admin is never going to apply, and an approved
+ * provider is already one (RoleRoute sends them to /pro/dashboard anyway, but
+ * <LaneSplit> still mounts this tree on the way).
+ *
+ * Someone mid-application gets a nudge to finish rather than a sales pitch —
+ * the href comes from proEntry() above, which already knows that funnel.
+ */
+export function proPromo(role?: string | null, providerStatus?: string | null) {
+  if (role === "admin") return null;
+  if (role === "provider" && providerStatus === "approved") return null;
+
+  const entry = proEntry(role, providerStatus);
+  if (!entry) return null;
+
+  if (role === "provider") {
+    return {
+      href: entry.href,
+      eyebrow: "Your pro application",
+      title: "Finish your verification",
+      body: `${entry.hint}. Add your CNIC and a selfie to start getting jobs.`,
+      cta: "Finish verification",
+    };
+  }
+
+  return {
+    href: entry.href,
+    eyebrow: "Business with Karighar",
+    title: "Earn as a Karighar pro",
+    body: "Run your trade on Karighar: get matched to jobs near you, keep 80–85% of every one, and get paid in cash the same day.",
+    cta: "Become a pro",
   };
 }
 

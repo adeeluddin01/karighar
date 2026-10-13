@@ -44,6 +44,15 @@ export type Service = {
   is_active: boolean;
 };
 
+export type Customer = {
+  profile_id: string;
+  default_address: string | null;
+  lat: number | null;
+  lng: number | null;
+  rating_avg: number;
+  jobs_rated: number;
+};
+
 export type Provider = {
   profile_id: string;
   cnic_no: string | null;
@@ -121,6 +130,44 @@ export type Notification = {
   job_id: string | null;
   read: boolean;
   created_at: string;
+};
+
+/** Customer -> provider. One per job; `reviews.job_id` is unique. */
+export type Review = {
+  id: string;
+  job_id: string;
+  customer_id: string;
+  provider_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+};
+
+/**
+ * Provider -> customer, the other direction. A separate table rather than a
+ * column on `reviews`, whose unique `job_id` and triggers are load-bearing.
+ * `provider_id` is the author here, `customer_id` the subject.
+ */
+export type CustomerReview = {
+  id: string;
+  job_id: string;
+  provider_id: string;
+  customer_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+};
+
+/**
+ * The `public_customer_ratings` view: the aggregates only. `customers` itself
+ * holds the address and coordinates, and RLS is row-level rather than
+ * column-level, so ratings go out through a view instead — the same shape of
+ * fix as `public_provider_profiles`.
+ */
+export type PublicCustomerRating = {
+  id: string;
+  rating_avg: number;
+  jobs_rated: number;
 };
 
 export const KARACHI_AREAS = [

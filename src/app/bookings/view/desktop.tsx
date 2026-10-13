@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { googleDirectionsUrl } from "@/lib/maps";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { JobTimeline } from "@/components/JobTimeline";
@@ -204,6 +205,11 @@ function BookingDetailContent() {
   const awaitingPayment = job.status === "completed";
   const isLive = ["en_route", "arrived", "in_progress"].includes(job.status);
   const isOver = ["cancelled", "disputed"].includes(job.status);
+  // "" when there is neither a pin nor an address to route to, so the link hides.
+  const directionsHref = googleDirectionsUrl(
+    job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null,
+    { address: job.address }
+  );
 
   return (
     <AppShell>
@@ -349,7 +355,21 @@ function BookingDetailContent() {
                 ? new Date(job.scheduled_at).toLocaleString("en-PK")
                 : "No time set"}
             </KV>
-            <KV label="Address">{job.address}</KV>
+            <KV label="Address">
+              <span className="inline-flex flex-wrap items-baseline gap-x-2">
+                {job.address}
+                {directionsHref && (
+                  <a
+                    href={directionsHref}
+                    target="_blank"
+                    rel="noopener"
+                    className="font-semibold text-primary"
+                  >
+                    Directions
+                  </a>
+                )}
+              </span>
+            </KV>
             <KV label="Type">{job.type === "custom" ? "Custom job" : "Fixed price"}</KV>
             <KV label="Price">{formatPKR(job.price)}</KV>
             {job.description && (
