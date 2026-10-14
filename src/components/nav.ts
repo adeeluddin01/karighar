@@ -61,16 +61,22 @@ export type PhoneNavLink = NavLink & { kicon: KIconName };
 export const PHONE_NAV: Record<Role, PhoneNavLink[]> = {
   // A signed-out visitor gets the customer shape; Bookings and Profile send
   // them to sign-in, which is the usual mobile pattern.
+  //
+  // Services, not Map: browsing what you can book is the job people come to
+  // do, and /map only ever plotted the customer's own address and bookings —
+  // providers have no stored coordinates. The map is still reachable from
+  // Home ("Open map"); the provider tab bar keeps /pro/map, which is a
+  // working surface rather than a browse screen.
   guest: [
     { href: "/", label: "Home", icon: "home", kicon: "home" },
     { href: "/bookings", label: "Bookings", icon: "book", kicon: "cal" },
-    { href: "/map", label: "Map", icon: "map", kicon: "map" },
+    { href: "/book", label: "Services", icon: "wrench", kicon: "wrench" },
     { href: "/profile", label: "Profile", icon: "user", kicon: "user" },
   ],
   customer: [
     { href: "/", label: "Home", icon: "home", kicon: "home" },
     { href: "/bookings", label: "Bookings", icon: "book", kicon: "cal" },
-    { href: "/map", label: "Map", icon: "map", kicon: "map" },
+    { href: "/book", label: "Services", icon: "wrench", kicon: "wrench" },
     { href: "/profile", label: "Profile", icon: "user", kicon: "user" },
   ],
   provider: [
@@ -194,6 +200,23 @@ export function roleOf(
   return "customer";
 }
 
+/** Trailing slashes are noise here — `trailingSlash: true` means a path can
+ *  arrive either way. "/" is left alone so it stays truthy. */
+function trimSlash(path: string) {
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
+/**
+ * Is `href` the nav entry for the page at `pathname`?
+ *
+ * Compares whole path segments. A plain `startsWith` lit up BOTH "Services"
+ * (/book) and "Bookings" (/bookings) whenever you were on /bookings, since
+ * one string is a prefix of the other — in the sidebar that has always been
+ * wrong, and the phone tab bar now has the same pair.
+ */
 export function isActive(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const path = trimSlash(pathname);
+  const link = trimSlash(href);
+  if (link === "/") return path === "/";
+  return path === link || path.startsWith(link + "/");
 }

@@ -4,7 +4,7 @@
 -- Home-services marketplace: Karachi, services-only, COD, hybrid pricing.
 --
 -- This is the WHOLE schema. On a fresh project run only this file — every
--- patch up to and including patch_v11 is already folded in. The
+-- patch up to and including patch_v15 is already folded in. The
 -- supabase/patch_v*.sql files exist only to bring an OLDER database forward,
 -- in numeric order.
 --
@@ -14,7 +14,10 @@
 -- rate-limit), v7 (public provider view, cancel_reason), v8 (no admin
 -- self-escalation), v9 (job visibility fix), v10 (status-notify enum cast),
 -- v11 (provider PII lockdown), v12 (provider->customer ratings, signup
--- role/phone metadata, chat notifications), v14 (house promo banners).
+-- role/phone metadata, chat notifications), v13 (restores notifications
+-- layer), v14 (house promo banners), v15 (5 new service categories:
+-- carpenter, painter, solar panel cleaning, camera installation, washing
+-- machine repair).
 -- ============================================================
 
 -- ---------- Extensions ----------
@@ -786,7 +789,12 @@ create policy verif_read on storage.objects for select
 insert into service_categories (name, icon, sort_order) values
   ('AC Service & Repair', 'ac',        1),
   ('Electrician',         'bolt',      2),
-  ('Plumber',             'wrench',    3);
+  ('Plumber',             'wrench',    3),
+  ('Carpenter',           'carpenter', 4),
+  ('Painter',             'painter',   5),
+  ('Solar Panel Cleaning','solar',     6),
+  ('Camera Installation', 'camera',    7),
+  ('Washing Machine Repair','washer',  8);
 
 -- Enable Realtime for live chat, tracking, and status updates.
 do $$ begin alter publication supabase_realtime add table jobs;          exception when duplicate_object then null; end $$;
@@ -804,5 +812,10 @@ join (values
   ('Electrician','Basic Visit / Minor Fix','Switches, sockets, small faults',800,'visit',0),
   ('Electrician','House Wiring','Per square foot',65,'sq ft',0),
   ('Plumber','Basic Visit / Leak Fix','Leaks, taps, small repairs',800,'visit',0),
-  ('Plumber','Fixture Installation','Tap, sink, commode install',1200,'item',0)
+  ('Plumber','Fixture Installation','Tap, sink, commode install',1200,'item',0),
+  ('Carpenter','On-site Quote','Carpenter visits to assess the job and quote a price',NULL,'job',0),
+  ('Painter','On-site Quote','Painter visits to assess the job and quote a price',NULL,'job',0),
+  ('Solar Panel Cleaning','On-site Quote','Technician visits to assess panel access and quote a price',NULL,'job',0),
+  ('Camera Installation','On-site Quote','Technician visits to assess cameras needed and quote a price',NULL,'job',0),
+  ('Washing Machine Repair','On-site Quote','Technician visits to diagnose the fault and quote a price',NULL,'job',0)
 ) as s(cat,name,description,base_price,unit,visit_fee) on s.cat = c.name;

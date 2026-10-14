@@ -24,6 +24,7 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    12. `supabase/patch_v12_customer_reviews_and_alerts.sql`   ← provider→customer ratings, signup role/phone metadata, chat notifications
    13. `supabase/patch_v13_restore_notifications_layer.sql`   ← CRITICAL for any project missing patch_v4/v5: restores the `notifications` table, `notify_user()` and `record_settlement()`
    14. `supabase/patch_v14_house_promos.sql`   ← `house_promos`: Karighar's own promo banners, editable without a redeploy
+   15. `supabase/patch_v15_new_categories.sql`   ← 5 new categories (carpenter, painter, solar panel cleaning, camera installation, washing machine repair), each with one placeholder "On-site Quote" sub-service
 
    **Check this on any existing project**, whatever its history — some were
    built from a schema.sql predating patch_v4 and never got the notifications

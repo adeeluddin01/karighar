@@ -16,6 +16,9 @@ const BY_SLUG: Record<string, KIconName> = {
   painter: "brush",
   spark: "spark",
   cleaning: "spark",
+  solar: "spark",
+  camera: "camera",
+  washer: "gear",
 };
 
 export function categoryIcon(slug?: string | null): KIconName {

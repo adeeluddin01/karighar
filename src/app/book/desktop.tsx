@@ -24,6 +24,11 @@ const CATEGORY_ICON: Record<string, IconName> = {
   ac: "snowflake",
   bolt: "zap",
   wrench: "wrench",
+  carpenter: "hammer",
+  painter: "paintbrush",
+  solar: "sun",
+  camera: "camera",
+  washer: "washingmachine",
 };
 
 function BookInner() {

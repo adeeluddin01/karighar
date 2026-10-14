@@ -26,8 +26,33 @@
 
     position: fixed;
     inset: 0;
+    /* Size the shell to what you can actually SEE.
+
+       On iOS, a `position: fixed; inset: 0` box is laid out against the
+       LARGE viewport — the height the page would have with Safari's
+       toolbars collapsed — not the visible area. So the shell is taller
+       than the screen, its bottom (the tab bar) hides behind the toolbar,
+       and the inner `.scroll` pane is correspondingly too tall.
+
+       That silently breaks scrolling on whichever screen happens to be
+       shorter than the large viewport. Measured against the live build:
+       Home's content is 909px, while a Pro Max's large viewport is 932px —
+       so the pane had nothing to scroll, and the swipe fell through to the
+       document, firing Safari's pull-to-refresh instead. Home is the
+       shortest screen, which is why it alone was affected; every other tab
+       overflows even the large viewport.
+
+       `dvh` tracks the visible viewport, so the pane is always exactly the
+       height of what's on screen. Ignored by anything older than Safari
+       15.4 / Chrome 108, which simply keeps the previous behaviour.
+       Over-constrained with top+bottom+height, so `bottom` is dropped and
+       this height wins. */
+    height: 100dvh;
     z-index: 1;
     overflow: hidden;
+    /* Belt and braces: if a screen's content ever does fit exactly, keep the
+       leftover gesture here instead of letting it reach the document. */
+    overscroll-behavior: none;
     background: var(--scr);
     color: var(--ink);
     font: 500 14px/1.45 var(--f-body);
@@ -82,10 +107,15 @@
     inset: 0;
     /* Single-axis on purpose. With only `overflow-y` set, the other axis
        computes from `visible` to `auto`, leaving a live horizontal scroller
-       that iOS can lock a gesture onto at touchstart — the page then refuses
-       to move vertically. `hidden` rather than `clip`: `clip` needs Safari
-       16+, and the phones hitting this are older than that. */
-    overflow: hidden auto;
+       that iOS can lock a gesture onto at touchstart.
+
+       Written as longhands for clarity, though note the build minifier
+       merges them back into `overflow: hidden auto` in the emitted CSS —
+       checked in .next output. That two-value form needs Safari 15+, which
+       is old enough not to matter, and it cannot be avoided from here
+       anyway. `clip` IS avoided: it needs Safari 16+. */
+    overflow-x: hidden;
+    overflow-y: auto;
     overscroll-behavior-y: contain;
     /* No `-webkit-overflow-scrolling: touch`: a no-op since iOS 13, and on
        iOS 12 and earlier it is what causes "the scroll dies after a flick". */
@@ -489,8 +519,19 @@
   }
   /* Inside a horizontal row the field takes the remaining width instead. */
   .kg .search .in,
-  .kg .map-top .in {
+  .kg .map-top .in,
+  .kg .composer .in {
     flex: 1 1 auto;
+  }
+
+  /* The message composer in <ChatSheet>. Its field needs the opt-in above or
+     `.in`'s default `flex: none` leaves it at its padding width, squeezed
+     against the send button instead of filling the row. */
+  .kg .composer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
   }
   .kg .ta {
     width: 100%;
@@ -1902,27 +1943,12 @@
     justify-content: center;
   }
 
-  /* ---------- pin the document behind the phone shell ----------
-     `.kg` is fixed over the whole viewport and owns its own scroller, so the
-     document behind it should not scroll or rubber-band — on iOS that
-     bounce can swallow a gesture the inner pane was meant to get.
-
-     Scoped two ways on purpose:
-
-     - `:has(.kg)` rather than a blanket `body` rule, because `/pro/*` and
-       `/admin/*` render the legacy AppShell on phones and genuinely need the
-       document to scroll. It also keeps this clear of the two places that
-       set `document.body.style.overflow` by hand (Modal.tsx, pro/map).
-     - inside this phone-only media query, because `/` renders through
-       <LaneSplit>, which mounts BOTH lanes — `.kg` is in the DOM on desktop
-       too (merely `display: none`), so an unscoped rule, or the equivalent
-       mount-effect in Screen.tsx, would pin the desktop document and break
-       Home on the web.
-
-     `:has()` is Safari 15.4+ / Chrome 105+; older engines just skip it and
-     keep today's behaviour. */
-  body:has(.kg) {
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
+  /* Deliberately NOT pinning the document here.
+     An earlier revision added `body:has(.kg) { overflow: hidden }`. Measured
+     on both engines, the document behind the shell is already exactly the
+     viewport height (`.kg` is fixed, so it contributes nothing to flow) —
+     so the rule prevented no scrolling that was happening, while putting a
+     comparatively new selector and an `overflow: hidden` body into the
+     critical path of the one engine where scrolling is reported broken.
+     Removed: no measured benefit, non-zero risk. */
 }

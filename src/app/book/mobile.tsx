@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
+import { Screen, Scroll, Tabs, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { EmptyK, Pill, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
@@ -73,7 +73,7 @@ function BookInner() {
           </Link>
         }
       />
-      <Scroll underTop pad="plain">
+      <Scroll underTop>
         <label className="in">
           <KIcon name="search" />
           <input
@@ -199,6 +199,7 @@ function BookInner() {
           {count} {count === 1 ? "service" : "services"} available in Karachi
         </Pill>
       </Scroll>
+      <Tabs />
     </Screen>
   );
 }
@@ -208,10 +209,11 @@ export default function BookPage() {
     <Suspense
       fallback={
         <Screen>
-          <Scroll pad="plain">
+          <Scroll>
             <Skel h={48} />
             <Skel h={160} />
           </Scroll>
+          <Tabs />
         </Screen>
       }
     >

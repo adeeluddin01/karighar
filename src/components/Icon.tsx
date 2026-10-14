@@ -51,6 +51,11 @@ import {
   Maximize2,
   Minimize2,
   Navigation,
+  Hammer,
+  Paintbrush,
+  Sun,
+  Camera,
+  WashingMachine,
   type LucideIcon,
 } from "lucide-react";
 
@@ -103,6 +108,11 @@ const ICONS: Record<string, LucideIcon> = {
   shrink: Minimize2,
   navigate: Navigation,
   locate: LocateFixed,
+  hammer: Hammer,
+  paintbrush: Paintbrush,
+  sun: Sun,
+  camera: Camera,
+  washingmachine: WashingMachine,
 };
 
 export type IconName = keyof typeof ICONS;

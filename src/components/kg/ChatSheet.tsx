@@ -104,7 +104,7 @@ export function ChatSheet({
           <div ref={bottomRef} />
         </div>
 
-        <form onSubmit={send} style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <form onSubmit={send} className="composer">
           <label className="in flat">
             <input
               value={text}

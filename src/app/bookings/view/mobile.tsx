@@ -365,6 +365,33 @@ function BookingContent() {
     </div>
   ) : null;
 
+  /**
+   * Call + message, the two ways to reach your pro.
+   *
+   * Calling was only offered on the live-tracking screen, but it is wanted
+   * just as much while you are paying (the pro is standing there) and after
+   * the fact on the receipt. `phone` comes from the job-peer read on
+   * `profiles`, so it is only present once a pro is assigned — the call
+   * button hides itself until then.
+   */
+  const proActions = pro ? (
+    <div style={{ display: "flex", gap: 8, flex: "none" }}>
+      {pro.phone && (
+        <a className="ic" href={`tel:${pro.phone}`} aria-label={`Call ${proFirst}`}>
+          <KIcon name="phone" />
+        </a>
+      )}
+      <button
+        type="button"
+        className="ic"
+        onClick={() => setChat(true)}
+        aria-label={`Message ${proFirst}`}
+      >
+        <KIcon name="chat" />
+      </button>
+    </div>
+  ) : undefined;
+
   /* ================= LIVE TRACKING ================= */
   if (tracking) {
     return (
@@ -617,20 +644,7 @@ function BookingContent() {
   if (paying) {
     return (
       <Screen>
-        <TopBar
-          title="Payment"
-          back="/bookings"
-          action={
-            <button
-              type="button"
-              className="ic"
-              onClick={() => setChat(true)}
-              aria-label="Message your pro"
-            >
-              <KIcon name="chat" />
-            </button>
-          }
-        />
+        <TopBar title="Payment" back="/bookings" action={proActions} />
         <Scroll underTop pad="cta">
           <div className="done-head">
             <span className="check">
@@ -829,18 +843,7 @@ function BookingContent() {
       <TopBar
         title="Booking"
         back="/bookings"
-        action={
-          job.provider_id ? (
-            <button
-              type="button"
-              className="ic"
-              onClick={() => setChat(true)}
-              aria-label="Message your pro"
-            >
-              <KIcon name="chat" />
-            </button>
-          ) : undefined
-        }
+        action={job.provider_id ? proActions : undefined}
       />
       <Scroll underTop pad="cta">
         <div className="done-head">
