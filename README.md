@@ -1,153 +1,209 @@
-# KARIGHAR
+# Karighar — On-Demand Home Services Marketplace
 
-On-demand home-services marketplace for Pakistan (Karachi). Web-first PWA.
-Next.js 16 + Supabase. See [`../BUILD_SPEC.md`](../BUILD_SPEC.md) for the full product spec.
+**An end-to-end marketplace web app for booking trusted home-service providers (plumbers, electricians, AC technicians and more) in Karachi, Pakistan — with customer/provider/admin roles, live job tracking, in-app chat, COD payments and a commission ledger.**
 
-## Run it locally
+> Repository: [github.com/adeeluddin01/karighar](https://github.com/adeeluddin01/karighar)
+> Status: functional MVP, under active development. **The public demo is currently offline** (previously at `karighar-taupe.vercel.app`).
+
+---
+
+## The problem
+
+Finding a reliable plumber, electrician or AC technician in Karachi still runs on word of mouth and phone calls. Customers can't compare providers, agree on a price upfront, or track a job once booked. Providers have no credible storefront and lose income to middlemen. There is no shared record of what was agreed, what was paid, or how the work went.
+
+## The solution
+
+Karighar is a web-first progressive web app that puts the whole transaction on rails:
+
+- **Customers** browse a seeded service catalog with fixed prices, book instantly or post a custom job and collect provider bids.
+- **Providers** onboard with CNIC verification, get approved by an admin, set services, accept jobs from an open pool, and track earnings in a wallet.
+- **Admins** verify providers, manage the catalog, monitor every job, resolve disputes and settle commissions.
+
+Pricing is locked once agreed (anti-tamper), job status follows a server-enforced state machine, reviews can only come from completed jobs, and COD payments flow through a commission ledger — so nobody has to take anyone's word for it.
+
+---
+
+## Features
+
+### For customers
+- Service catalog with fixed pricing, search and category browsing
+- Instant booking, custom-job requests, and provider bidding
+- Live job status updates, live provider location tracking and in-app chat (Supabase Realtime)
+- Ratings & reviews (only after job completion — enforced server-side)
+- Booking history, notifications, profile & settings
+- Google Maps location pin on booking
+
+### For providers
+- Onboarding flow with CNIC/document verification (admin-approved)
+- Open job pool, job acceptance, status advancement
+- Provider dashboard, jobs map with live location, service & history management
+- Wallet: ledger-based earnings, commission owed, settlement tracking
+- Ratings received from customers
+
+### For admins
+- Provider verification queue (approve / reject with documents)
+- Catalog management, jobs monitor, disputes resolution UI
+- Commission settlements and financial ledger views
+- Role-escalation protection and PII access controls
+
+### Platform
+- Email + password auth and Google OAuth (via Supabase Auth), three roles (customer / provider / admin) with row-level security
+- Server-enforced business logic: pricing, status transitions, review integrity, COD + commission ledger
+- Realtime layer: chat, live location, live status, notifications
+- Installable PWA (manifest + icons), role-aware navigation, error/loading boundaries, toasts
+- Legal & support pages, health check, sitemap/robots
+- Vitest unit tests covering money/accounting logic, the job status state machine and validation
+
+---
+
+## Architecture
+
+```
+Next.js 16 (App Router, React 19, TypeScript)
+        │  @supabase/ssr  (cookie-based auth, server + browser clients)
+        ▼
+Supabase (PostgreSQL)
+  ├── 15 SQL migrations: schema.sql + patch_v2 … patch_v15
+  ├── Row-Level Security on every table (incl. a dedicated PII-locking
+  │    patch: provider CNIC/documents hidden behind an owner/admin-only
+  │    policy, public data served from a safe view)
+  ├── Realtime: chat messages, job status, provider location, notifications
+  └── Edge function scaffold: supabase/functions/send-notification-email
+```
+
+Key engineering decisions:
+
+- **Database as the source of truth.** Business rules (price locking, status state machine, review eligibility, commission computation) are enforced in PostgreSQL via triggers/functions/RPCs, not just in UI code — the client can't bypass them.
+- **RLS-first security.** A dedicated migration (`patch_v11`) locked the `providers` table after a review found CNIC numbers world-readable; public provider profiles now come from a restricted view.
+- **Idempotent migrations.** All 15 SQL patches are safe to re-run, in order — a fresh Supabase project needs only `schema.sql`.
+- **Seeded catalog.** The Karachi service catalog is seeded in SQL and mirrored in `src/lib/catalog.ts` so the landing page renders without a backend.
+
+---
+
+## Tech stack
+
+| Layer      | Technology |
+|------------|------------|
+| Framework  | Next.js 16.3.1 (App Router), React 19, TypeScript 5 |
+| Styling    | Tailwind CSS 4 |
+| Backend / DB | Supabase (PostgreSQL, Auth, Realtime, Storage), 15 SQL migrations |
+| Maps       | @vis.gl/react-google-maps (booking pin, provider tracking, jobs map) |
+| Icons      | lucide-react |
+| Testing    | Vitest (13 test files), Playwright (demo-video recording) |
+| Tooling    | ESLint 9, TypeScript strict |
+
+---
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+
+- A free [Supabase](https://supabase.com) project
+- A Google Cloud API key with **Maps JavaScript API**, **Geocoding API** and **Directions API** enabled (only needed for map features)
+
+### 1. Install
 
 ```bash
 npm install
-npm run dev
 ```
 
-Open http://localhost:3000 — the landing page runs without any backend yet.
+### 2. Configure environment
 
-## Connect Supabase (needed for auth, booking, providers)
+Copy the example file and fill in your values (see `ENV_EXAMPLE.txt` in this repo for every variable, documented):
 
-1. Create a free project at https://supabase.com.
-2. In the project's **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql).
+```bash
+cp .env.example .env.local
+```
 
-   **That's the whole thing** — tables, triggers, security policies, the
-   verification storage bucket, realtime, and the seeded Karachi catalog.
-   Every patch below is already folded into it, so a new project needs
-   nothing else.
+Minimum for local development (landing page works with no backend at all):
 
-<details>
-<summary>Upgrading an <strong>existing</strong> database? Run the patches you've missed, in order.</summary>
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xyzcompany.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-or-anon-key
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-google-maps-key
+```
 
-   - [`supabase/schema.sql`](supabase/schema.sql) — tables, security policies, seeded Karachi catalog.
-   - [`supabase/patch_v2.sql`](supabase/patch_v2.sql) — provider job access, rating trigger, verification storage bucket.
-   - [`supabase/patch_v3_realtime.sql`](supabase/patch_v3_realtime.sql) — **required** for live chat, live location tracking, and live status updates.
-   - [`supabase/patch_v4_business_logic.sql`](supabase/patch_v4_business_logic.sql) — **required**: server-enforced pricing/status/reviews, COD payment + commission ledger, and notifications.
-   - [`supabase/patch_v5_settlements_disputes.sql`](supabase/patch_v5_settlements_disputes.sql) — **required**: commission-settlement RPC + disputes admin access.
-   - [`supabase/patch_v6_price_lock.sql`](supabase/patch_v6_price_lock.sql) — **required**: locks a job's price once set (anti-tamper), lets Pros price quote jobs, and rate-limits bookings.
-   - [`supabase/patch_v7_provider_profiles.sql`](supabase/patch_v7_provider_profiles.sql) — **required**: public provider-profile view (for `/providers/[id]`) + cancellation-reason column.
-   - [`supabase/patch_v8_role_escalation.sql`](supabase/patch_v8_role_escalation.sql) — **required (security)**: blocks users from making themselves admin.
-   - [`supabase/patch_v9_fix_jobs_rls.sql`](supabase/patch_v9_fix_jobs_rls.sql) — **required (critical)**: fixes job visibility so approved providers can see/accept the open job pool.
-   - [`supabase/patch_v10_fix_notify_cast.sql`](supabase/patch_v10_fix_notify_cast.sql) — **required (critical)**: fixes an enum-cast crash that blocked all status updates past "assigned".
-   - [`supabase/patch_v11_lock_provider_pii.sql`](supabase/patch_v11_lock_provider_pii.sql) — **required (security)**: `providers` was world-readable, exposing CNIC numbers and document paths to anyone with the anon key. Locks the table to owner/admin and serves public pro data from the `public_provider_profiles` view instead. Re-creates that view, so it also covers a project where patch_v7 was skipped.
-     *(Patches are idempotent and safe to re-run.)*
+### 3. Set up the database
 
-</details>
+In your Supabase project's **SQL Editor**, run `supabase/schema.sql`. That's the whole thing — tables, triggers, RLS policies, realtime, storage bucket and the seeded Karachi catalog.
 
-See [`../LAUNCH_READINESS.md`](../LAUNCH_READINESS.md) for the full architect audit and
-[`DEPLOYMENT.md`](DEPLOYMENT.md) for the production (Vercel) checklist.
-3. Copy `.env.local.example` → `.env.local` and fill in your project's **URL** and key
-   (Project Settings → API). The **publishable key** goes in `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   (or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — either name works).
-4. **For fast testing:** in Supabase → **Authentication → Sign In / Providers → Email**,
-   turn **off** "Confirm email" so signups log in instantly. (Turn it back on for production.)
-5. Restart `npm run dev`.
+If you're upgrading an existing database, run the patches you've missed **in order**: `patch_v2.sql` → `patch_v3_realtime.sql` → `patch_v4_business_logic.sql` → `patch_v5_settlements_disputes.sql` → `patch_v6_price_lock.sql` → `patch_v7_provider_profiles.sql` → `patch_v8_role_escalation.sql` → `patch_v9_fix_jobs_rls.sql` → `patch_v10_fix_notify_cast.sql` → `patch_v11_lock_provider_pii.sql` → `patch_v12_customer_reviews_and_alerts.sql` → `patch_v13_restore_notifications_layer.sql` → `patch_v14_house_promos.sql` → `patch_v15_new_categories.sql`. All patches are idempotent.
 
-### Make yourself an admin
+### 4. Auth setup (Supabase dashboard)
 
-After signing up once, find your user id in Supabase → Authentication → Users, then run in SQL Editor:
+- **Authentication → Sign In / Providers → Email**: turn **off** "Confirm email" for fast local testing (turn it back on for production).
+- **Google sign-in (optional):** enable the Google provider under **Authentication → Providers**, add your Google OAuth client ID/secret there, and set the redirect URI to `https://YOUR-PROJECT.supabase.co/auth/v1/callback`.
+
+### 5. Make yourself an admin
+
+Sign up once in the app, find your user ID in Supabase → Authentication → Users, then run:
 
 ```sql
 update profiles set role = 'admin' where id = 'YOUR-USER-ID';
 ```
 
-Now `/admin` unlocks (verify providers, manage catalog, monitor jobs).
+`/admin` unlocks: provider verification, catalog, jobs monitor, disputes, settlements.
 
-### Google Maps
+### 6. Run it
 
-`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` must have **Maps JavaScript API**, **Geocoding API**
-and **Directions API** enabled (Google Cloud Console → APIs). If you set HTTP-referrer
-restrictions, allow `http://localhost:3000/*` and your production domain.
-
-The Directions API is what draws the route *inside* the app on the provider's
-jobs map and active-job screen. Without it those buttons report that it needs
-enabling, and the external "Open in Google Maps" link still works.
-
-### Google sign-in (optional)
-
-The "Continue with Google" button needs the Google provider enabled in Supabase:
-Supabase → **Authentication → Providers → Google**, paste your `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
-and `GOOGLE_CLIENT_SECRET`, and add `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
-as an authorized redirect URI in Google Cloud Console.
-
-## Try the full flow
-
-1. Sign up as a **customer** → `/book` → book an AC service.
-2. In another browser/incognito, sign up as a **provider** → `/pro/onboarding` → submit.
-3. As **admin**, go to `/admin/providers` → approve the provider.
-4. As the **provider** → `/pro/dashboard` → accept the job → advance status.
-5. Back as the **customer** → `/bookings/[id]` → watch it update live, chat, then rate.
-
-## Structure
-
-```
-src/
-  app/            # routes (App Router)
-    page.tsx      # public landing (services + prices)
-  lib/
-    catalog.ts    # seed catalog (mirrors DB) for the landing view
-    supabase/
-      client.ts   # browser Supabase client
-      server.ts   # server Supabase client
-supabase/
-  schema.sql      # full DB schema + RLS + Karachi seed catalog
+```bash
+npm run dev
 ```
 
-## Roadmap (v1)
+Open [http://localhost:3000](http://localhost:3000). Try the full flow: sign up as a **customer** → book an AC service at `/book`; in an incognito window sign up as a **provider** → `/pro/onboarding`; as **admin** approve them at `/admin/providers`; as the **provider** accept the job and advance its status; back as the **customer**, watch it update live, chat, then rate.
 
-- [x] Project + DB schema + branded landing
-- [x] Auth (email + password; captures name + phone) + customer / provider / admin roles
-- [x] Customer booking flow (fixed price + custom job + bids)
-- [x] Provider onboarding + CNIC verification (admin-approved)
-- [x] Live job status (realtime) + in-app chat
-- [x] Ratings & reviews · COD (commission tracked on job)
-- [x] Admin panel (verification, catalog, jobs monitor)
-- [x] Google Maps — location pin on booking + live provider tracking + provider jobs map
-- [x] Role-aware navigation (customer vs provider) with bottom tab bar
-- [x] Profile + Settings pages · provider My Services / History / Map
-- [x] Customer service search
-- [x] Google OAuth sign-in
-- [x] Installable PWA (manifest + generated icons)
-- [x] Server-enforced business logic (pricing, status state-machine, review integrity)
-- [x] COD payment + commission ledger automation
-- [x] In-app notifications (bell + realtime + /notifications)
-- [x] Error/404/loading boundaries · toasts · legal & support pages · health check · robots/sitemap
-- [x] Provider wallet (ledger-based earnings + commission owed) · admin settlements
-- [x] Disputes: "report a problem" on jobs + admin resolution UI
-- [x] Automated tests (Vitest) for money/accounting + status state-machine
-- [ ] Phone OTP auth (needs an SMS provider) — replaces email/password
-- [ ] Email notifications + Sentry monitoring + rate limiting (P1)
-- [ ] Escrow + online payments (JazzCash/Easypaisa) · Directions/ETA (P2)
+Demo accounts can be seeded with the service-role key (see `scripts/seed.mjs`):
+
+```bash
+node --env-file=.env.local scripts/seed.mjs
+```
+
+Seeded logins: `demo.customer@karighar.pk`, `demo.provider@karighar.pk`, `demo.admin@karighar.pk` (password `Karighar#2026`).
+
+---
 
 ## Testing
 
 ```bash
-npm test        # Vitest unit tests (money/accounting, status machine, validation)
-npm run build   # type-check + production build
+npm test        # Vitest — money/accounting, status state machine, validation, geo, auth
+npm run build   # TypeScript check + production build
+npm run lint    # ESLint 9
 ```
 
-## Demo videos (customer / provider / admin walkthroughs)
+---
 
-Records MP4 walkthroughs of each role using Playwright + ffmpeg.
+## Demo videos
 
-```bash
-# 1. Put the real service-role (secret) key in .env.local: SUPABASE_SERVICE_ROLE_KEY=...
-# 2. Seed demo accounts (creates confirmed customer/provider/admin):
-node --env-file=.env.local scripts/seed.mjs
-# 3. Make sure the dev server is running (npm run dev), then:
-node scripts/record.mjs                 # all three
-node scripts/record.mjs customer        # or one role
-```
+Recorded walkthroughs (Playwright + ffmpeg) live in `videos/`:
 
-Output MP4s land in `videos/`. Demo logins use password `Karighar#2026`.
+- `karighar-public-tour.mp4` — public landing tour
+- `karighar-customer.mp4` — booking flow
+- `karighar-provider.mp4` — onboarding → job acceptance
+- `karighar-admin.mp4` — verification & monitoring
 
-## Email notifications (deploy Monday)
+Regenerate with `node scripts/record.mjs` (needs the dev server running and seeded demo accounts).
 
-Scaffold in `supabase/functions/send-notification-email/`. Deploy with a Resend key
-and a Database Webhook on `notifications` INSERT — see the file header for steps.
+---
+
+## Project status & limitations
+
+Honest accounting of where things stand:
+
+- **Working:** auth (email + Google), three roles, booking (fixed/custom/bids), provider onboarding + admin verification, realtime chat/location/status, ratings, COD + commission ledger, wallet, disputes, settlements, notifications, Google Maps integration, PWA installability, admin panel.
+- **Scaffolded, not wired:** the email-notification edge function exists as a scaffold (`supabase/functions/send-notification-email/`) and needs a Resend key + DB webhook to go live.
+- **Not started:** online payments (JazzCash/Easypaisa integration is roadmap P2), phone-OTP auth (roadmap; needs an SMS provider), Sentry monitoring and rate limiting (roadmap P1).
+- **Demo:** the previously deployed demo is currently offline; run locally per the instructions above.
+- **Provenance:** this repository is a fork with original development on top of it (21 commits, the majority by the maintainer). It is presented as active development work, not a finished commercial product. No users, revenue or production-traffic claims are made.
+
+---
+
+## Repository
+
+[github.com/adeeluddin01/karighar](https://github.com/adeeluddin01/karighar) — issues and pull requests welcome.
+
+---
+
+## License
+
+This repository currently has **no license file**. By default that means all rights are reserved by the copyright holder(s) — strictly speaking, others may view the code but have no permission to use, modify or distribute it. If you are the owner and want to permit reuse (including by future clients or employers evaluating this work), add an explicit license: MIT is the common choice for portfolio projects. Note: this repo is a fork, so also respect the licensing terms of the upstream project before relicensing any of its code.
