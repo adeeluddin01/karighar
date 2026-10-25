@@ -713,14 +713,24 @@ create policy notif_update on notifications for update
 -- ============================================================
 -- Public provider profiles
 -- ============================================================
--- The only public window onto `providers`: safe columns, approved pros only.
--- Runs with the view owner's rights, so it reads past the RLS above.
+-- Two ways a row becomes visible. Runs with the view owner's rights, so it
+-- reads past the RLS on providers/profiles above.
 --
--- Both halves of the WHERE matter — `role = 'provider' AND status =
--- 'approved'` is exactly what roleOf() in src/components/nav.ts calls a
--- provider, so the view and the app agree on who is one. Checking only the
--- status would list any account carrying an approved `providers` row,
--- including one whose profile is still a customer.
+-- 1. Public case: `role = 'provider' AND status = 'approved'` is exactly
+--    what roleOf() in src/components/nav.ts calls a provider, so the view
+--    and the app agree on who is one. Checking only the status would list
+--    any account carrying an approved `providers` row, including one whose
+--    profile is still a customer. This is the Home/Map browse case, where
+--    the viewer has no relationship with the provider yet.
+--
+-- 2. Relationship case (patch_v16): a customer can see the provider on their
+--    OWN job or bid — any status, active or past — because that job/bid row
+--    is itself proof of a real relationship, independent of whether the
+--    provider is currently public-listed. Without this, the pro's name,
+--    avatar, bio and rating go blank everywhere on a customer's own booking
+--    (list, detail, chat, "view profile") the moment that provider isn't
+--    (or isn't yet) approved — which is the normal state for most of a
+--    pro's history before an admin reviews them. Admins always see everyone.
 create or replace view public_provider_profiles as
   select prov.profile_id as id,
          pr.full_name,
@@ -731,8 +741,20 @@ create or replace view public_provider_profiles as
          prov.service_areas
   from providers prov
   join profiles pr on pr.id = prov.profile_id
-  where prov.status = 'approved'
-    and pr.role = 'provider';
+  where
+    (prov.status = 'approved' and pr.role = 'provider')
+    or exists (
+      select 1 from jobs j
+      where j.provider_id = prov.profile_id
+        and j.customer_id = auth.uid()
+    )
+    or exists (
+      select 1 from bids b
+      join jobs j on j.id = b.job_id
+      where b.provider_id = prov.profile_id
+        and j.customer_id = auth.uid()
+    )
+    or is_admin();
 
 -- Owner's rights are the default; stated so a future default flip is loud.
 do $$
