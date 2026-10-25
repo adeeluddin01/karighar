@@ -10,7 +10,20 @@ if (!TOKEN) {
 }
 
 // Only the vars the running app actually needs (all public / non-secret).
-const SITE_URL = "https://thekarighar.com";
+//
+// NEXT_PUBLIC_SITE_URL is deliberately NOT hardcoded here. src/lib/siteUrl.ts
+// only uses it to override the browser's own origin — if it's set to a
+// domain that isn't actually serving this deployment (e.g. a custom domain
+// still pointed at a different host), every Google OAuth redirect silently
+// breaks, because it gets built against a domain that never sees the
+// request. Leaving this unset makes the app correctly detect whatever origin
+// is actually live (the *.vercel.app URL, a preview URL, or a verified
+// custom domain) with no further changes needed.
+//
+// Set DEPLOY_SITE_URL before running this script only once a real custom
+// domain is confirmed live and pointed at this Vercel project — and make
+// sure Supabase's Redirect URLs allow-list is updated to match first.
+const SITE_URL = process.env.DEPLOY_SITE_URL || "";
 const ENV = {
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,

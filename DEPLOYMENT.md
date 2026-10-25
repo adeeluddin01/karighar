@@ -55,9 +55,21 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    unfixed. The trailing slash matters because `trailingSlash: true` exports
    `auth/callback/index.html`.
 4. **Authentication → Providers → Email:** keep "Confirm email" **ON** for production.
-5. (Optional) **Providers → Google:** paste client ID/secret; add
-   `https://YOUR-PROJECT.supabase.co/auth/v1/callback` as an authorized redirect in Google Cloud.
+5. (Optional) **Providers → Google:** see `README.md`'s "Google sign-in"
+   section for the full 3-step setup (Google Cloud Console → Supabase
+   provider → Supabase URL Configuration). The redirect URI in Google Cloud
+   must be Supabase's own callback, `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
+   — not this app's `/auth/callback` route — and the Site URL / Redirect URLs
+   above must already match whatever domain you're actually testing on, or
+   the OAuth redirect is silently dropped.
 6. **Database → Backups:** ensure daily backups are enabled (paid plan).
+
+> **Note:** every `thekarighar.com` URL on this page assumes that domain is
+> the one actually live on this Vercel project. If you're testing on the
+> default `*.vercel.app` URL (or any other domain) instead, use that domain
+> in every Site URL / Redirect URL / Google Cloud value above — a mismatch
+> here is the single most common reason Google sign-in or email confirmation
+> "doesn't work" after otherwise-correct setup.
 
 ## 1b. Promo banners (optional)
 
@@ -90,8 +102,16 @@ to `true` to publish it. Nothing renders when no row is live.
    - `SUPABASE_PUBLISHABLE_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
-   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (if using Google login)
-   - `NEXT_PUBLIC_SITE_URL` = `https://thekarighar.com`
+   - `NEXT_PUBLIC_SITE_URL` — **only set this once your custom domain is live
+     on this Vercel project**, and to that exact domain. Leaving it unset is
+     safer by default: the app correctly detects whatever origin is actually
+     serving the request (the `*.vercel.app` URL, a preview URL, or a
+     verified custom domain), with no further changes needed. Setting it to a
+     domain that isn't actually live here silently breaks every Google OAuth
+     redirect and every email-confirmation link.
+   - There is no Google Client ID/Secret env var — those live only in
+     Supabase's dashboard (Authentication → Providers → Google), never in
+     the app itself. See `README.md`'s "Google sign-in" section.
 3. Deploy. Add your custom domain in Vercel → Domains.
 
 ## 4. First admin

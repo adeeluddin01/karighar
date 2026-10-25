@@ -71,10 +71,30 @@ enabling, and the external "Open in Google Maps" link still works.
 
 ### Google sign-in (optional)
 
-The "Continue with Google" button needs the Google provider enabled in Supabase:
-Supabase → **Authentication → Providers → Google**, paste your `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
-and `GOOGLE_CLIENT_SECRET`, and add `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
-as an authorized redirect URI in Google Cloud Console.
+The app code needs no Google env vars at all — `signInWithOAuth({ provider: "google" })`
+is handled entirely by Supabase. Three places to configure, in this order:
+
+1. **Google Cloud Console** → APIs & Services → Credentials → Create an OAuth
+   client ID (Web application).
+   - Authorized redirect URIs: **Supabase's own callback**, not this app's —
+     `https://YOUR-PROJECT.supabase.co/auth/v1/callback`. Pointing this at the
+     app's `/auth/callback` instead is the most common mistake.
+   - Authorized JavaScript origins: your production URL(s) + `http://localhost:3000`.
+   - While the OAuth consent screen is in "Testing" status, only the Google
+     accounts listed under **Test users** can sign in — add your own account
+     there, or publish the app, or sign-in will silently fail for everyone else.
+2. **Supabase → Authentication → Providers → Google** — paste the Client ID
+   and Client Secret from step 1.
+3. **Supabase → Authentication → URL Configuration** — Site URL and Redirect
+   URLs must match the domain you actually test on (e.g.
+   `https://your-app.vercel.app/**`). A redirect to a URL not on this list is
+   silently ignored, which looks like "nothing happens."
+
+If you deploy with `node --env-file=.env.local scripts/deploy.mjs`, do **not**
+set `DEPLOY_SITE_URL` to a domain that isn't actually live on this Vercel
+project — the app already detects its own origin correctly when
+`NEXT_PUBLIC_SITE_URL` is left unset, and pinning the wrong domain there
+breaks every OAuth redirect silently.
 
 ## Try the full flow
 
