@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"
+     width="1024" height="1024" role="img" aria-labelledby="ttl desc">
+  <title id="ttl">Karighar</title>
+  <desc id="desc">Square full-bleed variant for iOS. A brushed-steel house roof and chimney over the letter K, with a lit brass
+    window, raised on a deep green velvet tile.</desc>
+  <defs>
+    <!-- ================= velvet ================= -->
+    <linearGradient id="tileBase" x1="0.1" y1="0" x2="0.85" y2="1">
+      <stop offset="0"    stop-color="#103420"/>
+      <stop offset="0.42" stop-color="#0d2a1b"/>
+      <stop offset="1"    stop-color="#112f1f"/>
+    </linearGradient>
+    <radialGradient id="tileSheen" cx="0.36" cy="0.26" r="0.78">
+      <stop offset="0"    stop-color="#569270" stop-opacity="0.13"/>
+      <stop offset="0.55" stop-color="#2b6246" stop-opacity="0.08"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0.30"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="0.38" cy="0.32" r="0.92">
+      <stop offset="0.3"  stop-color="#000000" stop-opacity="0"/>
+      <stop offset="0.72" stop-color="#000000" stop-opacity="0.07"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0.18"/>
+    </radialGradient>
+    <!-- Pile. Two layers, because velvet is two things at once: broad
+         crushed clumping where the nap lies in different directions, and a
+         fine tufted grain on top. feTurbulence octaves only ever run FINER
+         than the base frequency, so a single high-frequency layer gives
+         salt-and-pepper and no clumping at all - the coarse layer has to be
+         its own pass. Band energies were matched against the render across
+         six spatial scales. -->
+    <filter id="pile" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2"
+                    seed="17" result="clump"/>
+      <feTurbulence type="fractalNoise" baseFrequency="1.3" numOctaves="1"
+                    seed="29" result="tuft"/>
+      <feComposite in="clump" in2="tuft" operator="arithmetic"
+                   k1="0" k2="0.26" k3="0.74" k4="0" result="mix"/>
+      <feColorMatrix in="mix" type="matrix"
+        values="1.85 0 0 0 -0.487   1.85 0 0 0 -0.487   1.85 0 0 0 -0.487   0 0 0 0 1"
+        result="tone"/>
+      <feGaussianBlur in="tone" stdDeviation="0.45"/>
+    </filter>
+
+    <!-- ================= steel ================= -->
+    <!-- Metal is banded, not a single ramp: light, shadow, light again. -->
+    <linearGradient id="steel" x1="0.06" y1="0" x2="0.78" y2="1">
+      <stop offset="0"    stop-color="#fbfcfa"/>
+      <stop offset="0.14" stop-color="#cfd4cd"/>
+      <stop offset="0.34" stop-color="#8d948c"/>
+      <stop offset="0.52" stop-color="#5c645d"/>
+      <stop offset="0.72" stop-color="#b6bcb4"/>
+      <stop offset="0.87" stop-color="#7b837b"/>
+      <stop offset="1"    stop-color="#474f49"/>
+    </linearGradient>
+    <filter id="grainAlong" filterUnits="userSpaceOnUse"
+            x="-420" y="-420" width="1864" height="1864">
+      <feTurbulence type="fractalNoise" baseFrequency="0.004 1.25" numOctaves="3"
+                    seed="5" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.5  0 0 0 0 0.51  0 0 0 0 0.5  0 0 0 0.9 0"/>
+    </filter>
+    <filter id="grainAcross" filterUnits="userSpaceOnUse"
+            x="-420" y="-420" width="1864" height="1864">
+      <feTurbulence type="fractalNoise" baseFrequency="1.25 0.004" numOctaves="3"
+                    seed="9" result="n"/>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.5  0 0 0 0 0.51  0 0 0 0 0.5  0 0 0 0.9 0"/>
+    </filter>
+    <filter id="bevelSteel" x="-14%" y="-14%" width="128%" height="128%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5.0" result="bump"/>
+      <feDiffuseLighting in="bump" surfaceScale="12" diffuseConstant="1.5"
+                         lighting-color="0.85" result="dif">
+        <feDistantLight azimuth="228" elevation="46"/>
+      </feDiffuseLighting>
+      <feComposite in="dif" in2="SourceAlpha" operator="in" result="difC"/>
+      <feBlend in="SourceGraphic" in2="difC" mode="multiply" result="body"/>
+      <feSpecularLighting in="bump" surfaceScale="12" specularConstant="1.05"
+                          specularExponent="48" lighting-color="#ffffff" result="spc">
+        <feDistantLight azimuth="228" elevation="61"/>
+      </feSpecularLighting>
+      <feComposite in="spc" in2="SourceAlpha" operator="in" result="spcC"/>
+      <feComposite in="body" in2="spcC" operator="arithmetic" k1="0" k2="1" k3="0.8" k4="0"/>
+    </filter>
+
+    <!-- ================= brass ================= -->
+    <linearGradient id="brass" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0"    stop-color="#ffeab0"/>
+      <stop offset="0.32" stop-color="#d9b062"/>
+      <stop offset="0.7"  stop-color="#9c7834"/>
+      <stop offset="1"    stop-color="#64491d"/>
+    </linearGradient>
+    <filter id="bevelBrass" x="-14%" y="-14%" width="128%" height="128%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="bump"/>
+      <feDiffuseLighting in="bump" surfaceScale="6" diffuseConstant="1.46"
+                         lighting-color="0.9" result="dif">
+        <feDistantLight azimuth="228" elevation="46"/>
+      </feDiffuseLighting>
+      <feComposite in="dif" in2="SourceAlpha" operator="in" result="difC"/>
+      <feBlend in="SourceGraphic" in2="difC" mode="multiply" result="body"/>
+      <feSpecularLighting in="bump" surfaceScale="6" specularConstant="1.35"
+                          specularExponent="24" lighting-color="#fffaf0" result="spc">
+        <feDistantLight azimuth="228" elevation="61"/>
+      </feSpecularLighting>
+      <feComposite in="spc" in2="SourceAlpha" operator="in" result="spcC"/>
+      <feComposite in="body" in2="spcC" operator="arithmetic" k1="0" k2="1" k3="0.8" k4="0"/>
+    </filter>
+
+    <!-- the metal stands proud: a wide soft cast plus a tight contact line -->
+    <filter id="cast" x="-22%" y="-22%" width="155%" height="155%">
+      <feDropShadow dx="8" dy="13" stdDeviation="12" flood-color="#03120a" flood-opacity="0.58"/>
+      <feDropShadow dx="2" dy="3"  stdDeviation="1.8" flood-color="#010c06" flood-opacity="0.75"/>
+    </filter>
+
+    <clipPath id="tileClip"><rect width="1024" height="1024"/></clipPath>
+    <clipPath id="roofClip"><path d="M796.94 100.3L795.88 95.89L792.74 91.19L789.07 88.52L783.63 86.99L719.77 86.99L714.33 88.52L710.66 91.19L707.52 95.89L706.46 100.3L706.42 186.54L531.74 67.09L519.9 62.09L510.39 60.48L500.75 60.81L488.35 64.19L479.89 68.82L94.54 332.73L87.71 339.28L83.92 344.33L79.55 352.73L77.58 358.74L76.42 364.95L76.22 374.42L77.11 380.67L79.96 389.7L84.52 398L90.61 405.25L97.99 411.18L106.4 415.55L115.49 418.19L124.92 419.02L134.33 417.98L146.23 413.8L507.17 167.21L865.34 412.27L876.94 417.23L886.26 418.88L895.73 418.67L907.94 415.55L918.93 409.37L925.92 402.97L931.52 395.34L935.52 386.76L938.12 374.42L937.92 364.95L935.87 355.71L930.42 344.33L924.5 336.95L917.25 330.86L796.98 248.53Z"/></clipPath>
+    <clipPath id="kClip"><path d="M242.72 403.32L244.9 390.12L251.2 378.33L260.96 369.18L268.06 365.39L275.76 363.05L283.77 362.26L326.04 362.26L334.05 363.05L341.75 365.39L348.85 369.18L358.61 378.33L363.97 387.61L367.01 400.64L367.17 582.39L368.99 588.55L372.97 593.59L378.55 596.78L384.92 597.65L391.15 596.09L395.19 593.44L650.98 368.05L658.82 364.24L667.34 362.41L724.43 362.26L734.64 364.29L743.29 370.07L747.52 375.6L750.19 382.03L751.04 387.18L751.09 401.73L748.92 414.09L742.66 424.96L547.07 602.35L543.11 607.94L541.91 614.67L542.89 619.48L545.3 623.75L781.96 922.01L784.46 926.78L785.06 932.13L783.66 937.32L780.46 941.65L775.9 944.51L770.61 945.51L672.24 945.49L662.05 943.64L652.79 938.98L646.06 932.89L455.97 711.66L448.81 706.44L441.34 704.93L433.87 706.42L428.48 709.81L372.33 759.74L368.13 766.14L367.09 771.97L367.01 905.93L363.97 918.96L356.91 930.32L351.03 935.82L341.75 941.18L334.05 943.51L326.04 944.3L283.77 944.3L275.76 943.51L263.25 938.8L254.74 932.28L249.64 926.06L245.84 918.96L243.51 911.26L242.72 903.25Z"/></clipPath>
+    <clipPath id="halfL"><rect x="-420" y="-420" width="932" height="1864"/></clipPath>
+    <clipPath id="halfR"><rect x="512" y="-420" width="932" height="1864"/></clipPath>
+    <linearGradient id="rim" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0"    stop-color="#7cb795" stop-opacity="0.8"/>
+      <stop offset="0.42" stop-color="#2d6a4c" stop-opacity="0.14"/>
+      <stop offset="1"    stop-color="#01100a" stop-opacity="0.66"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#tileClip)">
+    <rect width="1024" height="1024" fill="url(#tileBase)"/>
+    <rect width="1024" height="1024" fill="url(#tileSheen)"/>
+    <rect width="1024" height="1024" filter="url(#pile)" opacity="0.62"
+          style="mix-blend-mode:overlay"/>
+    <rect width="1024" height="1024" fill="url(#vignette)"/>
+
+    <g filter="url(#cast)">
+      <path d="M796.94 100.3L795.88 95.89L792.74 91.19L789.07 88.52L783.63 86.99L719.77 86.99L714.33 88.52L710.66 91.19L707.52 95.89L706.46 100.3L706.42 186.54L531.74 67.09L519.9 62.09L510.39 60.48L500.75 60.81L488.35 64.19L479.89 68.82L94.54 332.73L87.71 339.28L83.92 344.33L79.55 352.73L77.58 358.74L76.42 364.95L76.22 374.42L77.11 380.67L79.96 389.7L84.52 398L90.61 405.25L97.99 411.18L106.4 415.55L115.49 418.19L124.92 419.02L134.33 417.98L146.23 413.8L507.17 167.21L865.34 412.27L876.94 417.23L886.26 418.88L895.73 418.67L907.94 415.55L918.93 409.37L925.92 402.97L931.52 395.34L935.52 386.76L938.12 374.42L937.92 364.95L935.87 355.71L930.42 344.33L924.5 336.95L917.25 330.86L796.98 248.53Z" fill="url(#steel)" filter="url(#bevelSteel)"/>
+      <path d="M242.72 403.32L244.9 390.12L251.2 378.33L260.96 369.18L268.06 365.39L275.76 363.05L283.77 362.26L326.04 362.26L334.05 363.05L341.75 365.39L348.85 369.18L358.61 378.33L363.97 387.61L367.01 400.64L367.17 582.39L368.99 588.55L372.97 593.59L378.55 596.78L384.92 597.65L391.15 596.09L395.19 593.44L650.98 368.05L658.82 364.24L667.34 362.41L724.43 362.26L734.64 364.29L743.29 370.07L747.52 375.6L750.19 382.03L751.04 387.18L751.09 401.73L748.92 414.09L742.66 424.96L547.07 602.35L543.11 607.94L541.91 614.67L542.89 619.48L545.3 623.75L781.96 922.01L784.46 926.78L785.06 932.13L783.66 937.32L780.46 941.65L775.9 944.51L770.61 945.51L672.24 945.49L662.05 943.64L652.79 938.98L646.06 932.89L455.97 711.66L448.81 706.44L441.34 704.93L433.87 706.42L428.48 709.81L372.33 759.74L368.13 766.14L367.09 771.97L367.01 905.93L363.97 918.96L356.91 930.32L351.03 935.82L341.75 941.18L334.05 943.51L326.04 944.3L283.77 944.3L275.76 943.51L263.25 938.8L254.74 932.28L249.64 926.06L245.84 918.96L243.51 911.26L242.72 903.25Z"    fill="url(#steel)" filter="url(#bevelSteel)"/>
+      <rect x="451.62" y="256" width="45.89" height="45.89" rx="6.04" fill="url(#brass)" filter="url(#bevelBrass)"/><rect x="513.21" y="256" width="45.89" height="45.89" rx="6.04" fill="url(#brass)" filter="url(#bevelBrass)"/><rect x="451.62" y="317.58" width="45.89" height="45.89" rx="6.04" fill="url(#brass)" filter="url(#bevelBrass)"/><rect x="513.21" y="317.58" width="45.89" height="45.89" rx="6.04" fill="url(#brass)" filter="url(#bevelBrass)"/>
+    </g>
+
+    <!-- Brushing follows the form, the way a real linisher leaves it: along
+         each roof arm, and down the K. A single global direction is the tell
+         that a metal texture was pasted on rather than worked. -->
+    <g style="mix-blend-mode:overlay" opacity="0.5">
+      <g clip-path="url(#roofClip)">
+        <g clip-path="url(#halfL)">
+          <g transform="rotate(-34.4 512 512)"><rect x="-420" y="-420" width="1864" height="1864" filter="url(#grainAlong)"/></g>
+        </g>
+        <g clip-path="url(#halfR)">
+          <g transform="rotate(34.4 512 512)"><rect x="-420" y="-420" width="1864" height="1864" filter="url(#grainAlong)"/></g>
+        </g>
+      </g>
+      <g clip-path="url(#kClip)"><rect x="-420" y="-420" width="1864" height="1864" filter="url(#grainAcross)"/></g>
+    </g>
+  </g>
+</svg>

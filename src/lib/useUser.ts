@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile, ProviderStatus } from "@/lib/types";
+import type { BusinessStatus, Profile, ProviderStatus } from "@/lib/types";
 
 // Client hook: current auth user + their profile row, plus their provider
 // verification status (null if they're not a provider at all). `loading`
@@ -13,10 +13,14 @@ import type { Profile, ProviderStatus } from "@/lib/types";
 // `providerStatus` matters beyond the pro pages: a customer who has started
 // (or is mid-review for) a pro application still gets the default customer
 // nav until they're actually `approved` — see roleOf() in components/nav.ts.
+//
+// `businessStatus` is the same idea for a dispatcher: the `businesses` row
+// being `active`, not `role === "business"`, is what opens the business area.
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null);
+  const [businessStatus, setBusinessStatus] = useState<BusinessStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,6 +53,17 @@ export function useUser() {
         } else if (active) {
           setProviderStatus(null);
         }
+
+        if (p?.role === "business") {
+          const { data: biz } = await supabase
+            .from("businesses")
+            .select("status")
+            .eq("profile_id", user.id)
+            .maybeSingle();
+          if (active) setBusinessStatus((biz as { status: BusinessStatus } | null)?.status ?? null);
+        } else if (active) {
+          setBusinessStatus(null);
+        }
       }
       if (active) setLoading(false);
     }
@@ -61,6 +76,7 @@ export function useUser() {
       if (!session?.user) {
         setProfile(null);
         setProviderStatus(null);
+        setBusinessStatus(null);
       }
     });
     return () => {
@@ -69,17 +85,17 @@ export function useUser() {
     };
   }, []);
 
-  return { user, profile, providerStatus, loading };
+  return { user, profile, providerStatus, businessStatus, loading };
 }
 
 // Redirect to /signin if not authenticated (call inside a client page).
 export function useRequireAuth(nextPath: string) {
-  const { user, profile, providerStatus, loading } = useUser();
+  const { user, profile, providerStatus, businessStatus, loading } = useUser();
   const router = useRouter();
   useEffect(() => {
     if (!loading && !user) {
       router.replace(`/signin?next=${encodeURIComponent(nextPath)}`);
     }
   }, [loading, user, nextPath, router]);
-  return { user, profile, providerStatus, loading };
+  return { user, profile, providerStatus, businessStatus, loading };
 }

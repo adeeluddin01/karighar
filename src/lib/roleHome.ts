@@ -22,7 +22,9 @@ export async function resolveSignInDest(
     .maybeSingle();
   const role = (profile as { role?: string } | null)?.role;
 
-  // Only an *approved* provider gets the provider area; see roleOf().
+  // Only an *approved* provider gets the provider area, and only an *active*
+  // business gets the dispatch board; see roleOf(). Both lookups are skipped
+  // for everyone else, so the common customer path still costs one query.
   let status: string | null = null;
   if (role === "provider") {
     const { data: prov } = await supabase
@@ -33,5 +35,15 @@ export async function resolveSignInDest(
     status = (prov as { status?: string } | null)?.status ?? null;
   }
 
-  return ROLE_HOME[roleOf(true, role, status)];
+  let bizStatus: string | null = null;
+  if (role === "business") {
+    const { data: biz } = await supabase
+      .from("businesses")
+      .select("status")
+      .eq("profile_id", userId)
+      .maybeSingle();
+    bizStatus = (biz as { status?: string } | null)?.status ?? null;
+  }
+
+  return ROLE_HOME[roleOf(true, role, status, bizStatus)];
 }

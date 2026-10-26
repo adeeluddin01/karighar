@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useUser";
 import { useNotifications } from "@/lib/useNotifications";
-import { notifHref } from "@/lib/notifHref";
+import { notifHref, notifFallbackHref } from "@/lib/notifHref";
 import { roleOf } from "@/components/nav";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
@@ -11,18 +11,18 @@ import { clsx } from "@/lib/clsx";
 import type { Notification } from "@/lib/types";
 
 export default function NotificationsPage() {
-  const { user, profile, providerStatus, loading } = useRequireAuth("/notifications");
+  const { user, profile, providerStatus, businessStatus, loading } = useRequireAuth("/notifications");
   const router = useRouter();
   // The shared hook adds realtime, and marking read now updates the list —
   // it previously wrote to the database only, so the row stayed bold.
   const { items, unread, markRead, markAll } = useNotifications(user?.id, { limit: 50 });
-  const role = roleOf(!!user, profile?.role, providerStatus);
+  const role = roleOf(!!user, profile?.role, providerStatus, businessStatus);
 
   async function open(n: Notification) {
     if (!n.read) await markRead(n.id);
     // A provider sent to /bookings/view/ would land on a customer page their
-    // RLS blocks.
-    const href = notifHref(n, role);
+    // RLS blocks. A job-less alert (a team invite) still has somewhere to go.
+    const href = notifHref(n, role) ?? notifFallbackHref(n, role);
     if (href) router.push(href);
   }
 

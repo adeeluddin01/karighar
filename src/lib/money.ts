@@ -13,31 +13,91 @@ export function providerPayout(amount: number, rate: number): number {
   return Math.round((amount - commissionFor(amount, rate)) * 100) / 100;
 }
 
-export type LedgerEntry = { type: "earning" | "commission" | "payout" | "adjustment"; amount: number };
+export type LedgerType = "earning" | "commission" | "payout" | "adjustment" | "business_share";
+
+export type LedgerEntry = { type: LedgerType; amount: number };
 
 export type LedgerSummary = {
   netEarnings: number; // what the Pro keeps (payout portion)
   commissionGross: number; // total commission generated
   settled: number; // commission already remitted to the platform
   commissionOwed: number; // outstanding commission the Pro owes KARIGHAR
+  /**
+   * The business<->technician leg, which is NOT Karighar's money.
+   *
+   * Positive on a business (owed TO it by its technicians, who collected the
+   * cash on site), negative on a technician (owed BY them to their business).
+   * Zero for an independent pro, so every existing total is unchanged.
+   */
+  businessShareNet: number;
 };
 
-// COD model: 'earning' = provider payout, 'commission' stored negative,
-// 'payout' = a recorded settlement (commission remitted to the platform).
+// COD model: 'earning' = what this account keeps, 'commission' stored
+// negative (always owed to KARIGHAR), 'payout' = a recorded settlement,
+// 'business_share' = the technician<->business transfer on a dispatched job.
+//
+// The exhaustive switch is deliberate. This used to be an if/else chain with
+// no default, which silently dropped any new ledger type from every total —
+// a money bug with no error. `never` makes the compiler refuse the next one.
 export function summarizeLedger(entries: LedgerEntry[]): LedgerSummary {
   let netEarnings = 0;
   let commissionGross = 0;
   let settled = 0;
+  let businessShareNet = 0;
   for (const e of entries) {
-    if (e.type === "earning") netEarnings += e.amount;
-    else if (e.type === "commission") commissionGross += Math.abs(e.amount);
-    else if (e.type === "payout") settled += e.amount;
-    else if (e.type === "adjustment") settled += e.amount;
+    switch (e.type) {
+      case "earning":
+        netEarnings += e.amount;
+        break;
+      case "commission":
+        commissionGross += Math.abs(e.amount);
+        break;
+      case "payout":
+      case "adjustment":
+        settled += e.amount;
+        break;
+      case "business_share":
+        businessShareNet += e.amount;
+        break;
+      default: {
+        // Compile-time exhaustiveness: adding a LedgerType without handling
+        // it above is a type error on this line. Deliberately does NOT throw
+        // at runtime — a value added in SQL ahead of this union would
+        // otherwise take /pro/history down to a permanent spinner, which is
+        // worse than omitting one row from a total.
+        const exhaustive: never = e.type;
+        void exhaustive;
+        break;
+      }
+    }
   }
   return {
     netEarnings: Math.round(netEarnings * 100) / 100,
     commissionGross: Math.round(commissionGross * 100) / 100,
     settled: Math.round(settled * 100) / 100,
     commissionOwed: Math.max(0, Math.round((commissionGross - settled) * 100) / 100),
+    businessShareNet: Math.round(businessShareNet * 100) / 100,
+  };
+}
+
+/**
+ * Split a dispatched job's cash the way `jobs_on_paid` does, so the dispatch
+ * UI can quote a technician their cut before the work happens and the two
+ * numbers always agree.
+ *
+ * The technician physically collects `price`; `techShare` is the fraction
+ * they keep. The business keeps the rest and pays Karighar's commission out
+ * of its own side — so the technician owes Karighar nothing.
+ */
+export function splitDispatchedJob(price: number, techShare: number, commissionRate: number) {
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const commission = commissionFor(price, commissionRate);
+  const techCut = round(price * techShare);
+  const bizCut = round(price - techCut); // what the technician owes the business
+  return {
+    commission, // business -> Karighar
+    techCut, // technician keeps
+    bizCut, // technician -> business
+    businessNet: round(bizCut - commission), // business keeps after commission
   };
 }

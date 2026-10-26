@@ -4,7 +4,7 @@
 -- Home-services marketplace: Karachi, services-only, COD, hybrid pricing.
 --
 -- This is the WHOLE schema. On a fresh project run only this file — every
--- patch up to and including patch_v15 is already folded in. The
+-- patch up to and including patch_v18 is already folded in. The
 -- supabase/patch_v*.sql files exist only to bring an OLDER database forward,
 -- in numeric order.
 --
@@ -17,15 +17,23 @@
 -- role/phone metadata, chat notifications), v13 (restores notifications
 -- layer), v14 (house promo banners), v15 (5 new service categories:
 -- carpenter, painter, solar panel cleaning, camera installation, washing
--- machine repair).
+-- machine repair), v16 (a customer sees the pro on their own job/bid at any
+-- status), v17 (SECURITY: verification + reputation columns are no longer
+-- self-writable), v18 (business accounts: technicians beneath a dispatcher).
 -- ============================================================
 
 -- ---------- Extensions ----------
 create extension if not exists "pgcrypto";
 
 -- ---------- Enums ----------
-create type user_role       as enum ('customer', 'provider', 'admin');
+-- 'business' is a dispatcher that assigns jobs to technicians on its team.
+-- It is granted by Karighar, never self-selected: handle_new_user() whitelists
+-- signup metadata to provider-or-customer, and profiles_guard_role() blocks
+-- the value on update.
+create type user_role       as enum ('customer', 'provider', 'admin', 'business');
 create type provider_status as enum ('pending', 'approved', 'suspended', 'rejected');
+create type business_status   as enum ('active', 'suspended');
+create type membership_status as enum ('invited', 'active', 'declined', 'removed');
 create type job_type        as enum ('fixed', 'custom');
 create type job_status       as enum (
   'created',      -- customer created it
@@ -43,7 +51,12 @@ create type job_status       as enum (
 create type bid_status     as enum ('pending', 'awarded', 'rejected');
 create type payment_method as enum ('cod');          -- v1: cash only
 create type payment_status as enum ('pending', 'collected', 'settled');
-create type ledger_type    as enum ('earning', 'commission', 'payout', 'adjustment');
+-- 'business_share' is the technician<->business leg of a dispatched job: what
+-- the technician owes their business out of the cash they collected, and the
+-- matching receivable on the business. It is deliberately NOT 'commission'
+-- (which means "owed to Karighar" and is what /admin/settlements chases) and
+-- not 'adjustment' (which summarizeLedger counts as already settled).
+create type ledger_type    as enum ('earning', 'commission', 'payout', 'adjustment', 'business_share');
 
 -- ============================================================
 -- Profiles  (1:1 with auth.users)
@@ -82,6 +95,63 @@ create table providers (
   service_areas  jsonb not null default '[]'::jsonb,  -- e.g. ["Gulshan","DHA"]
   verified_at    timestamptz
 );
+
+-- ============================================================
+-- Businesses  (a dispatcher with technicians beneath it)
+-- ============================================================
+-- A satellite table rather than columns on `profiles`, for the same reason
+-- `providers` is one: profiles_upd lets a user update their own profiles row,
+-- so anything there is self-writable. THIS row — not role = 'business' — is
+-- the real gate, exactly as providers.status (not role = 'provider') is what
+-- actually gates the pro area.
+--
+-- No CNIC columns: a business is a dispatcher and never works a job, so it
+-- carries no identity verification of its own. Every technician beneath it is
+-- still individually verified through /pro/onboarding and admin approval.
+-- Name, phone and avatar stay on `profiles` and are not duplicated here.
+create table businesses (
+  profile_id     uuid primary key references profiles(id) on delete cascade,
+  status         business_status not null default 'active',
+  about          text,
+  service_areas  jsonb not null default '[]'::jsonb,
+  rating_avg     numeric(2,1) not null default 0,   -- trigger-maintained
+  jobs_completed int not null default 0,            -- trigger-maintained
+  created_at     timestamptz not null default now()
+);
+
+-- Membership + invite state + the split rate.
+--
+-- A table rather than a `providers.business_id` column: a column there would
+-- be self-writable under prov_self, so a technician could null it out to
+-- re-enter the open pool or point it at someone else's business. A separate
+-- table is also the only way to give the two sides different rights over
+-- different columns of the same relationship, and it carries the invite
+-- state a column cannot.
+--
+-- provider_id -> providers(profile_id) structurally guarantees that only a
+-- real, individually-verified provider can ever be a team member.
+create table business_members (
+  id           uuid primary key default gen_random_uuid(),
+  business_id  uuid not null references businesses(profile_id) on delete cascade,
+  provider_id  uuid not null references providers(profile_id)  on delete cascade,
+  status       membership_status not null default 'invited',
+  -- Fraction of the job price the TECHNICIAN keeps. The business keeps the
+  -- rest and pays Karighar's commission out of its side.
+  tech_share   numeric(4,3) not null default 0.700
+               check (tech_share >= 0 and tech_share <= 1),
+  invited_by   uuid references profiles(id),
+  invited_at   timestamptz not null default now(),
+  responded_at timestamptz,
+  removed_at   timestamptz,
+  -- Re-invites are state transitions on one row, so a decline stays on record.
+  unique (business_id, provider_id)
+);
+create index business_members_provider_idx on business_members(provider_id, status);
+create index business_members_business_idx on business_members(business_id, status);
+-- Structural teeth for the open-pool lockout: at most one active business per
+-- technician, enforced by the database even if a policy or RPC is ever wrong.
+create unique index business_members_one_active
+  on business_members(provider_id) where (status = 'active');
 
 -- ============================================================
 -- Catalog
@@ -128,15 +198,37 @@ create table jobs (
   lng             double precision,
   scheduled_at    timestamptz,
   price           numeric(10,2),                        -- final agreed price
+  -- Whoever is actually DOING this job, and whom the customer deals with —
+  -- for a dispatched job that is the assigned technician, not the business.
+  -- Keeping this meaning is what lets chat, the call button, GPS tracking,
+  -- profiles_job_peer, the status machine and jobs_update_provider carry on
+  -- unchanged for business work.
   provider_id     uuid references providers(profile_id),
   commission_rate numeric(4,3) not null default 0.20,   -- 0.20 fixed, 0.15 custom
+  -- The dispatcher, recorded ALONGSIDE the technician. Both are stamped by
+  -- jobs_stamp_business() and FROZEN here at assignment: membership and the
+  -- split rate can change before the job is paid, and jobs_on_paid must use
+  -- the terms that were in force when the work was handed out. Same principle
+  -- as commission_rate above, which is likewise a frozen column, not a lookup.
+  --
+  -- NO ACTION on delete, exactly like provider_id above: a job's financial
+  -- history must not be rewritten by someone deleting an account, so the
+  -- delete is refused instead. (SET NULL would also fight jobs_stamp_business,
+  -- which restores this column on every update, and trip the pair check
+  -- below by nulling one half.)
+  business_id     uuid references businesses(profile_id),
+  tech_share      numeric(4,3),
   cancel_reason   text,                                 -- why it was cancelled (admin/support)
   created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
+  updated_at      timestamptz not null default now(),
+  -- Makes the money branch in jobs_on_paid a single null test.
+  constraint jobs_business_share_pair
+    check ((business_id is null) = (tech_share is null))
 );
 create index jobs_customer_idx on jobs(customer_id);
 create index jobs_provider_idx on jobs(provider_id);
 create index jobs_status_idx   on jobs(status);
+create index jobs_business_idx on jobs(business_id);
 
 create table bids (
   id          uuid primary key default gen_random_uuid(),
@@ -204,7 +296,13 @@ create index messages_job_idx on messages(job_id);
 
 create table provider_ledger (
   id          uuid primary key default gen_random_uuid(),
-  provider_id uuid not null references providers(profile_id) on delete cascade,
+  -- "the account this line belongs to" — a technician OR a business. It
+  -- points at `profiles`, not `providers`, because a dispatcher-only business
+  -- has no providers row yet must hold the commission it owes Karighar. The
+  -- column keeps its historical name: renaming would ripple through
+  -- ledger_self, jobs_on_paid, record_settlement, /pro/history and
+  -- /admin/settlements for no functional gain.
+  provider_id uuid not null references profiles(id) on delete cascade,
   job_id      uuid references jobs(id) on delete set null,
   type        ledger_type not null,
   amount      numeric(10,2) not null,   -- +earning, -commission owed on COD
@@ -299,15 +397,53 @@ returns boolean language sql security definer stable set search_path = public as
   select exists(select 1 from profiles where id = auth.uid() and role = 'admin');
 $$;
 
--- Recompute a provider's rating + completed count when reviews change.
+-- …a live business account?
+create or replace function is_active_business()
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from businesses b
+                 where b.profile_id = auth.uid() and b.status = 'active');
+$$;
+
+-- …a technician who works for one? Such a technician is locked out of the
+-- open job pool: their work arrives only through their business.
+create or replace function is_attached_tech()
+returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from business_members m
+                 join businesses b on b.profile_id = m.business_id
+                 where m.provider_id = auth.uid()
+                   and m.status = 'active' and b.status = 'active');
+$$;
+
+-- Recompute a provider's rating + completed count when reviews change — and,
+-- if the job was dispatched by a business, that business's too.
+--
+-- The review itself still attaches to the TECHNICIAN who did the work. The
+-- business aggregate is JOB-SCOPED: only reviews on jobs this business
+-- actually dispatched. Scoping it to current members instead would be
+-- gameable (invite one 5-star pro, never dispatch them, inherit the rating)
+-- and would make a business's public rating lurch whenever someone left.
 create or replace function on_review_change()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare pid uuid := coalesce(new.provider_id, old.provider_id);
+        bid uuid;
 begin
   update providers set
     rating_avg = coalesce((select round(avg(rating)::numeric, 1) from reviews where provider_id = pid), 0),
     jobs_completed = (select count(*) from reviews where provider_id = pid)
   where profile_id = pid;
+
+  select j.business_id into bid from jobs j
+   where j.id = coalesce(new.job_id, old.job_id);
+
+  if bid is not null then
+    update businesses set
+      rating_avg = coalesce((select round(avg(r.rating)::numeric, 1)
+                               from reviews r join jobs j2 on j2.id = r.job_id
+                              where j2.business_id = bid), 0),
+      jobs_completed = (select count(*) from reviews r join jobs j2 on j2.id = r.job_id
+                         where j2.business_id = bid)
+    where profile_id = bid;
+  end if;
   return new;
 end;
 $$;
@@ -331,22 +467,139 @@ create trigger customer_reviews_aggregate after insert or update or delete on cu
   for each row execute function on_customer_review_change();
 
 -- Block role self-escalation: a normal user may switch between customer and
--- provider (signup / onboarding do that), but may not grant or remove 'admin'.
--- Service-role writes (auth.uid() is null) and admins are unaffected.
+-- provider (signup / onboarding do that), but may not grant or remove 'admin'
+-- or 'business'. Service-role writes (auth.uid() is null) and admins are
+-- unaffected.
+--
+-- Belt-and-braces only, for both guarded values: the real gates are the
+-- `providers.status`/`businesses.status` rows, which this file makes
+-- admin-write-only. Nothing keys off `role` alone.
 create or replace function profiles_guard_role()
 returns trigger language plpgsql set search_path = public as $$
 begin
   if new.role is distinct from old.role
      and auth.uid() is not null
      and not is_admin()
-     and (new.role = 'admin' or old.role = 'admin') then
-    raise exception 'You are not allowed to change the admin role';
+     and (new.role in ('admin','business') or old.role in ('admin','business')) then
+    raise exception 'You are not allowed to change that role';
   end if;
   return new;
 end; $$;
 create trigger profiles_before_update_role before update on profiles
   for each row when (old.role is distinct from new.role)
   execute function profiles_guard_role();
+
+-- ---------- Verification + reputation are platform-owned (patch_v17) ----------
+-- RLS is row-level, not column-level, so `prov_self`/`cust_self` (both `for
+-- all`) let the owner write EVERY column of their own row. Without the guards
+-- below a self-registered provider can run
+--
+--     update providers set status = 'approved' where profile_id = auth.uid();
+--
+-- and skip admin verification entirely — jobs_select and jobs_claim gate the
+-- open pool on exactly that column — or publish a fabricated 5.0 rating
+-- through public_provider_profiles. `customers` has the identical hole, and
+-- public_customer_ratings shows those numbers to a pro deciding whether to
+-- take a job.
+--
+-- They COERCE rather than raise, for two reasons. /pro/onboarding upserts
+-- `status: 'pending'` unconditionally on every save, so raising would turn
+-- that form into a hard error for every pro; and coercing fixes a live bug in
+-- passing — today an APPROVED pro who edits their bio silently demotes
+-- themselves and loses the dashboard until an admin re-approves. INSERT is
+-- guarded as well as UPDATE because that call is an upsert.
+--
+-- The escape keys on `current_user`, NOT auth.uid(). on_review_change() and
+-- on_customer_review_change() are SECURITY DEFINER triggers that legitimately
+-- write these columns; SECURITY DEFINER changes `current_user` to the function
+-- owner but leaves `auth.uid()` as the reviewing customer's (it reads a JWT
+-- claim). An auth.uid()-based escape would therefore coerce every aggregate
+-- back to OLD and freeze every rating in the system forever.
+create or replace function providers_guard_trusted_cols()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  -- Not an end-user write: definer triggers, service_role and psql pass through.
+  if current_user is distinct from 'authenticated' then return new; end if;
+  if is_admin() then return new; end if;
+
+  if tg_op = 'INSERT' then
+    new.status         := 'pending';
+    new.verified_at    := null;
+    new.rating_avg     := 0;
+    new.jobs_completed := 0;
+  else
+    new.status         := old.status;
+    new.verified_at    := old.verified_at;
+    new.rating_avg     := old.rating_avg;
+    new.jobs_completed := old.jobs_completed;
+  end if;
+  return new;
+end; $$;
+create trigger providers_guard_cols before insert or update on providers
+  for each row execute function providers_guard_trusted_cols();
+
+create or replace function customers_guard_trusted_cols()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user is distinct from 'authenticated' then return new; end if;
+  if is_admin() then return new; end if;
+
+  if tg_op = 'INSERT' then
+    new.rating_avg := 0;
+    new.jobs_rated := 0;
+  else
+    new.rating_avg := old.rating_avg;
+    new.jobs_rated := old.jobs_rated;
+  end if;
+  return new;
+end; $$;
+create trigger customers_guard_cols before insert or update on customers
+  for each row execute function customers_guard_trusted_cols();
+
+-- Same shape for `businesses`: it holds rating_avg/jobs_completed too, so
+-- without this the guards above would be undone by a new self-writable
+-- reputation field. INSERT raises rather than coerces — unlike onboarding,
+-- nothing in the app ever self-creates one of these rows.
+create or replace function businesses_guard_trusted_cols()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user is distinct from 'authenticated' then return new; end if;
+  if is_admin() then return new; end if;
+
+  if tg_op = 'INSERT' then
+    raise exception 'Business accounts are granted by Karighar';
+  end if;
+  new.status         := old.status;
+  new.rating_avg     := old.rating_avg;
+  new.jobs_completed := old.jobs_completed;
+  new.created_at     := old.created_at;
+  return new;
+end; $$;
+create trigger businesses_guard_cols before insert or update on businesses
+  for each row execute function businesses_guard_trusted_cols();
+
+-- Defence in depth: even an admin UI slip cannot move a membership between
+-- accounts or produce a nonsense invite transition.
+create or replace function business_members_guard()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' then
+    if new.business_id is distinct from old.business_id
+       or new.provider_id is distinct from old.provider_id then
+      raise exception 'A membership cannot be moved between accounts';
+    end if;
+    if new.status is distinct from old.status and not (
+         (old.status = 'invited' and new.status in ('active','declined','removed'))
+      or (old.status = 'active'  and new.status = 'removed')
+      or (old.status in ('declined','removed') and new.status = 'invited')
+    ) then
+      raise exception 'Illegal membership change: % -> %', old.status, new.status;
+    end if;
+  end if;
+  return new;
+end; $$;
+create trigger business_members_guard_t before insert or update on business_members
+  for each row execute function business_members_guard();
 
 -- ---------- Notifications ----------
 create or replace function notify_user(p_user uuid, p_type text, p_title text, p_body text, p_job uuid)
@@ -469,31 +722,130 @@ create trigger customer_reviews_before_insert before insert on customer_reviews
   for each row execute function customer_reviews_enforce();
 
 -- ---------- Payment + provider ledger on completion (COD) ----------
--- The customer pays the Pro cash, so the Pro holds the full amount and OWES
--- the platform its commission.
+-- The customer pays cash on site, so whoever did the work holds the full
+-- amount and OWES the platform its commission.
+--
+-- For a job dispatched by a business, that debt is the BUSINESS's: Karighar
+-- bills the dispatcher, and the technician settles with their own business at
+-- the rate the two of them agreed. There is still exactly ONE 'commission'
+-- row per job either way — Karighar's take is unchanged, it just lands on a
+-- different account — so /admin/settlements and record_settlement work on a
+-- business with no changes at all.
 create or replace function jobs_on_paid()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare amt numeric; commission numeric; payout numeric;
+        tech_cut numeric; biz_cut numeric;
 begin
-  amt := coalesce(new.price, 0);
+  amt        := coalesce(new.price, 0);
   commission := round(amt * new.commission_rate, 2);
-  payout := amt - commission;
-  if not exists (select 1 from payments where job_id = new.id) then
-    insert into payments(job_id, amount, method, commission, provider_payout, status)
-      values (new.id, amt, 'cod', commission, payout, 'collected');
-    if new.provider_id is not null then
-      insert into provider_ledger(provider_id, job_id, type, amount, balance)
-        values (new.provider_id, new.id, 'earning', payout, 0),
-               (new.provider_id, new.id, 'commission', -commission, 0);
-    end if;
+  payout     := amt - commission;
+
+  if exists (select 1 from payments where job_id = new.id) then return new; end if;
+
+  -- `provider_payout` means what the PERSON WHO DID THE WORK ends up with.
+  -- On a dispatched job that is their agreed share, not price-minus-
+  -- commission — the commission is the business's bill, not theirs. Nothing
+  -- reads this column today, so getting it wrong would have been invisible
+  -- until the first export or reconciliation trusted it.
+  if new.business_id is not null then
+    payout := round(amt * coalesce(new.tech_share, 0), 2);
   end if;
+
+  insert into payments(job_id, amount, method, commission, provider_payout, status)
+    values (new.id, amt, 'cod', commission, payout, 'collected');
+
+  if new.provider_id is null then return new; end if;
+
+  if new.business_id is null then
+    -- Independent technician: byte-for-byte the previous behaviour.
+    insert into provider_ledger(provider_id, job_id, type, amount, balance) values
+      (new.provider_id, new.id, 'earning',    payout,      0),
+      (new.provider_id, new.id, 'commission', -commission, 0);
+    return new;
+  end if;
+
+  -- Business-dispatched. The technician physically collected `amt` in cash;
+  -- tech_share was frozen onto the job at assignment.
+  tech_cut := round(amt * coalesce(new.tech_share, 0), 2);
+  biz_cut  := amt - tech_cut;   -- what the technician owes their business
+
+  insert into provider_ledger(provider_id, job_id, type, amount, balance) values
+    -- technician: keeps their cut, owes the business the rest, owes Karighar nothing
+    (new.provider_id, new.id, 'earning',        tech_cut,    0),
+    (new.provider_id, new.id, 'business_share', -biz_cut,    0),
+    -- business: receivable from the technician, and Karighar's commission
+    (new.business_id, new.id, 'business_share', biz_cut,     0),
+    (new.business_id, new.id, 'commission',     -commission, 0);
   return new;
 end; $$;
 create trigger jobs_after_paid after update on jobs
   for each row when (new.status = 'paid' and old.status is distinct from 'paid')
   execute function jobs_on_paid();
 
--- Admin records a commission settlement (the Pro remitted it).
+-- ---------- Which business (if any) a job belongs to ----------
+-- Gating jobs_select/jobs_claim is NOT sufficient on its own, because the
+-- CUSTOMER writes provider_id directly when awarding a bid
+-- (src/app/bookings/view/*.tsx):
+--
+--     .update({ provider_id: bid.provider_id, price: bid.amount, status: 'assigned' })
+--
+-- jobs_update_customer only constrains customer_id, so that write may name
+-- ANY provider. Without this trigger an attached technician with a stale
+-- pending bid would still get assigned straight through the lockout, and
+-- business_id/tech_share would stay null so jobs_on_paid above would take the
+-- independent branch and bill the TECHNICIAN for Karighar's commission —
+-- with nothing raising an error.
+--
+-- So the money facts are derived HERE, in one place, for every path that ever
+-- sets provider_id: the assign RPC, a customer awarding a bid, an admin, or
+-- any surface added later. Both columns stay null for an independent pro, so
+-- their behaviour is untouched.
+create or replace function jobs_stamp_business()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare biz uuid; share numeric(4,3);
+begin
+  if tg_op = 'UPDATE' then
+    -- Platform-owned on `jobs`, in every case. An admin may still override.
+    if not is_admin() then
+      new.commission_rate := old.commission_rate;
+    end if;
+
+    if new.provider_id is not distinct from old.provider_id then
+      -- Nothing to re-derive, so hold them exactly as they were. Note this
+      -- also reverts the RI-driven write from `on delete set null`, which is
+      -- why jobs.business_id is declared NO ACTION like jobs.provider_id.
+      new.business_id := old.business_id;
+      new.tech_share  := old.tech_share;
+      return new;
+    end if;
+  end if;
+
+  if new.provider_id is null then
+    new.business_id := null;
+    new.tech_share  := null;
+    return new;
+  end if;
+
+  -- The business must be live as well as the membership: a suspended
+  -- dispatcher's technicians go back to working for themselves (see
+  -- is_attached_tech, which releases them to the open pool on the same
+  -- condition), and their jobs must not be billed to it.
+  select m.business_id, m.tech_share into biz, share
+    from business_members m
+    join businesses b on b.profile_id = m.business_id
+   where m.provider_id = new.provider_id
+     and m.status = 'active' and b.status = 'active';
+
+  -- Both stay null for an independent pro, so their behaviour is unchanged.
+  new.business_id := biz;
+  new.tech_share  := share;
+  return new;
+end; $$;
+create trigger jobs_stamp_business_t before insert or update on jobs
+  for each row execute function jobs_stamp_business();
+
+-- Admin records a commission settlement (the Pro — or the business —
+-- remitted it).
 create or replace function record_settlement(p_provider uuid, p_amount numeric)
 returns void language plpgsql security definer set search_path = public as $$
 begin
@@ -502,6 +854,306 @@ begin
   insert into provider_ledger(provider_id, job_id, type, amount, balance)
   values (p_provider, null, 'payout', p_amount, 0);  -- 'payout' = settlement recorded
 end; $$;
+
+-- ============================================================
+-- Business RPCs
+-- ============================================================
+-- Every membership and dispatch write goes through one of these, which is
+-- why business_members has no insert/update/delete policy for `authenticated`
+-- at all: a technician cannot flip their own membership to escape the
+-- lockout, and a business cannot touch a row that is not theirs.
+--
+-- SECURITY DEFINER, matching record_settlement above: the authorization check
+-- lives inside, in one auditable place. auth.uid() still returns the CALLER
+-- inside a definer function (it reads a JWT claim, not the DB role), which is
+-- what makes that safe. Each one therefore validates every condition
+-- explicitly, because it runs past RLS by design.
+
+-- Admin grants a business account. Refuses an approved provider: a business
+-- is a dispatcher and never works jobs, and roleOf() resolves 'business'
+-- ahead of 'provider', so granting one to a working pro would strip them of
+-- their own dashboard.
+create or replace function grant_business_account(p_profile uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if exists (select 1 from providers p
+             where p.profile_id = p_profile and p.status = 'approved') then
+    raise exception 'That account is an approved technician. A business is a dispatcher and cannot also work jobs.';
+  end if;
+  insert into businesses(profile_id) values (p_profile)
+    on conflict (profile_id) do update set status = 'active';
+  update profiles set role = 'business' where id = p_profile;
+end; $$;
+
+create or replace function set_business_status(p_profile uuid, p_status business_status)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  update businesses set status = p_status where profile_id = p_profile;
+end; $$;
+
+-- Invite an existing, approved technician by phone. The lookup lives in here
+-- precisely so `profiles` needs no search policy.
+create or replace function business_invite_technician(p_phone text, p_share numeric default 0.700)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare biz uuid := auth.uid(); tech uuid; mid uuid; biz_name text; digits text;
+begin
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+  if p_share is null then raise exception 'Enter a share'; end if;
+  if p_share < 0 or p_share > 1 then raise exception 'Share must be between 0 and 1'; end if;
+
+  -- Match on the last 10 digits. `profiles.phone` is free text captured at
+  -- signup, so the same Karachi number is stored as 03001234567,
+  -- +923001234567 or 0300-1234567 depending on who typed it; a literal `=`
+  -- would reject most real invites.
+  digits := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
+  if length(digits) < 10 then raise exception 'Enter a full phone number'; end if;
+  digits := right(digits, 10);
+
+  select p.profile_id into tech from providers p
+    join profiles pr on pr.id = p.profile_id
+   where p.status = 'approved'
+     and right(regexp_replace(coalesce(pr.phone, ''), '\D', '', 'g'), 10) = digits
+   limit 1;
+  -- One message for both misses, on purpose. Distinct errors would let a
+  -- business enumerate which phone numbers belong to approved technicians
+  -- and which of those are already employed, by typing numbers at it.
+  if tech is null
+     or exists (select 1 from business_members m
+                where m.provider_id = tech and m.status = 'active') then
+    raise exception 'No approved technician with that number is free to join';
+  end if;
+
+  insert into business_members(business_id, provider_id, status, tech_share, invited_by)
+  values (biz, tech, 'invited', p_share, biz)
+  on conflict (business_id, provider_id) do update
+    set status = 'invited', tech_share = p_share, invited_at = now(),
+        responded_at = null, removed_at = null
+  returning id into mid;
+
+  select full_name into biz_name from profiles where id = biz;
+  perform notify_user(tech, 'business_invite',
+    coalesce(biz_name,'A business') || ' invited you to their team',
+    'You would keep ' || round(p_share * 100) || '% of each job they send you.', null);
+  return mid;
+end; $$;
+
+-- Only the invited technician may accept or decline their own invite.
+create or replace function business_respond_invite(p_member uuid, p_accept boolean)
+returns void language plpgsql security definer set search_path = public as $$
+declare m business_members%rowtype; tech_name text;
+begin
+  select * into m from business_members where id = p_member for update;
+  if not found then raise exception 'Invite not found'; end if;
+  if m.provider_id is distinct from auth.uid() then
+    raise exception 'That invite is not yours';
+  end if;
+  if m.status <> 'invited' then raise exception 'That invite is no longer open'; end if;
+
+  if p_accept then
+    -- business_members_one_active would catch this anyway, but as a raw
+    -- "duplicate key value violates unique constraint" in the user's face.
+    -- Reachable by holding a stale invite from B and then joining C.
+    if exists (select 1 from business_members x
+               where x.provider_id = m.provider_id and x.status = 'active') then
+      raise exception 'You are already on a team. Leave it before joining another.';
+    end if;
+    update business_members set status = 'active', responded_at = now() where id = p_member;
+    -- Reject outstanding open-pool bids, or a customer could award a stale
+    -- one and route straight around the dispatcher.
+    update bids set status = 'rejected'
+     where provider_id = m.provider_id and status = 'pending';
+  else
+    update business_members set status = 'declined', responded_at = now() where id = p_member;
+  end if;
+
+  select full_name into tech_name from profiles where id = m.provider_id;
+  perform notify_user(m.business_id, 'business_invite',
+    coalesce(tech_name,'A technician') ||
+      (case when p_accept then ' joined your team' else ' declined your invite' end),
+    null, null);
+end; $$;
+
+create or replace function business_set_share(p_member uuid, p_share numeric)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+  if p_share is null then raise exception 'Enter a share'; end if;
+  if p_share < 0 or p_share > 1 then raise exception 'Share must be between 0 and 1'; end if;
+  -- Only a live relationship: re-pricing a membership someone already
+  -- declined or left changes nothing and just looks like it worked.
+  update business_members set tech_share = p_share
+   where id = p_member and business_id = auth.uid()
+     and status in ('invited','active');
+  if not found then raise exception 'Not a current member of your team'; end if;
+end; $$;
+
+-- Callable by either side. Refused while the technician still has a live job
+-- from this business.
+create or replace function business_remove_member(p_member uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare m business_members%rowtype;
+begin
+  if auth.uid() is null then raise exception 'Sign in first'; end if;
+  select * into m from business_members where id = p_member for update;
+  if not found then raise exception 'Membership not found'; end if;
+  -- Spelt out rather than `auth.uid() not in (...)`: that form evaluates to
+  -- NULL, not TRUE, for a null uid, and plpgsql treats a NULL `if` as false —
+  -- so the check would silently pass. The grants make that unreachable today;
+  -- an authorization test should not depend on that.
+  if auth.uid() <> m.business_id and auth.uid() <> m.provider_id and not is_admin() then
+    raise exception 'Not your membership';
+  end if;
+  -- 'disputed' is deliberately NOT in the allowed set: a disputed job is
+  -- unresolved money, and only an admin can move it out of that state.
+  if exists (select 1 from jobs j
+             where j.business_id = m.business_id and j.provider_id = m.provider_id
+               and j.status not in ('paid','rated','cancelled')) then
+    raise exception 'Finish, reassign or resolve their open jobs first';
+  end if;
+  update business_members set status = 'removed', removed_at = now() where id = p_member;
+end; $$;
+
+-- Dispatch. Row-locks the job so two dispatcher tabs cannot claim the same
+-- one. business_id/tech_share are stamped by jobs_stamp_business(), not here,
+-- so the money facts are computed in exactly one place. jobs_enforce_status
+-- permits created->assigned and bidding->assigned, and jobs_notify already
+-- fires on null -> not-null, so the customer and the technician are both
+-- notified with no extra code.
+create or replace function business_assign_job(p_job uuid, p_provider uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare biz uuid := auth.uid(); j jobs%rowtype;
+begin
+  if biz is null then raise exception 'Sign in first'; end if;
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+
+  if not exists (select 1 from business_members m
+                 where m.business_id = biz and m.provider_id = p_provider
+                   and m.status = 'active') then
+    raise exception 'That technician is not on your team';
+  end if;
+
+  select * into j from jobs where id = p_job for update;
+  if not found then raise exception 'Job not found'; end if;
+  if j.provider_id is not null then raise exception 'That job has already been taken'; end if;
+  if j.status not in ('created','bidding') then raise exception 'That job is no longer open'; end if;
+  if j.price is null then
+    raise exception 'Send a quote first - this job has no agreed price yet';
+  end if;
+
+  update jobs set provider_id = p_provider, status = 'assigned' where id = p_job;
+end; $$;
+
+-- Move a live job to a different active member. jobs_notify only fires on
+-- null -> not-null, so the incoming technician is told explicitly here.
+create or replace function business_reassign_job(p_job uuid, p_provider uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare biz uuid := auth.uid(); j_title text; prev uuid;
+begin
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+  if not exists (select 1 from business_members m
+                 where m.business_id = biz and m.provider_id = p_provider
+                   and m.status = 'active') then
+    raise exception 'That technician is not on your team';
+  end if;
+
+  select provider_id into prev from jobs
+   where id = p_job and business_id = biz and status = 'assigned' for update;
+  if prev is null then
+    raise exception 'Only a job you dispatched and not yet started can be reassigned';
+  end if;
+  if prev = p_provider then return; end if;
+
+  update jobs set provider_id = p_provider where id = p_job
+  returning title into j_title;
+
+  perform notify_user(p_provider, 'job_new', 'New job assigned', j_title, p_job);
+  perform notify_user(prev, 'status', 'A job was reassigned',
+    j_title || ' has been passed to someone else on the team.', p_job);
+end; $$;
+
+-- bids_rw's `with check (provider_id = auth.uid())` blocks a business from
+-- quoting on a member's behalf, so custom jobs need this. The customer then
+-- awards normally and jobs_stamp_business() does the rest.
+create or replace function business_place_bid(
+  p_job uuid, p_provider uuid, p_amount numeric, p_note text default null,
+  p_eta int default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare biz uuid := auth.uid();
+begin
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+  if not exists (select 1 from business_members m
+                 where m.business_id = biz and m.provider_id = p_provider
+                   and m.status = 'active') then
+    raise exception 'That technician is not on your team';
+  end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Enter a quote amount'; end if;
+  -- Running as owner means this bypasses jobs_select, so the open-pool test
+  -- that policy would have applied has to be made explicitly. Without it a
+  -- business could post a phantom quote onto ANY job id — including one
+  -- already assigned elsewhere, where bids_rw would show it to that job's
+  -- customer.
+  if not exists (select 1 from jobs j
+                 where j.id = p_job and j.provider_id is null
+                   and j.status in ('created','bidding')) then
+    raise exception 'That job is not open for quotes';
+  end if;
+  insert into bids(job_id, provider_id, amount, note, eta_minutes)
+  values (p_job, p_provider, p_amount, p_note, p_eta)
+  on conflict (job_id, provider_id) do update
+    set amount = excluded.amount, note = excluded.note, eta_minutes = excluded.eta_minutes;
+end; $$;
+
+-- The missing other half of the money story. jobs_on_paid records what a
+-- technician owes their business for cash they collected, but nothing
+-- discharged it — so "due from your team" could only ever grow, and the
+-- figure both /business/earnings and /pro/history present as an outstanding
+-- balance was really a lifetime total.
+--
+-- Mirrors record_settlement, one level down: that one records a business (or
+-- an independent pro) remitting Karighar's commission; this one records a
+-- technician handing their business its share. Karighar is not a party to
+-- it, which is why it is the BUSINESS that calls it, not an admin.
+--
+-- Any membership status: you settle up with people who have already left.
+create or replace function business_settle_with_tech(p_provider uuid, p_amount numeric)
+returns void language plpgsql security definer set search_path = public as $$
+declare biz uuid := auth.uid();
+begin
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+  if not exists (select 1 from business_members m
+                 where m.business_id = biz and m.provider_id = p_provider) then
+    raise exception 'Not one of your technicians';
+  end if;
+
+  insert into provider_ledger(provider_id, job_id, type, amount, balance) values
+    (p_provider, null, 'business_share',  p_amount, 0),   -- clears their debt
+    (biz,        null, 'business_share', -p_amount, 0);   -- clears the receivable
+end; $$;
+
+revoke all on function grant_business_account(uuid)                       from public;
+revoke all on function set_business_status(uuid, business_status)         from public;
+revoke all on function business_invite_technician(text, numeric)          from public;
+revoke all on function business_respond_invite(uuid, boolean)             from public;
+revoke all on function business_set_share(uuid, numeric)                  from public;
+revoke all on function business_remove_member(uuid)                       from public;
+revoke all on function business_assign_job(uuid, uuid)                    from public;
+revoke all on function business_reassign_job(uuid, uuid)                  from public;
+revoke all on function business_place_bid(uuid, uuid, numeric, text, int) from public;
+revoke all on function business_settle_with_tech(uuid, numeric)             from public;
+
+grant execute on function grant_business_account(uuid)                       to authenticated, service_role;
+grant execute on function set_business_status(uuid, business_status)         to authenticated, service_role;
+grant execute on function business_invite_technician(text, numeric)          to authenticated, service_role;
+grant execute on function business_respond_invite(uuid, boolean)             to authenticated, service_role;
+grant execute on function business_set_share(uuid, numeric)                  to authenticated, service_role;
+grant execute on function business_remove_member(uuid)                       to authenticated, service_role;
+grant execute on function business_assign_job(uuid, uuid)                    to authenticated, service_role;
+grant execute on function business_reassign_job(uuid, uuid)                  to authenticated, service_role;
+grant execute on function business_place_bid(uuid, uuid, numeric, text, int) to authenticated, service_role;
+grant execute on function business_settle_with_tech(uuid, numeric)             to authenticated, service_role;
 
 -- ---------- Notifications on job / bid changes ----------
 -- new.status is an enum; cast before replace(), which has no enum overload.
@@ -603,6 +1255,8 @@ alter table provider_ledger    enable row level security;
 alter table disputes           enable row level security;
 alter table notifications      enable row level security;
 alter table house_promos       enable row level security;
+alter table businesses         enable row level security;
+alter table business_members   enable row level security;
 
 -- Profiles: everyone reads own; admin reads all; owner updates own.
 create policy profiles_self  on profiles for select using (id = auth.uid() or is_admin());
@@ -614,6 +1268,23 @@ create policy profiles_job_peer on profiles for select using (
     where (j.customer_id = profiles.id and j.provider_id = auth.uid())
        or (j.provider_id = profiles.id and j.customer_id = auth.uid())
   )
+);
+-- Team peers, the same way. The business needs its technicians' phone numbers
+-- to dispatch; the technician needs to see who invited them. `profiles`
+-- carries only name/phone/avatar/role — the document PII is on `providers`,
+-- still locked down — and both parties have an explicit relationship row.
+--
+-- NOT filtered by membership status: the relationship row is itself the proof
+-- of a relationship, exactly as profiles_job_peer above takes any job at any
+-- status. Filtering to ('invited','active') left /business/team's "Past and
+-- declined" section rendering every row as "Unnamed · no phone" — and the
+-- business had already typed that person's number to invite them, so hiding
+-- the name afterwards protects nothing.
+create policy profiles_business_team on profiles for select using (
+  exists (select 1 from business_members m
+          where m.business_id = auth.uid() and m.provider_id = profiles.id)
+  or exists (select 1 from business_members m
+          where m.provider_id = auth.uid() and m.business_id = profiles.id)
 );
 
 -- Catalog is public-read; admin writes.
@@ -637,31 +1308,98 @@ create policy prov_self on providers for all using (profile_id = auth.uid() or i
 create policy provsvc_self on provider_services for all using (provider_id = auth.uid() or is_admin())
   with check (provider_id = auth.uid() or is_admin());
 
--- Jobs: customer sees own; assigned provider sees own; open (unassigned) jobs
---       visible to approved providers to accept/bid; admin all.
+-- Businesses: granted by Karighar, so there is deliberately NO insert policy
+-- for `authenticated`. The owner may edit presentation (about, service_areas)
+-- and businesses_guard_trusted_cols coerces the rest back.
+create policy biz_read on businesses for select using (
+  profile_id = auth.uid()
+  or is_admin()
+  or exists (select 1 from business_members m
+             where m.business_id = businesses.profile_id
+               and m.provider_id = auth.uid()
+               and m.status in ('invited','active'))
+);
+create policy biz_self_update on businesses for update
+  using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+create policy biz_admin on businesses for all
+  using (is_admin()) with check (is_admin());
+
+-- Membership: both sides read the relationship, and NOBODY writes it
+-- directly. Every write goes through a business_* RPC above — that is what
+-- makes the open-pool lockout non-self-writable.
+create policy bm_read on business_members for select using (
+  business_id = auth.uid() or provider_id = auth.uid() or is_admin()
+);
+create policy bm_admin on business_members for all
+  using (is_admin()) with check (is_admin());
+
+-- Jobs: customer sees own; assigned provider sees own; the dispatching
+--       business follows its own jobs end to end; open (unassigned) jobs
+--       visible to approved INDEPENDENT providers and to active businesses,
+--       to accept/bid; admin all.
+--
+-- The lockout for attached technicians is enforced HERE rather than merely
+-- hidden in the UI: /pro/dashboard's pool query is a plain
+-- `.is("provider_id", null)` that any caller could reproduce by hand. With
+-- this policy that query simply returns zero rows for them, so there is
+-- nothing left to hide.
 create policy jobs_select on jobs for select using (
   customer_id = auth.uid()
   or provider_id = auth.uid()
   or is_admin()
+  or business_id = auth.uid()
   or (provider_id is null and status in ('created','bidding')
-      and exists (select 1 from providers p where p.profile_id = auth.uid() and p.status = 'approved'))
+      and (
+        (exists (select 1 from providers p where p.profile_id = auth.uid() and p.status = 'approved')
+         and not is_attached_tech())
+        or is_active_business()
+      ))
 );
 create policy jobs_insert on jobs for insert with check (customer_id = auth.uid());
 create policy jobs_update_customer on jobs for update
   using (customer_id = auth.uid()) with check (customer_id = auth.uid());
 create policy jobs_update_provider on jobs for update
   using (provider_id = auth.uid()) with check (provider_id = auth.uid());
+-- Note the `with check (provider_id = auth.uid())`: no policy anywhere lets
+-- one account write another's id into provider_id. A business dispatches
+-- through business_assign_job() instead.
 create policy jobs_claim on jobs for update
   using (provider_id is null and status in ('created','bidding')
-         and exists (select 1 from providers p where p.profile_id = auth.uid() and p.status = 'approved'))
+         and exists (select 1 from providers p where p.profile_id = auth.uid() and p.status = 'approved')
+         and not is_attached_tech())
   with check (provider_id = auth.uid());
 create policy jobs_admin on jobs for all using (is_admin()) with check (is_admin());
 
--- Bids: provider manages own; job's customer can read; admin all.
+-- Bids: provider manages own; job's customer can read; dispatching business
+-- reads its team's; admin all.
+--
+-- The write check carries the open-pool lockout as well as the identity
+-- test. Bidding is the SECOND way into the pool, and without `not
+-- is_attached_tech()` here an attached technician who kept an open job's
+-- uuid could insert a bid, have the customer award it, and drag that job —
+-- and Karighar's commission — onto a business that never dispatched it. The
+-- job-openness test is the same one business_place_bid makes.
 create policy bids_rw on bids for all
   using (provider_id = auth.uid() or is_admin()
          or exists(select 1 from jobs j where j.id = bids.job_id and j.customer_id = auth.uid()))
-  with check (provider_id = auth.uid() or is_admin());
+  with check (
+    is_admin()
+    or (provider_id = auth.uid()
+        and not is_attached_tech()
+        and exists (select 1 from jobs j
+                    where j.id = bids.job_id
+                      and j.provider_id is null
+                      and j.status in ('created','bidding')))
+  );
+-- A dispatcher reads the quotes it placed through business_place_bid. A
+-- SELECT-only policy rather than widening bids_rw's `using`: that one is
+-- `for all`, so loosening it would hand the business DELETE on its
+-- technicians' bids too. Permissive policies OR together.
+create policy bids_business_read on bids for select using (
+  exists (select 1 from business_members m
+          where m.provider_id = bids.provider_id
+            and m.business_id = auth.uid() and m.status = 'active')
+);
 
 -- Tracking / payments / messages / reviews scoped to job participants.
 create policy track_rw on job_tracking for all
@@ -669,9 +1407,14 @@ create policy track_rw on job_tracking for all
                and (j.customer_id = auth.uid() or j.provider_id = auth.uid() or is_admin())))
   with check (exists(select 1 from jobs j where j.id = job_tracking.job_id
                and (j.provider_id = auth.uid() or is_admin())));
+-- A business must be able to reconcile the commission it owes, so it reads
+-- payments on jobs it dispatched. Deliberately NOT extended the same way:
+-- msg_rw and track_rw — a dispatcher does not read the customer<->technician
+-- chat or their live GPS.
 create policy pay_read on payments for select
   using (exists(select 1 from jobs j where j.id = payments.job_id
-               and (j.customer_id = auth.uid() or j.provider_id = auth.uid() or is_admin())));
+               and (j.customer_id = auth.uid() or j.provider_id = auth.uid()
+                    or j.business_id = auth.uid() or is_admin())));
 create policy msg_rw on messages for all
   using (exists(select 1 from jobs j where j.id = messages.job_id
                and (j.customer_id = auth.uid() or j.provider_id = auth.uid() or is_admin())))
@@ -684,7 +1427,25 @@ create policy rev_write on reviews for insert with check (customer_id = auth.uid
 create policy custrev_read on customer_reviews for select using (true);
 create policy custrev_write on customer_reviews for insert
   with check (provider_id = auth.uid());
-create policy ledger_self on provider_ledger for select using (provider_id = auth.uid() or is_admin());
+-- Job-scoped for the business, so it reads the ledger lines for work it
+-- dispatched but not a technician's independent history from before they
+-- joined.
+--
+-- The last branch is the business<->technician leg specifically: a settlement
+-- row carries no job_id, so without it a business could see what its
+-- technicians OWE but never what they had already PAID, and the receivable on
+-- /business/earnings could only ever grow. Restricted to `business_share`, so
+-- a technician's own earnings and commission history stay private.
+create policy ledger_self on provider_ledger for select using (
+  provider_id = auth.uid()
+  or is_admin()
+  or exists (select 1 from jobs j
+             where j.id = provider_ledger.job_id and j.business_id = auth.uid())
+  or (provider_ledger.type = 'business_share'
+      and exists (select 1 from business_members m
+                  where m.provider_id = provider_ledger.provider_id
+                    and m.business_id = auth.uid()))
+);
 create policy disp_rw on disputes for all
   using (raised_by = auth.uid() or is_admin()
          or exists(select 1 from jobs j where j.id = disputes.job_id
@@ -785,6 +1546,72 @@ end $$;
 
 grant select on public_customer_ratings to anon, authenticated;
 
+-- Businesses, mirroring public_provider_profiles: name, avatar, blurb,
+-- aggregates, areas and a team COUNT. No phone, no member identities, no job
+-- or ledger data. public_provider_profiles stays gated on
+-- `status = 'approved' and role = 'provider'`, so a business can never leak
+-- into it, and vice versa.
+create or replace view public_business_profiles as
+  select b.profile_id as id,
+         pr.full_name,
+         pr.avatar_url,
+         b.about,
+         b.rating_avg,
+         b.jobs_completed,
+         b.service_areas,
+         (select count(*) from business_members m
+           where m.business_id = b.profile_id and m.status = 'active') as team_size
+  from businesses b
+  join profiles pr on pr.id = b.profile_id
+  where b.status = 'active';
+
+do $$
+begin
+  execute 'alter view public_business_profiles set (security_invoker = off)';
+exception when others then
+  raise notice 'security_invoker unsupported here; view already uses owner rights by default';
+end $$;
+
+grant select on public_business_profiles to anon, authenticated;
+
+-- The reviews behind that rating. A customer cannot assemble this himself:
+-- `rev_read` is `using (true)` so reviews are public, but a business's
+-- reviews are defined by a join through `jobs`, and `jobs_select` shows a
+-- customer only their OWN jobs. Hence an owner-rights view, exactly as
+-- public_provider_profiles exists because `providers` is not readable.
+--
+-- Carries the same four columns the provider profile already publishes
+-- (rating, comment, date, and a key) and nothing else. In particular:
+--
+--   * no customer_id — reviews are not attributed to their author anywhere
+--     in this app, and that should not change here;
+--   * no provider_id and no job_id — which technician did the work is the
+--     business's team roster, one row at a time, and
+--     public_business_profiles deliberately publishes only `team_size`;
+--   * not even the real review id. It is public on the technician's own
+--     profile too, so publishing it here would let anyone intersect the two
+--     lists and recover exactly the membership `team_size` is withholding.
+--     md5 gives a stable, opaque React key with no such back-reference.
+create or replace view public_business_reviews as
+  select md5(r.id::text) as review_key,
+         j.business_id,
+         r.rating,
+         r.comment,
+         r.created_at
+  from reviews r
+  join jobs j       on j.id = r.job_id
+  join businesses b on b.profile_id = j.business_id
+  where b.status = 'active';
+
+do $
+begin
+  execute 'alter view public_business_reviews set (security_invoker = off)';
+exception when others then
+  raise notice 'security_invoker unsupported here; owner rights are the default';
+end $;
+
+grant select on public_business_reviews to anon, authenticated;
+
 -- ============================================================
 -- Storage: private bucket for CNIC / selfie
 -- ============================================================
@@ -824,6 +1651,7 @@ do $$ begin alter publication supabase_realtime add table messages;      excepti
 do $$ begin alter publication supabase_realtime add table job_tracking;  exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table notifications; exception when duplicate_object then null; end $$;
 do $$ begin alter publication supabase_realtime add table customer_reviews; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table business_members; exception when duplicate_object then null; end $$;
 
 insert into services (category_id, name, description, base_price, unit, visit_fee)
 select c.id, s.name, s.description, s.base_price, s.unit, s.visit_fee from service_categories c

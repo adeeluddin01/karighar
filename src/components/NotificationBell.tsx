@@ -7,7 +7,7 @@ import { useToast } from "@/components/Toast";
 import { roleOf } from "@/components/nav";
 import { useUser } from "@/lib/useUser";
 import { useNotifications } from "@/lib/useNotifications";
-import { notifHref } from "@/lib/notifHref";
+import { notifHref, notifFallbackHref } from "@/lib/notifHref";
 import type { Notification } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 
@@ -16,8 +16,8 @@ export function NotificationBell({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const toast = useToast();
-  const { profile, providerStatus } = useUser();
-  const role = roleOf(true, profile?.role, providerStatus);
+  const { profile, providerStatus, businessStatus } = useUser();
+  const role = roleOf(true, profile?.role, providerStatus, businessStatus);
 
   const { items, unread, markRead, markAll } = useNotifications(userId, {
     // Only fires for rows arriving live, so the initial page never toasts.
@@ -28,8 +28,8 @@ export function NotificationBell({ userId }: { userId: string }) {
     setOpen(false);
     if (!n.read) await markRead(n.id);
     // Role-aware: a provider sent to /bookings/view/ would land on a customer
-    // page their RLS blocks.
-    const href = notifHref(n, role);
+    // page their RLS blocks. A job-less alert (a team invite) still routes.
+    const href = notifHref(n, role) ?? notifFallbackHref(n, role);
     if (href) router.push(href);
   }
 

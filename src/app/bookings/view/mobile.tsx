@@ -15,6 +15,12 @@ import { ChatSheet } from "@/components/kg/ChatSheet";
 import { ReportSheet } from "@/components/kg/ReportSheet";
 import { STATUS_PILL, jobRef, scheduleLabel, whenLabel } from "@/components/kg/job";
 import { fetchPublicPros } from "@/lib/providers";
+import {
+  businessName,
+  dispatcherOf,
+  fetchBusinessSummary,
+  type BusinessSummary,
+} from "@/lib/businesses";
 import { formatPKR } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Bid, type Job, type Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
@@ -70,6 +76,9 @@ function BookingContent() {
   const [job, setJob] = useState<Job | null>(null);
   const [pro, setPro] = useState<Profile | null>(null);
   const [proRating, setProRating] = useState<number | null>(null);
+  // The dispatching company, when one sent this pro. Null for an
+  // independent pro and on any database without business accounts.
+  const [dispatcher, setDispatcher] = useState<BusinessSummary | null>(null);
   const [bids, setBids] = useState<BidWithPro[]>([]);
   const [hasReview, setHasReview] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -105,6 +114,8 @@ function BookingContent() {
       ]);
       setPro(prof as Profile | null);
       setProRating(prov.pros[0] ? prov.pros[0].rating_avg : null);
+      // Only fires when a business actually dispatched the job.
+      setDispatcher(await fetchBusinessSummary(supabase, dispatcherOf(j)));
     }
 
     if (j.type === "custom" && j.status === "bidding") {
@@ -496,6 +507,24 @@ function BookingContent() {
                 <small>We&rsquo;ll show their details the moment one accepts.</small>
               </div>
             </div>
+          )}
+
+          {/* Who sent them, when a company did. `dispatcherOf` is null for an
+              independent pro AND on a database with no business accounts at
+              all, so this never appears unless one is genuinely involved. */}
+          {dispatcher && (
+            <Link className="note" href={`/businesses/view/?id=${dispatcher.id}`}>
+              <KIcon name="briefcase" />
+              <p>
+                <b>{proFirst} was assigned by {businessName(dispatcher)}.</b>{" "}
+                {dispatcher.jobs_completed > 0
+                  ? `Rated ${dispatcher.rating_avg.toFixed(1)} across ${dispatcher.jobs_completed} ${
+                      dispatcher.jobs_completed === 1 ? "review" : "reviews"
+                    } — tap to read them. `
+                  : "Tap to see the company. "}
+                {proFirst} is still your pro, and still CNIC-verified by Karighar.
+              </p>
+            </Link>
           )}
 
           <div className="otp">

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Icon, type IconName } from "@/components/Icon";
+import { CATEGORY_ICON_WEB } from "@/lib/catalogIcons";
 import {
   Card,
   EmptyState,
@@ -20,16 +21,9 @@ import type { Service, ServiceCategory } from "@/lib/types";
 
 type CatalogCat = ServiceCategory & { services: Service[] };
 
-const CATEGORY_ICON: Record<string, IconName> = {
-  ac: "snowflake",
-  bolt: "zap",
-  wrench: "wrench",
-  carpenter: "hammer",
-  painter: "paintbrush",
-  solar: "sun",
-  camera: "camera",
-  washer: "washingmachine",
-};
+// Slug -> icon lives in lib/catalogIcons.ts alongside the phone lane's map
+// and the list /admin/catalog offers, so the three cannot drift apart.
+const CATEGORY_ICON = CATEGORY_ICON_WEB as Record<string, IconName>;
 
 function BookInner() {
   const initialQuery = useSearchParams().get("q") ?? "";

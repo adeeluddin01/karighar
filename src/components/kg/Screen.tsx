@@ -118,10 +118,10 @@ export function Cta({ children, className }: { children: React.ReactNode; classN
  */
 export function TabBar() {
   const pathname = usePathname();
-  const { user, profile, providerStatus } = useUser();
+  const { user, profile, providerStatus, businessStatus } = useUser();
   // While the session resolves this reads as `guest`, whose tabs match the
   // customer set — so the common case never flickers.
-  const tabs = PHONE_NAV[roleOf(!!user, profile?.role, providerStatus)];
+  const tabs = PHONE_NAV[roleOf(!!user, profile?.role, providerStatus, businessStatus)];
 
   return (
     <nav className="nav" aria-label="Tabs">

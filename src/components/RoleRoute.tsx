@@ -21,11 +21,11 @@ export function RoleRoute({
   route: RoleRouteKey;
   children: React.ReactNode;
 }) {
-  const { user, profile, providerStatus, loading } = useUser();
+  const { user, profile, providerStatus, businessStatus, loading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
 
-  const dest = loading ? null : ROLE_ROUTES[route][roleOf(!!user, profile?.role, providerStatus)];
+  const dest = loading ? null : ROLE_ROUTES[route][roleOf(!!user, profile?.role, providerStatus, businessStatus)];
   const elsewhere = dest !== null && !isActive(pathname, dest);
 
   useEffect(() => {

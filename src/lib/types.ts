@@ -1,7 +1,9 @@
 // Domain types mirroring supabase/schema.sql
 
-export type UserRole = "customer" | "provider" | "admin";
+export type UserRole = "customer" | "provider" | "admin" | "business";
 export type ProviderStatus = "pending" | "approved" | "suspended" | "rejected";
+export type BusinessStatus = "active" | "suspended";
+export type MembershipStatus = "invited" | "active" | "declined" | "removed";
 export type JobType = "fixed" | "custom";
 export type JobStatus =
   | "created"
@@ -64,6 +66,52 @@ export type Provider = {
   verified_at: string | null;
 };
 
+/**
+ * A dispatcher that assigns jobs to technicians on its team. Granted by
+ * Karighar, never self-selected. No CNIC fields: a business never works a
+ * job, so it carries no verification of its own — every technician beneath
+ * it is still individually verified.
+ */
+export type Business = {
+  profile_id: string;
+  status: BusinessStatus;
+  about: string | null;
+  service_areas: string[];
+  rating_avg: number;
+  jobs_completed: number;
+  created_at: string;
+};
+
+/**
+ * One technician's place on one business's team, plus the invite state and
+ * the split they agreed. `tech_share` is the fraction of the job price the
+ * TECHNICIAN keeps; the business keeps the rest and pays Karighar's
+ * commission out of its side.
+ */
+export type BusinessMember = {
+  id: string;
+  business_id: string;
+  provider_id: string;
+  status: MembershipStatus;
+  tech_share: number;
+  invited_by: string | null;
+  invited_at: string;
+  responded_at: string | null;
+  removed_at: string | null;
+};
+
+/** The `public_business_profiles` view — no phone, no member identities. */
+export type PublicBusinessProfile = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  about: string | null;
+  rating_avg: number;
+  jobs_completed: number;
+  service_areas: string[];
+  team_size: number;
+};
+
 export type Job = {
   id: string;
   customer_id: string;
@@ -78,8 +126,17 @@ export type Job = {
   lng: number | null;
   scheduled_at: string | null;
   price: number | null;
+  /** Whoever is doing the work — for a dispatched job, the technician. */
   provider_id: string | null;
   commission_rate: number;
+  /**
+   * The dispatching business, recorded alongside the technician. Both this
+   * and `tech_share` are stamped by a trigger whenever `provider_id` is set,
+   * and frozen thereafter — membership and the split can change before the
+   * job is paid. Null for an independent pro.
+   */
+  business_id: string | null;
+  tech_share: number | null;
   cancel_reason: string | null;
   created_at: string;
   updated_at: string;

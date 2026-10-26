@@ -13,6 +13,7 @@ import {
   startGoogleOAuth,
 } from "@/lib/authActions";
 import { Button, Card, Field, Input } from "@/components/ui";
+import { Logo } from "@/components/Logo";
 
 export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   const router = useRouter();
@@ -80,6 +81,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
 
   return (
     <Card className="mx-auto w-full max-w-sm">
+      <Logo size={52} className="mb-4" />
       <h1 className="text-2xl font-extrabold tracking-tight">
         {mode === "signup"
           ? asProvider

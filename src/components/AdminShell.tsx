@@ -5,11 +5,13 @@ import { usePathname } from "next/navigation";
 import { useUser } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Card, Spinner } from "@/components/ui";
+import { samePath } from "@/components/nav";
 import { clsx } from "@/lib/clsx";
 
 const TABS = [
   ["/admin", "Overview"],
   ["/admin/providers", "Providers"],
+  ["/admin/businesses", "Businesses"],
   ["/admin/jobs", "Jobs"],
   ["/admin/settlements", "Settlements"],
   ["/admin/disputes", "Disputes"],
@@ -50,7 +52,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <p className="mt-1 text-sm text-muted-foreground">Admin console</p>
       <nav className="tabs mt-5 max-w-full overflow-x-auto">
         {TABS.map(([href, label]) => (
-          <Link key={href} href={href} className={clsx(pathname === href && "on")}>
+          <Link key={href} href={href} className={clsx(samePath(pathname, href) && "on")}>
             {label}
           </Link>
         ))}

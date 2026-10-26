@@ -31,12 +31,18 @@ export default function ProfileScreen() {
     jobsRated: number;
   } | null>(null);
   const [dark, setDark] = useDarkMode();
+  // A dispatcher's own figures. Profile is one of their four phone tabs, so
+  // without this they land on a customer's profile: "0 Bookings, 0
+  // Completed" and an address prompt offering to send pros to them.
+  const [biz, setBiz] = useState<{ team: number; jobs: number } | null>(null);
 
   const [editMe, setEditMe] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
 
+  const isBusiness = profile?.role === "business";
+
   useEffect(() => {
-    if (!user) return;
+    if (!user || isBusiness) return;
     const supabase = createClient();
     (async () => {
       const [{ data: customer }, { count: jobs }, { count: done }] =
@@ -63,7 +69,26 @@ export default function ProfileScreen() {
         jobsRated: row?.jobs_rated ?? 0,
       });
     })();
-  }, [user]);
+  }, [user, isBusiness]);
+
+  useEffect(() => {
+    if (!user || !isBusiness) return;
+    const supabase = createClient();
+    (async () => {
+      const [{ count: team }, { count: jobs }] = await Promise.all([
+        supabase
+          .from("business_members")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", user.id)
+          .eq("status", "active"),
+        supabase
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", user.id),
+      ]);
+      setBiz({ team: team ?? 0, jobs: jobs ?? 0 });
+    })();
+  }, [user, isBusiness]);
 
   useEffect(() => {
     if (!user || profile?.role !== "provider") return;
@@ -145,20 +170,37 @@ export default function ProfileScreen() {
           </button>
         </div>
 
-        <div className="stats3 cardless">
-          <div>
-            <b>{counts?.jobs ?? "—"}</b>
-            <small>Bookings</small>
+        {isBusiness ? (
+          <div className="stats3 cardless">
+            <div>
+              <b>{biz?.team ?? "—"}</b>
+              <small>On the team</small>
+            </div>
+            <div>
+              <b>{biz?.jobs ?? "—"}</b>
+              <small>Dispatched</small>
+            </div>
+            <div>
+              <b>—</b>
+              <small>Dispatcher</small>
+            </div>
           </div>
-          <div>
-            <b>{counts?.done ?? "—"}</b>
-            <small>Completed</small>
+        ) : (
+          <div className="stats3 cardless">
+            <div>
+              <b>{counts?.jobs ?? "—"}</b>
+              <small>Bookings</small>
+            </div>
+            <div>
+              <b>{counts?.done ?? "—"}</b>
+              <small>Completed</small>
+            </div>
+            <div>
+              <b>{counts && counts.jobsRated > 0 ? counts.ratingAvg.toFixed(1) : "—"}</b>
+              <small>{counts && counts.jobsRated > 0 ? "Your rating" : "Not rated yet"}</small>
+            </div>
           </div>
-          <div>
-            <b>{counts && counts.jobsRated > 0 ? counts.ratingAvg.toFixed(1) : "—"}</b>
-            <small>{counts && counts.jobsRated > 0 ? "Your rating" : "Not rated yet"}</small>
-          </div>
-        </div>
+        )}
 
         {pro && (
           <Link className="promo" href={pro.href}>
@@ -183,24 +225,60 @@ export default function ProfileScreen() {
 
         <h3 className="lbl">Account</h3>
         <div className="menu card">
-          <button type="button" onClick={() => setEditAddr(true)}>
-            <Well icon="pin" size="sm" />
-            <div>
-              <b>Saved address</b>
-              <small>{address ?? "Add the address we should send pros to"}</small>
-            </div>
-            <KIcon name="chev-r" className="chev" />
-          </button>
-          <Link href="/bookings">
-            <Well icon="receipt" size="sm" />
-            <div>
-              <b>Bookings &amp; receipts</b>
-              <small>
-                {counts ? `${counts.jobs} booking${counts.jobs === 1 ? "" : "s"}` : "Your history"}
-              </small>
-            </div>
-            <KIcon name="chev-r" className="chev" />
-          </Link>
+          {/* A dispatcher has no saved address (nobody is sent to them) and
+              no bookings of their own — the equivalents are their team and
+              the money their technicians are holding. */}
+          {isBusiness ? (
+            <>
+              <Link href="/business/team">
+                <Well icon="users" size="sm" />
+                <div>
+                  <b>Your team</b>
+                  <small>
+                    {biz
+                      ? `${biz.team} technician${biz.team === 1 ? "" : "s"}`
+                      : "Invite and manage technicians"}
+                  </small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </Link>
+              <Link href="/business/earnings">
+                <Well icon="receipt" size="sm" />
+                <div>
+                  <b>Earnings &amp; commission</b>
+                  <small>
+                    {biz
+                      ? `${biz.jobs} job${biz.jobs === 1 ? "" : "s"} dispatched`
+                      : "What your team owes you, and what you owe us"}
+                  </small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setEditAddr(true)}>
+                <Well icon="pin" size="sm" />
+                <div>
+                  <b>Saved address</b>
+                  <small>{address ?? "Add the address we should send pros to"}</small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </button>
+              <Link href="/bookings">
+                <Well icon="receipt" size="sm" />
+                <div>
+                  <b>Bookings &amp; receipts</b>
+                  <small>
+                    {counts
+                      ? `${counts.jobs} booking${counts.jobs === 1 ? "" : "s"}`
+                      : "Your history"}
+                  </small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </Link>
+            </>
+          )}
           <Link href="/settings">
             <Well icon="wallet" size="sm" />
             <div>

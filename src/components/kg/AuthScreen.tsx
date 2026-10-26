@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "@/components/Logo";
 import { resolveSignInDest } from "@/lib/roleHome";
 import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KAuthForm } from "@/components/kg/AuthForm";
 import { KIcon } from "@/components/kg/icons";
-import { Well } from "@/components/kg/parts";
 import { BRAND } from "@/lib/config";
 
 /** The phone lane of /signin and /signup. */
@@ -23,7 +23,7 @@ export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
       <TopBar back="/" />
       <Scroll underTop pad="plain">
         <div className="rate-head">
-          <Well icon={asProvider ? "wrench" : "shield"} size="lg" />
+          <Logo size={62} className="mx-auto" />
           <h2>
             {mode === "signup"
               ? asProvider

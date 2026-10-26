@@ -25,6 +25,13 @@ Follow top-to-bottom for a production launch. Est. 60–90 min.
    13. `supabase/patch_v13_restore_notifications_layer.sql`   ← CRITICAL for any project missing patch_v4/v5: restores the `notifications` table, `notify_user()` and `record_settlement()`
    14. `supabase/patch_v14_house_promos.sql`   ← `house_promos`: Karighar's own promo banners, editable without a redeploy
    15. `supabase/patch_v15_new_categories.sql`   ← 5 new categories (carpenter, painter, solar panel cleaning, camera installation, washing machine repair), each with one placeholder "On-site Quote" sub-service
+   16. `supabase/patch_v16_provider_profile_for_customers.sql`   ← a customer sees the pro on their own job or bid at any status (names/avatars stopped going blank on their own bookings)
+   17. `supabase/patch_v17_lock_rating_and_verification.sql`   ← **SECURITY**: `providers.status`/`verified_at` and the `providers`/`customers` rating columns were self-writable, so a pro could approve themselves into the job pool and publish a fake 5.0. Also fixes a live bug where an approved pro demoted themselves by editing their bio.
+   18. `supabase/patch_v18_business_accounts.sql`   ← business accounts: a dispatcher with technicians beneath it, the open-pool lockout for attached technicians, and commission billed to the business instead
+
+   > **If you last deployed before this list reached item 16**, run 16, 17 and
+   > 18 now. Item 16 went into `schema.sql` but was never added here, so a
+   > database brought forward by this list alone has missed it.
 
    **Check this on any existing project**, whatever its history — some were
    built from a schema.sql predating patch_v4 and never got the notifications
@@ -122,6 +129,48 @@ Sign up once on the live site, find your user id in Supabase → Authentication 
 update profiles set role = 'admin' where id = 'YOUR-USER-ID';
 ```
 
+## 4b. Business accounts (optional)
+
+A **business** is a dispatcher: it claims jobs from the open pool and assigns
+them to technicians on its own team. There is no public signup — Karighar
+grants these by hand, from **/admin/businesses** (paste the account's user id
+from Supabase → Authentication → Users, the same place the first admin comes
+from). SQL equivalent, if you'd rather:
+
+```sql
+select grant_business_account('THEIR-USER-ID');
+```
+
+What this does and does not change:
+
+- **Technicians are still verified individually.** A business never creates or
+  vouches for an identity — it invites an *already-approved* technician by
+  phone number, who accepts or declines. The CNIC/selfie flow is untouched.
+- **A business cannot also be a technician.** The grant refuses an account
+  with an approved `providers` row: a dispatcher never works jobs, so it
+  carries no verification of its own.
+- **An attached technician leaves the open pool.** This is enforced in RLS
+  (`jobs_select`/`jobs_claim`), not just hidden in the UI, and a trigger
+  covers the one path that writes `provider_id` from outside them — a
+  customer awarding a bid.
+- **Commission moves to the business.** Karighar bills the dispatcher, which
+  then settles with its own technicians at whatever split the two agreed.
+  There is still exactly one commission row per job, so `/admin/settlements`
+  works on a business with no changes — businesses just appear in the list.
+- **Two separate debts, never netted.** In the COD model the technician
+  collects the cash on site, so a dispatched job leaves them owing their
+  business its share, and the business owing Karighar the commission. The
+  business records the first on `/business/earnings` ("Cash held by your
+  team" → Received); an admin records the second on `/admin/settlements`, as
+  today. A technician on a team owes Karighar nothing.
+
+To pause one without deleting it, use Suspend on `/admin/businesses`. It can
+no longer take or assign work and loses the dispatch console; jobs already
+with its technicians run to completion, and **its technicians go back to the
+open pool** rather than being stranded with no source of work. Deleting a
+business that has ever dispatched a job is deliberately refused — the same
+rule that already protects a provider with job history.
+
 ## 5. Pre-launch checklist
 
 - [ ] `schema.sql` (fresh) or every outstanding `patch_v*.sql` in order, run on prod
@@ -131,6 +180,8 @@ update profiles set role = 'admin' where id = 'YOUR-USER-ID';
 - [ ] First admin created; test the full flow on prod (book → accept → complete → pay → rate)
 - [ ] Recruit + verify 10–20 launch providers (Phase 0 supply)
 - [ ] Swap placeholders: support email/WhatsApp (`src/lib/config.ts`), legal entity in Terms/Privacy
+- [ ] Brand icons current — re-run `node scripts/icons.mjs` if
+      `public/brand/karighar-logo-3d.svg` changed since the last build
 - [ ] (P1) Add Sentry for error monitoring; enable Supabase backups
 
 ## 6. Smoke test after every deploy
@@ -140,3 +191,25 @@ update profiles set role = 'admin' where id = 'YOUR-USER-ID';
 2. As a second account, onboard as a Pro; approve via admin; accept the job; advance to paid
 3. Customer sees live status + gets notifications; both ratings work
    (customer rates the pro, pro rates the customer)
+
+If you run business accounts, also check the two things that can only be
+wrong in production:
+
+4. From an **attached** technician's session, confirm the open pool is empty
+   over the REST API directly, not just in the UI:
+   `/rest/v1/jobs?provider_id=is.null&status=in.(created,bidding)` must return
+   `[]`. A non-empty result means the lockout is not actually enforced.
+5. From that same session, confirm the two write paths are shut too — both
+   must be refused, not silently accepted:
+   ```
+   POST  /rest/v1/bids   {"job_id":"<an open job>","provider_id":"<self>","amount":1}
+   PATCH /rest/v1/jobs?id=eq.<a job assigned to them>   {"business_id":null,"tech_share":null}
+   ```
+   The first is the bid route back into the pool; the second is the one that
+   would let a technician walk out of their dispatcher mid-job and take
+   Karighar's commission bill with them.
+6. Take one dispatched job all the way to `paid`, then confirm in
+   `/admin/settlements` that the **business** owes the commission and the
+   technician owes nothing — and that `/business/earnings` shows the
+   technician holding the business's share, which drops when you record it
+   as received.

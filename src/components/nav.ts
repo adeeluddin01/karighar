@@ -1,7 +1,10 @@
 import type { IconName } from "@/components/Icon";
 import type { KIconName } from "@/components/kg/icons";
 
-export type Role = "guest" | "customer" | "provider" | "admin";
+// "provider" is one verified individual doing the work. "business" is a
+// dispatcher with technicians beneath it — it never works a job itself, so
+// it gets a dispatch board and a team screen instead of Jobs and My Services.
+export type Role = "guest" | "customer" | "provider" | "admin" | "business";
 
 export type NavLink = { href: string; label: string; icon: IconName };
 
@@ -28,9 +31,17 @@ export const NAV: Record<Role, NavLink[]> = {
     { href: "/notifications", label: "Alerts", icon: "bell" },
     { href: "/profile", label: "Profile", icon: "user" },
   ],
+  business: [
+    { href: "/business", label: "Dispatch", icon: "briefcase" },
+    { href: "/business/team", label: "Team", icon: "users" },
+    { href: "/business/earnings", label: "Earnings", icon: "wallet" },
+    { href: "/notifications", label: "Alerts", icon: "bell" },
+    { href: "/profile", label: "Profile", icon: "user" },
+  ],
   admin: [
     { href: "/admin", label: "Overview", icon: "building" },
     { href: "/admin/providers", label: "Providers", icon: "users" },
+    { href: "/admin/businesses", label: "Businesses", icon: "building" },
     { href: "/admin/jobs", label: "Jobs", icon: "briefcase" },
     { href: "/admin/settlements", label: "Settlements", icon: "wallet" },
     { href: "/notifications", label: "Alerts", icon: "bell" },
@@ -85,6 +96,15 @@ export const PHONE_NAV: Record<Role, PhoneNavLink[]> = {
     { href: "/pro/services", label: "Services", icon: "wrench", kicon: "wrench" },
     { href: "/profile", label: "Profile", icon: "user", kicon: "user" },
   ],
+  // Alerts is what drops at four tabs, as everywhere else — <AlertsBell> sits
+  // in the header instead. /bookings is deliberately absent: it lists jobs
+  // where you are the CUSTOMER, which a business never is.
+  business: [
+    { href: "/business", label: "Dispatch", icon: "briefcase", kicon: "briefcase" },
+    { href: "/business/team", label: "Team", icon: "users", kicon: "users" },
+    { href: "/business/earnings", label: "Earnings", icon: "wallet", kicon: "wallet" },
+    { href: "/profile", label: "Profile", icon: "user", kicon: "user" },
+  ],
   admin: [
     { href: "/admin", label: "Overview", icon: "building", kicon: "gear" },
     { href: "/admin/providers", label: "Pros", icon: "users", kicon: "users" },
@@ -105,13 +125,18 @@ export const ROLE_HOME: Record<Role, string> = {
   guest: "/",
   customer: "/",
   provider: "/pro/dashboard",
+  business: "/business",
   admin: "/admin",
 };
 
+// A business has no map of its own: it dispatches by area, and the live GPS
+// of a job belongs to the customer and the technician on it (track_rw is
+// deliberately not extended to the dispatcher). Send it to the board instead.
 export const ROLE_MAP: Record<Role, string> = {
   guest: "/map",
   customer: "/map",
   provider: "/pro/map",
+  business: "/business",
   admin: "/admin/jobs",
 };
 
@@ -122,8 +147,10 @@ export const ROLE_MAP: Record<Role, string> = {
  * offer (admins).
  */
 export function proEntry(role?: string | null, providerStatus?: string | null) {
-  // An admin is never going to apply; don't offer it to them.
-  if (role === "admin") return null;
+  // An admin is never going to apply; don't offer it to them. Nor is a
+  // business — it dispatches work rather than doing it, and
+  // grant_business_account() refuses an account that is already a pro.
+  if (role === "admin" || role === "business") return null;
   if (role === "provider" && providerStatus === "approved") {
     return {
       href: "/pro/dashboard",
@@ -157,7 +184,7 @@ export function proEntry(role?: string | null, providerStatus?: string | null) {
  * the href comes from proEntry() above, which already knows that funnel.
  */
 export function proPromo(role?: string | null, providerStatus?: string | null) {
-  if (role === "admin") return null;
+  if (role === "admin" || role === "business") return null;
   if (role === "provider" && providerStatus === "approved") return null;
 
   const entry = proEntry(role, providerStatus);
@@ -189,13 +216,28 @@ export type RoleRouteKey = keyof typeof ROLE_ROUTES;
 // `approved`. Someone who has applied but is still pending (or was rejected
 // / suspended) sees the default customer view — their verification status
 // and the onboarding form stay reachable from /profile.
+//
+// A business is the same shape one level up: the `businesses` row being
+// `active` is the gate, not `role === "business"` on its own, exactly as
+// `providers.status` rather than `role === "provider"` is what opens the pro
+// area. A suspended business falls back to the customer view.
+//
+// `businessStatus` is REQUIRED rather than optional on purpose: making it
+// optional would compile at every existing call site and be wrong at every
+// one of them, silently showing a business the customer nav. Required makes
+// the compiler walk us through them.
 export function roleOf(
   signedIn: boolean,
-  role?: string | null,
-  providerStatus?: string | null
+  role: string | null | undefined,
+  providerStatus: string | null | undefined,
+  businessStatus: string | null | undefined
 ): Role {
   if (!signedIn) return "guest";
   if (role === "admin") return "admin";
+  // Checked before provider: grant_business_account() refuses an approved
+  // technician, so the two cannot both be true — but if a row were ever
+  // hand-edited, dispatching is the safer of the two to land on.
+  if (role === "business" && businessStatus === "active") return "business";
   if (role === "provider" && providerStatus === "approved") return "provider";
   return "customer";
 }
@@ -219,4 +261,16 @@ export function isActive(pathname: string, href: string) {
   const link = trimSlash(href);
   if (link === "/") return path === "/";
   return path === link || path.startsWith(link + "/");
+}
+
+/**
+ * Exact-match sibling of isActive(), for tab bars whose entries nest —
+ * /business and /business/team, /admin and /admin/jobs. Prefix matching would
+ * light up the parent on every child page.
+ *
+ * Still has to trim: `trailingSlash: true` serves these as `/business/`, so
+ * usePathname() reports a trailing slash the TABS tables don't carry.
+ */
+export function samePath(pathname: string, href: string) {
+  return trimSlash(pathname) === trimSlash(href);
 }

@@ -36,6 +36,9 @@ Open http://localhost:3000 — the landing page runs without any backend yet.
    - [`supabase/patch_v9_fix_jobs_rls.sql`](supabase/patch_v9_fix_jobs_rls.sql) — **required (critical)**: fixes job visibility so approved providers can see/accept the open job pool.
    - [`supabase/patch_v10_fix_notify_cast.sql`](supabase/patch_v10_fix_notify_cast.sql) — **required (critical)**: fixes an enum-cast crash that blocked all status updates past "assigned".
    - [`supabase/patch_v11_lock_provider_pii.sql`](supabase/patch_v11_lock_provider_pii.sql) — **required (security)**: `providers` was world-readable, exposing CNIC numbers and document paths to anyone with the anon key. Locks the table to owner/admin and serves public pro data from the `public_provider_profiles` view instead. Re-creates that view, so it also covers a project where patch_v7 was skipped.
+   - …through `patch_v18`. [`DEPLOYMENT.md`](DEPLOYMENT.md) carries the full numbered list; two are worth calling out:
+   - [`supabase/patch_v17_lock_rating_and_verification.sql`](supabase/patch_v17_lock_rating_and_verification.sql) — **required (security)**: RLS is row-level, so `prov_self`/`cust_self` let an owner write *every* column of their own row — including `providers.status`. A self-registered pro could approve themselves into the job pool and publish a fake 5.0 rating. Also fixes a live bug where an approved pro silently demoted themselves by editing their bio.
+   - [`supabase/patch_v18_business_accounts.sql`](supabase/patch_v18_business_accounts.sql) — business accounts: a dispatcher with technicians beneath it, the open-pool lockout, and commission billed to the business. Lands with no visible change until a business is granted.
      *(Patches are idempotent and safe to re-run.)*
 
 </details>
@@ -104,6 +107,25 @@ breaks every OAuth redirect silently.
 4. As the **provider** → `/pro/dashboard` → accept the job → advance status.
 5. Back as the **customer** → `/bookings/[id]` → watch it update live, chat, then rate.
 
+### …and the business flow
+
+A **business** dispatches work to technicians instead of doing it. There is no
+public signup — see "Business accounts" in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+1. As **admin** → `/admin/businesses` → paste a (non-technician) account's
+   user id → Grant.
+2. As that account → `/business/team` → invite an **approved** technician by
+   phone number and set their split.
+3. As that technician → `/pro/dashboard` → the invite banner → Join.
+   Their open-pool tab disappears; so do their open-pool rows, in RLS.
+4. Back as the business → `/business` → Assign an open job to them. The
+   customer and the technician are both notified, and from here on the
+   customer deals with the **technician** — chat, the call button and live
+   tracking all work exactly as for an independent pro.
+5. Take the job to paid. The technician's `/pro/history` shows what they owe
+   their **business**; `/business/earnings` and `/admin/settlements` show the
+   commission owed to Karighar by the **business**.
+
 ## Structure
 
 ```
@@ -141,6 +163,8 @@ supabase/
 - [x] Provider wallet (ledger-based earnings + commission owed) · admin settlements
 - [x] Disputes: "report a problem" on jobs + admin resolution UI
 - [x] Automated tests (Vitest) for money/accounting + status state-machine
+- [x] Business accounts — a dispatcher with technicians beneath it, open-pool
+      lockout, commission billed to the business
 - [ ] Phone OTP auth (needs an SMS provider) — replaces email/password
 - [ ] Email notifications + Sentry monitoring + rate limiting (P1)
 - [ ] Escrow + online payments (JazzCash/Easypaisa) · Directions/ETA (P2)
@@ -151,6 +175,35 @@ supabase/
 npm test        # Vitest unit tests (money/accounting, status machine, validation)
 npm run build   # type-check + production build
 ```
+
+## Brand assets
+
+`public/brand/karighar-logo-3d.svg` is the master. Everything else is derived
+from it, so change that file and re-bake rather than editing an icon by hand:
+
+```bash
+node scripts/icons.mjs
+```
+
+That writes `src/app/{icon.png, apple-icon.png, favicon.ico}` and
+`public/icon-{192,512}.png` plus `icon-maskable-512.png`.
+
+| File | What it is |
+|---|---|
+| `karighar-logo-3d.svg` | The mark with its materials — lit chamfer, brushed grain, velvet, cast shadow. Used on screen via `<Logo>`. |
+| `karighar-logo-square.svg` | Same, tile bled to the edges. iOS rounds a home-screen icon itself and ignores alpha, so `apple-icon.png` comes from this one. |
+| `karighar-logo-maskable.svg` | Full-bleed with the mark pulled into the inner 78%, for Android's maskable crop. |
+| `karighar-logo.svg` | Gradients only, no filters — a fallback where SVG filters aren't honoured. |
+| `karighar-logo-flat.svg` | Flat colour. Print, signage, one-colour work. |
+| `karighar-mark.svg` | Glyph only, `currentColor`, no tile. |
+
+Two things worth knowing before you touch it. The materials are SVG filters,
+which is why `<Logo>` renders an `<img>` rather than inlining the SVG — filter
+ids are document-global, and two inline copies on one page would both resolve
+to whichever came first. And the icons are rendered at 2× and downsampled:
+the velvet pile's fine layer is sub-pixel at icon sizes, so rasterising
+straight to the target turns it into harsh per-pixel noise that looks wrong
+and triples the file size.
 
 ## Demo videos (customer / provider / admin walkthroughs)
 

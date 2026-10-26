@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/lib/useUser";
 import { NotificationBell } from "@/components/NotificationBell";
+import { Logo } from "@/components/Logo";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/ui";
 import { roleOf } from "@/components/nav";
@@ -14,11 +15,11 @@ import { BRAND } from "@/lib/config";
 // Mobile-only top bar. On md+ the Sidebar carries the logo, nav and account block,
 // so this collapses to nothing; navigation lives in BottomNav on small screens.
 export function AppHeader() {
-  const { user, profile, providerStatus, loading } = useUser();
+  const { user, profile, providerStatus, businessStatus, loading } = useUser();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const role = roleOf(!!user, profile?.role, providerStatus);
+  const role = roleOf(!!user, profile?.role, providerStatus, businessStatus);
 
   async function signOut() {
     setMenuOpen(false);
@@ -31,9 +32,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-card/85 backdrop-blur-md md:hidden">
       <div className="flex items-center justify-between px-4 py-2.5">
         <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
-            K
-          </span>
+          <Logo size={32} />
           <span className="text-base font-bold tracking-tight">{BRAND.name}</span>
         </Link>
 

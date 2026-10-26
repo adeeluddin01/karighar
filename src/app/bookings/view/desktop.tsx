@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { googleDirectionsUrl } from "@/lib/maps";
+import {
+  businessName,
+  dispatcherOf,
+  fetchBusinessSummary,
+  type BusinessSummary,
+} from "@/lib/businesses";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { JobTimeline } from "@/components/JobTimeline";
@@ -51,6 +57,9 @@ function BookingDetailContent() {
   const [job, setJob] = useState<Job | null>(null);
   const [providerProfile, setProviderProfile] = useState<Profile | null>(null);
   const [providerRating, setProviderRating] = useState<number | null>(null);
+  // The dispatching company, when one sent this pro. Null for an
+  // independent pro and on any database without business accounts.
+  const [dispatcher, setDispatcher] = useState<BusinessSummary | null>(null);
   const [bids, setBids] = useState<BidWithPro[]>([]);
   const [hasReview, setHasReview] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -80,6 +89,8 @@ function BookingDetailContent() {
       ]);
       setProviderProfile(prof as Profile | null);
       setProviderRating(prov.pros[0]?.rating_avg ?? null);
+      // Only fires when a business actually dispatched the job.
+      setDispatcher(await fetchBusinessSummary(supabase, dispatcherOf(j)));
     }
 
     if (j.type === "custom" && j.status === "bidding") {
@@ -338,6 +349,23 @@ function BookingDetailContent() {
                   </Pill>
                 </div>
               </div>
+              {/* Who sent them, when a company did. `dispatcherOf` is null
+                  for an independent pro AND on a database with no business
+                  accounts at all, so this line simply never appears unless
+                  one is genuinely involved. */}
+              {dispatcher && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Assigned to you by{" "}
+                  <Link
+                    href={`/businesses/view/?id=${dispatcher.id}`}
+                    className="font-semibold hover:text-primary"
+                  >
+                    {businessName(dispatcher)}
+                  </Link>
+                  {dispatcher.jobs_completed > 0 &&
+                    ` · ${dispatcher.rating_avg.toFixed(1)}★ (${dispatcher.jobs_completed})`}
+                </p>
+              )}
               {providerProfile.phone && (
                 <a href={`tel:${providerProfile.phone}`} className="btn-primary mt-4 w-full">
                   <Icon name="phone" size="sm" /> Call

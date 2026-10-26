@@ -46,6 +46,9 @@ export default function ProviderHistoryPage() {
 
   const done = jobs.filter((j) => j.status !== "cancelled").length;
   const owed = wallet?.commissionOwed ?? 0;
+  // Negative on a technician: cash they collected that belongs to their
+  // business. Separate from `owed`, which is always Karighar's.
+  const dueToBusiness = Math.abs(Math.min(0, wallet?.businessShareNet ?? 0));
 
   if (loading || !user) {
     return (
@@ -62,12 +65,25 @@ export default function ProviderHistoryPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat icon="wallet" label="Net earnings" value={formatPKR(wallet?.netEarnings ?? 0)} />
         <Stat icon="check" label="Jobs completed" value={done} />
-        <Stat
-          icon="trend"
-          label={`Owed to ${BRAND.name}`}
-          value={formatPKR(owed)}
-          className="col-span-2 sm:col-span-1"
-        />
+        {/* Two different debts, deliberately never added together: Karighar's
+            commission on your own jobs, and your business's share of the cash
+            you collected on theirs. An attached technician owes Karighar
+            nothing on dispatched work — the business is billed for that. */}
+        {dueToBusiness > 0 ? (
+          <Stat
+            icon="users"
+            label="Due to your business"
+            value={formatPKR(dueToBusiness)}
+            className="col-span-2 sm:col-span-1"
+          />
+        ) : (
+          <Stat
+            icon="trend"
+            label={`Owed to ${BRAND.name}`}
+            value={formatPKR(owed)}
+            className="col-span-2 sm:col-span-1"
+          />
+        )}
       </div>
 
       {owed > 0 && (
@@ -76,7 +92,18 @@ export default function ProviderHistoryPage() {
             {formatPKR(owed)} commission to settle
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            From cash you collected directly. Settle with the {BRAND.name} team.
+            From cash you collected directly on your own jobs. Settle with the {BRAND.name} team.
+          </p>
+        </Card>
+      )}
+
+      {dueToBusiness > 0 && (
+        <Card className="mt-4">
+          <p className="text-sm font-semibold">{formatPKR(dueToBusiness)} due to your business</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Their share of the cash you collected on jobs they sent you. {BRAND.name} bills them,
+            not you — you owe us nothing on that work. This figure drops as they record what
+            you hand over.
           </p>
         </Card>
       )}

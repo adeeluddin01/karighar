@@ -15,11 +15,11 @@ import { clsx } from "@/lib/clsx";
 // Both bars read the same PHONE_NAV, so the tabs don't change shape when a
 // provider moves between a customer screen and their own area.
 export function BottomNav() {
-  const { user, profile, providerStatus, loading } = useUser();
+  const { user, profile, providerStatus, businessStatus, loading } = useUser();
   const pathname = usePathname();
   if (loading) return null;
 
-  const tabs = PHONE_NAV[roleOf(!!user, profile?.role, providerStatus)];
+  const tabs = PHONE_NAV[roleOf(!!user, profile?.role, providerStatus, businessStatus)];
 
   return (
     <nav

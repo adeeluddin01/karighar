@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/lib/useUser";
 import { useNotifications } from "@/lib/useNotifications";
-import { notifHref } from "@/lib/notifHref";
+import { notifHref, notifFallbackHref } from "@/lib/notifHref";
 import { ROLE_HOME, roleOf } from "@/components/nav";
 import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
@@ -22,17 +22,17 @@ function iconFor(type: string) {
 }
 
 export default function NotificationsScreen() {
-  const { user, profile, providerStatus, loading } = useRequireAuth("/notifications");
+  const { user, profile, providerStatus, businessStatus, loading } = useRequireAuth("/notifications");
   const router = useRouter();
   // The shared hook brings the realtime subscription this screen never had.
   const { items, unread, markRead, markAll } = useNotifications(user?.id, { limit: 50 });
-  const role = roleOf(!!user, profile?.role, providerStatus);
+  const role = roleOf(!!user, profile?.role, providerStatus, businessStatus);
 
   async function open(n: Notification) {
     if (!n.read) await markRead(n.id);
     // A provider sent to /bookings/view/ would land on a customer page their
-    // RLS blocks.
-    const href = notifHref(n, role);
+    // RLS blocks. A job-less alert (a team invite) still has somewhere to go.
+    const href = notifHref(n, role) ?? notifFallbackHref(n, role);
     if (href) router.push(href);
   }
 
