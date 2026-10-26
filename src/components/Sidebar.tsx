@@ -31,12 +31,18 @@ export function Sidebar() {
 
   return (
     <aside className="surface sticky top-5 hidden h-[calc(100vh-2.5rem)] w-60 shrink-0 flex-col p-4 md:flex">
-      <Link href="/" className="mb-8 flex items-center gap-2.5 px-2 pt-2">
+      <Link href="/" className="mb-8 flex shrink-0 items-center gap-2.5 px-2 pt-2">
         <Logo size={36} />
         <span className="text-lg font-bold tracking-tight">{BRAND.name}</span>
       </Link>
 
-      <nav className="flex flex-col gap-1">
+      {/* The rail is a fixed height, so the LINKS scroll and the footer stays
+          pinned inside the padding. Without this, a long nav (admin and
+          business both run to six or seven entries) overflowed a container
+          that could not scroll, and Sign out ended up rendering below the
+          sidebar's own bottom edge on any viewport under ~660px tall.
+          `min-h-0` is what lets a flex child shrink past its content. */}
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {links.map((l) => (
           <Link
             key={l.href}
@@ -61,7 +67,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-3">
+      <div className="mt-4 flex shrink-0 flex-col gap-3">
         <div className="rounded-2xl bg-primary-light p-4">
           <p className="text-sm font-semibold text-accent-foreground">Need help?</p>
           <p className="mt-1 text-xs text-muted-foreground">Call us 9am – 9pm, every day.</p>
