@@ -205,7 +205,9 @@ export default function CustomJobScreen() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: null,
-        commission_rate: 0.15,
+        // No commission_rate: jobs_enforce_insert stamps it from
+        // platform_settings and overwrites whatever the client sends, so a
+        // literal here is dead weight that reads as if the client decided it.
       })
       .select("id")
       .single();

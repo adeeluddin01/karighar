@@ -174,16 +174,38 @@ export function Badge({
 
 export function Avatar({
   name,
+  src,
   size,
   children,
   className,
 }: {
   name?: string | null;
+  /** A profile picture. Initials show through if it's absent or fails. */
+  src?: string | null;
   size?: "sm" | "lg";
   children?: React.ReactNode;
   className?: string;
 }) {
-  return <span className={clsx("avatar", size, className)}>{children ?? nameInitials(name)}</span>;
+  return (
+    <span className={clsx("avatar", size, className)}>
+      {children ?? nameInitials(name)}
+      {src && (
+        // Layered OVER the initials rather than replacing them, so a broken
+        // or still-loading URL degrades to the initials instead of a gap.
+        // Plain <img>: next/image needs a loader this static export doesn't
+        // have, and `images.unoptimized` is already set for the same reason.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          className="avatar-img"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </span>
+  );
 }
 
 export function Rating({ value, className }: { value?: number | null; className?: string }) {
@@ -227,17 +249,21 @@ export const inputClass =
 
 export function Input({
   prefix,
+  suffix,
   error,
   className,
   ...rest
 }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "prefix"> & {
   prefix?: React.ReactNode;
+  /** Trailing unit — "%", "PKR". Same muted treatment as `prefix`. */
+  suffix?: React.ReactNode;
   error?: boolean;
 }) {
   return (
     <div className={clsx("field", error && "err", className)}>
       {prefix && <span className="pre">{prefix}</span>}
       <input {...rest} />
+      {suffix && <span className="pre">{suffix}</span>}
     </div>
   );
 }

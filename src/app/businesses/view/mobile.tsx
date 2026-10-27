@@ -7,10 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 import { Screen, Scroll, TopBar, Cta } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Ava, EmptyK, Pill, Skel } from "@/components/kg/parts";
+import { BusinessesMap } from "@/components/maps/BusinessesMap";
+import { categoryIcon } from "@/components/kg/catalogIcons";
 import {
   businessName,
   fetchPublicBusiness,
   type BusinessReview,
+  type BusinessTrade,
   type PublicBusiness,
 } from "@/lib/businesses";
 
@@ -29,6 +32,7 @@ function BusinessProfileContent() {
   const id = useSearchParams().get("id") ?? "";
   const [business, setBusiness] = useState<PublicBusiness | null>(null);
   const [reviews, setReviews] = useState<BusinessReview[]>([]);
+  const [trades, setTrades] = useState<BusinessTrade[]>([]);
   // `loading` is DERIVED, not set in the effect: an early `setLoading(false)`
   // for a missing id would be a synchronous setState in an effect body
   // (react-hooks/set-state-in-effect). With no id there is nothing to load,
@@ -42,6 +46,7 @@ function BusinessProfileContent() {
       const res = await fetchPublicBusiness(createClient(), id);
       setBusiness(res.business);
       setReviews(res.reviews);
+      setTrades(res.trades);
       setLoaded(true);
     })();
   }, [id]);
@@ -86,7 +91,7 @@ function BusinessProfileContent() {
       <TopBar title={name} back="/bookings" />
       <Scroll underTop pad="cta">
         <div className="me card">
-          <Ava name={name} size="xl" verified />
+          <Ava name={name} src={business.avatar_url} size="xl" verified />
           <div>
             <b>{name}</b>
             <small>
@@ -132,6 +137,42 @@ function BusinessProfileContent() {
             <b>{business.team_size}</b>
           </div>
         </div>
+
+        {trades.length > 0 && (
+          <>
+            <h3 className="lbl">What they do</h3>
+            <div className="chips wrap">
+              {trades.map((t) => (
+                <span key={t.id} className="chip">
+                  <KIcon name={categoryIcon(t.icon)} xs />
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* A company trades from a fixed premises, so where it is is part of
+            who it is — unlike an independent pro, who has no address at all. */}
+        {business.lat != null && business.lng != null && (
+          <>
+            <h3 className="lbl">Where they work from</h3>
+            <BusinessesMap
+              firms={[
+                {
+                  id: business.id,
+                  full_name: business.full_name,
+                  rating_avg: business.rating_avg,
+                  jobs_completed: business.jobs_completed,
+                  team_size: business.team_size,
+                  lat: business.lat,
+                  lng: business.lng,
+                  trades,
+                },
+              ]}
+            />
+          </>
+        )}
 
         {business.service_areas?.length > 0 && (
           <>

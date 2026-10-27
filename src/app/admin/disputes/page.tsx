@@ -71,6 +71,34 @@ export default function AdminDisputes() {
     await load();
   }
 
+  /**
+   * Refund the customer and unwind the ledger.
+   *
+   * Until patch_v21 there was no reversal path at all: a dispute changed a
+   * text column and nothing else, so the technician kept owing commission on
+   * money they had handed back and Karighar's revenue stayed overstated.
+   * The RPC is idempotent per job, so a reopened dispute cannot reverse twice.
+   */
+  async function reverse(row: Row) {
+    const reason = (notes[row.id] ?? "").trim();
+    if (reason.length < 3) {
+      toast("Write the reason in the resolution box first — it goes on the record.", "error");
+      return;
+    }
+    setBusy(row.id);
+    const { error } = await createClient().rpc("reverse_job_charges", {
+      p_job: row.job_id,
+      p_reason: reason,
+    });
+    setBusy(null);
+    if (error) {
+      toast(error.message, "error");
+      return;
+    }
+    toast("Charges reversed. The pro no longer owes commission on this job.", "success");
+    await load();
+  }
+
   const open = rows.filter((r) => r.status !== "resolved");
   const resolved = rows.filter((r) => r.status === "resolved");
 
@@ -107,6 +135,14 @@ export default function AdminDisputes() {
                   onChange={(e) => setNotes((n) => ({ ...n, [d.id]: e.target.value }))}
                   aria-label="Resolution note"
                 />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy === d.id}
+                  onClick={() => reverse(d)}
+                >
+                  Reverse charges
+                </Button>
                 <Button size="sm" disabled={busy === d.id} onClick={() => resolve(d)}>
                   Resolve
                 </Button>

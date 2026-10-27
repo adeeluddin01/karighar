@@ -23,6 +23,14 @@ export type LedgerSummary = {
   settled: number; // commission already remitted to the platform
   commissionOwed: number; // outstanding commission the Pro owes KARIGHAR
   /**
+   * The same figure, SIGNED. `commissionOwed` clamps at zero so the screens
+   * never show a negative debt — but that clamp also hid over-settlement: a
+   * settlement larger than the balance read as a clean zero rather than a
+   * credit. Negative here means more has been remitted or reversed than was
+   * ever raised, which should be visible rather than absorbed.
+   */
+  commissionBalance: number;
+  /**
    * The business<->technician leg, which is NOT Karighar's money.
    *
    * Positive on a business (owed TO it by its technicians, who collected the
@@ -76,6 +84,7 @@ export function summarizeLedger(entries: LedgerEntry[]): LedgerSummary {
     commissionGross: Math.round(commissionGross * 100) / 100,
     settled: Math.round(settled * 100) / 100,
     commissionOwed: Math.max(0, Math.round((commissionGross - settled) * 100) / 100),
+    commissionBalance: Math.round((commissionGross - settled) * 100) / 100,
     businessShareNet: Math.round(businessShareNet * 100) / 100,
   };
 }

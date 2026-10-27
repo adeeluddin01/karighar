@@ -15,6 +15,7 @@ import { BRAND } from "@/lib/config";
 const TABS = [
   ["/business", "Dispatch"],
   ["/business/team", "Team"],
+  ["/business/services", "Services"],
   ["/business/earnings", "Earnings"],
 ];
 

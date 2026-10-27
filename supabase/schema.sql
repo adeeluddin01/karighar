@@ -4,7 +4,7 @@
 -- Home-services marketplace: Karachi, services-only, COD, hybrid pricing.
 --
 -- This is the WHOLE schema. On a fresh project run only this file — every
--- patch up to and including patch_v18 is already folded in. The
+-- patch up to and including patch_v22 is already folded in. The
 -- supabase/patch_v*.sql files exist only to bring an OLDER database forward,
 -- in numeric order.
 --
@@ -19,7 +19,18 @@
 -- carpenter, painter, solar panel cleaning, camera installation, washing
 -- machine repair), v16 (a customer sees the pro on their own job/bid at any
 -- status), v17 (SECURITY: verification + reputation columns are no longer
--- self-writable), v18 (business accounts: technicians beneath a dispatcher).
+-- self-writable), v18 (business accounts: technicians beneath a dispatcher),
+-- v19 (a quote can only be set once the pro has arrived), v20 (admins can
+-- resolve the email behind an account, for search), v21 (financial
+-- integrity: actor guard on jobs, reversals, settlement caps, reconciliation),
+-- v22 (a business is a located trading entity: CNIC, address and premises
+-- coordinates recorded by the admin who grants the account, plus
+-- business_services and the public views that put companies on the map),
+-- v23 (public `avatars` bucket, so a profile picture can actually be
+-- uploaded — profiles.avatar_url had no writer and no bucket), v24
+-- (commission: platform defaults per account kind and job type, plus a
+-- per-technician/per-business override, resolved and frozen when the
+-- provider is stamped).
 -- ============================================================
 
 -- ---------- Extensions ----------
@@ -50,7 +61,7 @@ create type job_status       as enum (
 );
 create type bid_status     as enum ('pending', 'awarded', 'rejected');
 create type payment_method as enum ('cod');          -- v1: cash only
-create type payment_status as enum ('pending', 'collected', 'settled');
+create type payment_status as enum ('pending', 'collected', 'settled', 'refunded');
 -- 'business_share' is the technician<->business leg of a dispatched job: what
 -- the technician owes their business out of the cash they collected, and the
 -- matching receivable on the business. It is deliberately NOT 'commission'
@@ -82,6 +93,27 @@ create table customers (
   jobs_rated      int not null default 0
 );
 
+-- Platform-wide knobs. Single row: `id` is a boolean pinned true by a check,
+-- so a second row cannot exist and every reader can say `where id`.
+-- Four rates, not one: Karighar charges a solo technician and a dispatching
+-- company on different terms, and a catalogue booking on different terms
+-- from an on-site quote. Edited on the Providers and Businesses admin tabs
+-- respectively, beside the accounts each one governs.
+create table platform_settings (
+  id              boolean primary key default true check (id),
+  provider_fixed  numeric(4,3) not null default 0.200,
+  provider_custom numeric(4,3) not null default 0.150,
+  business_fixed  numeric(4,3) not null default 0.200,
+  business_custom numeric(4,3) not null default 0.150,
+  updated_at      timestamptz not null default now(),
+  updated_by      uuid references profiles(id) on delete set null,
+  constraint platform_rates_range check (
+    provider_fixed  between 0 and 1 and provider_custom between 0 and 1 and
+    business_fixed  between 0 and 1 and business_custom between 0 and 1
+  )
+);
+insert into platform_settings (id) values (true) on conflict (id) do nothing;
+
 create table providers (
   profile_id     uuid primary key references profiles(id) on delete cascade,
   cnic_no        text,
@@ -93,7 +125,13 @@ create table providers (
   rating_avg     numeric(2,1) not null default 0,
   jobs_completed int not null default 0,
   service_areas  jsonb not null default '[]'::jsonb,  -- e.g. ["Gulshan","DHA"]
-  verified_at    timestamptz
+  verified_at    timestamptz,
+  -- Karighar's cut for this one pro. Null = the platform default for the job
+  -- type (platform_settings below). Admin-owned: providers_guard_trusted_cols
+  -- coerces it back, or a pro would simply set their own commission to zero.
+  commission_rate numeric(4,3)
+                  check (commission_rate is null
+                         or (commission_rate >= 0 and commission_rate <= 1))
 );
 
 -- ============================================================
@@ -114,6 +152,24 @@ create table businesses (
   status         business_status not null default 'active',
   about          text,
   service_areas  jsonb not null default '[]'::jsonb,
+  -- A business is a real trading entity: a CNIC behind it and premises it
+  -- operates from. Both are recorded by the admin who grants the account —
+  -- there is no self-service signup, so there is nothing to approve after
+  -- the fact. businesses_guard_trusted_cols keeps them admin-owned.
+  cnic_no          text,
+  cnic_front_url   text,
+  cnic_back_url    text,
+  owner_selfie_url text,
+  verified_at      timestamptz,
+  address          text,
+  lat              double precision,
+  lng              double precision,
+  -- Karighar's cut for this one company. Null = the platform default. On a
+  -- dispatched job the BUSINESS is billed, so this is the rate that applies
+  -- and the technician's own override is irrelevant.
+  commission_rate numeric(4,3)
+                  check (commission_rate is null
+                         or (commission_rate >= 0 and commission_rate <= 1)),
   rating_avg     numeric(2,1) not null default 0,   -- trigger-maintained
   jobs_completed int not null default 0,            -- trigger-maintained
   created_at     timestamptz not null default now()
@@ -152,6 +208,13 @@ create index business_members_business_idx on business_members(business_id, stat
 -- technician, enforced by the database even if a policy or RPC is ever wrong.
 create unique index business_members_one_active
   on business_members(provider_id) where (status = 'active');
+
+-- What a business covers — the counterpart of provider_services.
+create table business_services (
+  business_id uuid references businesses(profile_id) on delete cascade,
+  service_id  uuid references services(id) on delete cascade,
+  primary key (business_id, service_id)
+);
 
 -- ============================================================
 -- Catalog
@@ -219,6 +282,7 @@ create table jobs (
   business_id     uuid references businesses(profile_id),
   tech_share      numeric(4,3),
   cancel_reason   text,                                 -- why it was cancelled (admin/support)
+  constraint jobs_price_non_negative check (price is null or price >= 0),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   -- Makes the money branch in jobs_on_paid a single null test.
@@ -257,7 +321,10 @@ create table payments (
   commission      numeric(10,2) not null default 0,
   provider_payout numeric(10,2) not null default 0,
   status          payment_status not null default 'pending',
-  created_at      timestamptz not null default now()
+  created_at      timestamptz not null default now(),
+  -- One payment per job, enforced by the database rather than by a
+  -- read-then-write inside jobs_on_paid.
+  unique (job_id)
 );
 
 create table reviews (
@@ -523,15 +590,18 @@ begin
   if is_admin() then return new; end if;
 
   if tg_op = 'INSERT' then
-    new.status         := 'pending';
-    new.verified_at    := null;
-    new.rating_avg     := 0;
-    new.jobs_completed := 0;
+    new.status          := 'pending';
+    new.verified_at     := null;
+    new.rating_avg      := 0;
+    new.jobs_completed  := 0;
+    new.commission_rate := null;
   else
-    new.status         := old.status;
-    new.verified_at    := old.verified_at;
-    new.rating_avg     := old.rating_avg;
-    new.jobs_completed := old.jobs_completed;
+    new.status          := old.status;
+    new.verified_at     := old.verified_at;
+    new.rating_avg      := old.rating_avg;
+    new.jobs_completed  := old.jobs_completed;
+    -- What Karighar charges them is Karighar's to set, not theirs.
+    new.commission_rate := old.commission_rate;
   end if;
   return new;
 end; $$;
@@ -569,10 +639,22 @@ begin
   if tg_op = 'INSERT' then
     raise exception 'Business accounts are granted by Karighar';
   end if;
-  new.status         := old.status;
-  new.rating_avg     := old.rating_avg;
-  new.jobs_completed := old.jobs_completed;
-  new.created_at     := old.created_at;
+
+  new.status           := old.status;
+  new.verified_at      := old.verified_at;
+  new.rating_avg       := old.rating_avg;
+  new.jobs_completed   := old.jobs_completed;
+  new.created_at       := old.created_at;
+  -- Identity and premises: recorded by the admin who granted the account.
+  new.cnic_no          := old.cnic_no;
+  new.cnic_front_url   := old.cnic_front_url;
+  new.cnic_back_url    := old.cnic_back_url;
+  new.owner_selfie_url := old.owner_selfie_url;
+  new.address          := old.address;
+  new.lat              := old.lat;
+  new.lng              := old.lng;
+  -- What Karighar charges them is Karighar's to set.
+  new.commission_rate  := old.commission_rate;
   return new;
 end; $$;
 create trigger businesses_guard_cols before insert or update on businesses
@@ -613,6 +695,49 @@ end; $$;
 -- ---------- Price / commission integrity on job creation ----------
 -- Price and commission are derived from the catalog, never trusted from the
 -- client, plus a simple anti-spam cap on bookings per customer.
+-- ---------- Commission resolution ----------
+-- Two levels: a platform default per job type, and an optional per-account
+-- override on providers/businesses. Null override = follow the default, so
+-- an account an admin never touches behaves exactly as before.
+-- `p_scope` is 'provider' or 'business'. Defaults to 'provider' because the
+-- one caller that cannot know yet — jobs_enforce_insert, at booking time —
+-- is stamping a placeholder for a job nobody is assigned to.
+create or replace function default_commission_rate(
+  p_type  job_type,
+  p_scope text default 'provider'
+)
+returns numeric language sql stable security definer set search_path = public as $$
+  select case
+           when p_scope = 'business' and p_type = 'fixed' then business_fixed
+           when p_scope = 'business'                      then business_custom
+           when p_type  = 'fixed'                         then provider_fixed
+           else                                                provider_custom
+         end
+    from platform_settings where id;
+$$;
+
+-- Whose rate applies follows who is BILLED. On a dispatched job Karighar
+-- bills the business, so a technician override on an attached tech is
+-- correctly ignored — they are not the one paying it.
+create or replace function resolve_commission_rate(
+  p_provider uuid,
+  p_business uuid,
+  p_type     job_type
+)
+returns numeric language plpgsql stable security definer set search_path = public as $$
+declare rate numeric;
+begin
+  if p_business is not null then
+    select b.commission_rate into rate from businesses b where b.profile_id = p_business;
+    return coalesce(rate, default_commission_rate(p_type, 'business'));
+  end if;
+
+  if p_provider is not null then
+    select p.commission_rate into rate from providers p where p.profile_id = p_provider;
+  end if;
+  return coalesce(rate, default_commission_rate(p_type, 'provider'));
+end; $$;
+
 create or replace function jobs_enforce_insert()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare svc services%rowtype; recent int;
@@ -628,13 +753,14 @@ begin
     select * into svc from services where id = new.service_id and is_active = true;
     if not found then raise exception 'That service is not available'; end if;
     new.price := svc.base_price;      -- server-derived; ignore client value
-    new.commission_rate := 0.20;
     new.status := 'created';
   else
     new.price := null;
-    new.commission_rate := 0.15;
     new.status := 'bidding';
   end if;
+  -- A placeholder until a provider is known; jobs_stamp_business re-resolves
+  -- it against whoever is actually billed, and an unassigned job is never paid.
+  new.commission_rate := default_commission_rate(new.type, 'provider');
   return new;
 end; $$;
 create trigger jobs_before_insert before insert on jobs
@@ -643,13 +769,30 @@ create trigger jobs_before_insert before insert on jobs
 -- ---------- Price immutability ----------
 -- A price can be set once (null -> value). Changing one the customer already
 -- agreed to is blocked; admin excepted.
+-- A quote may only be given from on site. `jobs_update_provider` lets the
+-- assigned pro write every column of their own job, so hiding the field in
+-- /pro/jobs/view is cosmetic — the rule belongs next to the price.
+--
+-- Keyed on `auth.uid() = new.provider_id` so it catches the PRO pricing their
+-- own job but not the CUSTOMER awarding a bid, which legitimately writes
+-- price + status='assigned' in one update. Null auth.uid() (service role,
+-- seeds) makes the comparison NULL, so those pass; admins return early.
 create or replace function jobs_lock_price()
 returns trigger language plpgsql set search_path = public as $$
 begin
   if is_admin() then return new; end if;
+
   if new.price is distinct from old.price and old.price is not null then
     raise exception 'Price is locked once it has been set';
   end if;
+
+  if old.price is null
+     and new.price is not null
+     and auth.uid() = new.provider_id
+     and new.status not in ('arrived', 'in_progress') then
+    raise exception 'Mark yourself arrived before setting the price for this job';
+  end if;
+
   return new;
 end; $$;
 create trigger jobs_before_update_price before update on jobs
@@ -680,6 +823,77 @@ end; $$;
 create trigger jobs_before_update_status before update on jobs
   for each row when (old.status is distinct from new.status)
   execute function jobs_enforce_status();
+
+-- `jobs_enforce_status` says which transitions exist. This says who may make
+-- them, and that a customer awarding a quote must be awarding a real one.
+--
+-- Actor map, taken from what the app actually does today rather than invented:
+--   created/bidding -> assigned   customer awarding a bid, or a pro claiming
+--   assigned -> ... -> completed  the assigned pro only
+--   completed -> paid             either party (in COD both know the cash moved)
+--   paid -> rated                 the customer, who writes the review
+--   -> cancelled / disputed       either party
+--
+-- A null auth.uid() passes through untouched: that is the service role, the
+-- seed scripts, and SECURITY DEFINER RPCs such as business_assign_job, which
+-- do their own authorisation.
+create or replace function jobs_guard_actor()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); ok boolean;
+begin
+  if uid is null or is_admin() then return new; end if;
+
+  -- ========== the customer ==========
+  if uid = old.customer_id then
+    -- Awarding a quote. The provider AND the amount must both come from a
+    -- live bid on THIS job, so a customer cannot name a pro who never
+    -- quoted, nor accept at a figure the pro never offered.
+    if new.provider_id is distinct from old.provider_id
+       or new.price is distinct from old.price then
+      if new.provider_id is null then
+        raise exception 'A job cannot be unassigned';
+      end if;
+      select exists (
+        select 1 from bids b
+        where b.job_id = new.id
+          and b.provider_id = new.provider_id
+          and b.amount = new.price
+          and b.status in ('pending', 'awarded')
+      ) into ok;
+      if not ok then
+        raise exception 'That quote is not on offer for this job';
+      end if;
+    end if;
+
+    if new.status is distinct from old.status
+       and new.status not in ('assigned', 'cancelled', 'paid', 'rated', 'disputed') then
+      raise exception 'Only the assigned pro can move a job to %', new.status;
+    end if;
+    return new;
+  end if;
+
+  -- ========== the assigned pro (or one claiming an open job) ==========
+  if uid = new.provider_id then
+    if new.customer_id is distinct from old.customer_id then
+      raise exception 'A job cannot be moved to another customer';
+    end if;
+    if new.status is distinct from old.status
+       and new.status not in ('assigned', 'en_route', 'arrived', 'in_progress',
+                              'completed', 'paid', 'cancelled', 'disputed') then
+      raise exception 'A pro cannot move a job to %', new.status;
+    end if;
+    return new;
+  end if;
+
+  return new;
+end; $$;
+
+-- Runs after jobs_enforce_status (alphabetical among BEFORE triggers), so the
+-- transition is already known to be legal by the time the actor is checked.
+drop trigger if exists jobs_guard_actor_t on jobs;
+create trigger jobs_guard_actor_t before update on jobs
+  for each row execute function jobs_guard_actor();
+
 
 -- ---------- Review integrity ----------
 create or replace function reviews_enforce()
@@ -734,46 +948,43 @@ create trigger customer_reviews_before_insert before insert on customer_reviews
 create or replace function jobs_on_paid()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare amt numeric; commission numeric; payout numeric;
-        tech_cut numeric; biz_cut numeric;
+        tech_cut numeric; biz_cut numeric; booked int;
 begin
   amt        := coalesce(new.price, 0);
   commission := round(amt * new.commission_rate, 2);
   payout     := amt - commission;
 
-  if exists (select 1 from payments where job_id = new.id) then return new; end if;
-
   -- `provider_payout` means what the PERSON WHO DID THE WORK ends up with.
-  -- On a dispatched job that is their agreed share, not price-minus-
-  -- commission — the commission is the business's bill, not theirs. Nothing
-  -- reads this column today, so getting it wrong would have been invisible
-  -- until the first export or reconciliation trusted it.
+  -- On a dispatched job that is their agreed share: the commission is the
+  -- business's bill, not theirs.
   if new.business_id is not null then
     payout := round(amt * coalesce(new.tech_share, 0), 2);
   end if;
 
+  -- The unique constraint is the authority now; the read is gone. If a row
+  -- already exists this books nothing and returns, so a re-entry (an admin
+  -- moving disputed -> paid, say) cannot double-charge.
   insert into payments(job_id, amount, method, commission, provider_payout, status)
-    values (new.id, amt, 'cod', commission, payout, 'collected');
+    values (new.id, amt, 'cod', commission, payout, 'collected')
+    on conflict (job_id) do nothing;
+  get diagnostics booked = row_count;
+  if booked = 0 then return new; end if;
 
   if new.provider_id is null then return new; end if;
 
   if new.business_id is null then
-    -- Independent technician: byte-for-byte the previous behaviour.
     insert into provider_ledger(provider_id, job_id, type, amount, balance) values
       (new.provider_id, new.id, 'earning',    payout,      0),
       (new.provider_id, new.id, 'commission', -commission, 0);
     return new;
   end if;
 
-  -- Business-dispatched. The technician physically collected `amt` in cash;
-  -- tech_share was frozen onto the job at assignment.
-  tech_cut := round(amt * coalesce(new.tech_share, 0), 2);
-  biz_cut  := amt - tech_cut;   -- what the technician owes their business
+  tech_cut := payout;
+  biz_cut  := amt - tech_cut;
 
   insert into provider_ledger(provider_id, job_id, type, amount, balance) values
-    -- technician: keeps their cut, owes the business the rest, owes Karighar nothing
     (new.provider_id, new.id, 'earning',        tech_cut,    0),
     (new.provider_id, new.id, 'business_share', -biz_cut,    0),
-    -- business: receivable from the technician, and Karighar's commission
     (new.business_id, new.id, 'business_share', biz_cut,     0),
     (new.business_id, new.id, 'commission',     -commission, 0);
   return new;
@@ -802,10 +1013,14 @@ create trigger jobs_after_paid after update on jobs
 -- their behaviour is untouched.
 create or replace function jobs_stamp_business()
 returns trigger language plpgsql security definer set search_path = public as $$
-declare biz uuid; share numeric(4,3);
+declare biz uuid; share numeric(4,3); admin_set boolean := false;
 begin
   if tg_op = 'UPDATE' then
-    -- Platform-owned on `jobs`, in every case. An admin may still override.
+    -- An admin may set a one-off rate on a single job; remember that they
+    -- did so before the coercion below, so re-deriving does not undo it.
+    admin_set := is_admin() and new.commission_rate is distinct from old.commission_rate;
+
+    -- Platform-owned on `jobs`, in every other case.
     if not is_admin() then
       new.commission_rate := old.commission_rate;
     end if;
@@ -839,6 +1054,12 @@ begin
   -- Both stay null for an independent pro, so their behaviour is unchanged.
   new.business_id := biz;
   new.tech_share  := share;
+
+  -- The rate this account actually gets, frozen onto the job from here on —
+  -- raising it tomorrow must not re-price work already done.
+  if not admin_set then
+    new.commission_rate := resolve_commission_rate(new.provider_id, biz, new.type);
+  end if;
   return new;
 end; $$;
 create trigger jobs_stamp_business_t before insert or update on jobs
@@ -846,14 +1067,79 @@ create trigger jobs_stamp_business_t before insert or update on jobs
 
 -- Admin records a commission settlement (the Pro — or the business —
 -- remitted it).
+create or replace function commission_outstanding(p_account uuid)
+returns numeric language sql security definer stable set search_path = public as $$
+  select round(coalesce(sum(
+    case when type = 'commission'            then abs(amount)
+         when type in ('payout','adjustment') then -amount
+         else 0 end), 0), 2)
+  from provider_ledger where provider_id = p_account;
+$$;
+
 create or replace function record_settlement(p_provider uuid, p_amount numeric)
 returns void language plpgsql security definer set search_path = public as $$
+declare owed numeric;
 begin
   if not is_admin() then raise exception 'admins only'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'amount must be positive'; end if;
+
+  -- Was unbounded. summarizeLedger clamps commissionOwed at zero, so an
+  -- overshoot showed as a clean settled balance rather than a credit — which
+  -- meant arbitrary commission debt could be extinguished with no visible
+  -- trace. The half-paisa tolerance absorbs numeric(10,2) rounding.
+  owed := commission_outstanding(p_provider);
+  if p_amount > owed + 0.005 then
+    raise exception 'That is more than the % outstanding on this account', round(owed, 2);
+  end if;
+
   insert into provider_ledger(provider_id, job_id, type, amount, balance)
-  values (p_provider, null, 'payout', p_amount, 0);  -- 'payout' = settlement recorded
+  values (p_provider, null, 'payout', p_amount, 0);
 end; $$;
+
+create or replace function record_settlement(p_provider uuid, p_amount numeric)
+returns void language plpgsql security definer set search_path = public as $$
+declare owed numeric;
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'amount must be positive'; end if;
+
+  -- Was unbounded. summarizeLedger clamps commissionOwed at zero, so an
+  -- overshoot showed as a clean settled balance rather than a credit — which
+  -- meant arbitrary commission debt could be extinguished with no visible
+  -- trace. The half-paisa tolerance absorbs numeric(10,2) rounding.
+  owed := commission_outstanding(p_provider);
+  if p_amount > owed + 0.005 then
+    raise exception 'That is more than the % outstanding on this account', round(owed, 2);
+  end if;
+
+  insert into provider_ledger(provider_id, job_id, type, amount, balance)
+  values (p_provider, null, 'payout', p_amount, 0);
+end; $$;
+
+-- `profiles` has no email column — the address lives in auth.users, which the
+-- anon key cannot read. This lets an ADMIN resolve the email behind accounts
+-- they are already looking at, so /admin/providers and /admin/businesses can
+-- be searched by it. It takes ids, never a search string: a lookup keyed on
+-- an email would answer "does this person have an account here?" for anyone
+-- who could reach it. The cap stops it becoming an export endpoint.
+create or replace function admin_emails(p_ids uuid[])
+returns table (id uuid, email text)
+language plpgsql security definer set search_path = public, auth as $$
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if p_ids is null or array_length(p_ids, 1) is null then return; end if;
+  if array_length(p_ids, 1) > 500 then
+    raise exception 'Too many ids in one lookup';
+  end if;
+
+  return query
+    select u.id, u.email::text
+    from auth.users u
+    where u.id = any(p_ids);
+end; $$;
+
+revoke all on function admin_emails(uuid[]) from public;
+grant execute on function admin_emails(uuid[]) to authenticated, service_role;
 
 -- ============================================================
 -- Business RPCs
@@ -873,17 +1159,71 @@ end; $$;
 -- is a dispatcher and never works jobs, and roleOf() resolves 'business'
 -- ahead of 'provider', so granting one to a working pro would strip them of
 -- their own dashboard.
-create or replace function grant_business_account(p_profile uuid)
+create or replace function grant_business_account(
+  p_profile uuid,
+  p_cnic    text,
+  p_address text,
+  p_lat     double precision,
+  p_lng     double precision
+)
 returns void language plpgsql security definer set search_path = public as $$
+declare digits text;
 begin
   if not is_admin() then raise exception 'admins only'; end if;
+
   if exists (select 1 from providers p
              where p.profile_id = p_profile and p.status = 'approved') then
     raise exception 'That account is an approved technician. A business is a dispatcher and cannot also work jobs.';
   end if;
-  insert into businesses(profile_id) values (p_profile)
-    on conflict (profile_id) do update set status = 'active';
+
+  digits := regexp_replace(coalesce(p_cnic, ''), '\D', '', 'g');
+  if length(digits) <> 13 then
+    raise exception 'A business needs the owner''s 13-digit CNIC';
+  end if;
+  if coalesce(btrim(p_address), '') = '' then
+    raise exception 'A business needs the address of its premises';
+  end if;
+  if p_lat is null or p_lng is null then
+    raise exception 'A business needs its premises pinned on the map';
+  end if;
+
+  insert into businesses(profile_id, status, cnic_no, address, lat, lng, verified_at)
+  values (p_profile, 'active', btrim(p_cnic), btrim(p_address), p_lat, p_lng, now())
+  on conflict (profile_id) do update
+    set status      = 'active',
+        cnic_no     = excluded.cnic_no,
+        address     = excluded.address,
+        lat         = excluded.lat,
+        lng         = excluded.lng,
+        verified_at = now();
+
   update profiles set role = 'business' where id = p_profile;
+end; $$;
+
+create or replace function update_business_details(
+  p_profile uuid,
+  p_cnic    text,
+  p_address text,
+  p_lat     double precision,
+  p_lng     double precision
+)
+returns void language plpgsql security definer set search_path = public as $$
+declare digits text;
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if not exists (select 1 from businesses where profile_id = p_profile) then
+    raise exception 'No such business';
+  end if;
+
+  digits := regexp_replace(coalesce(p_cnic, ''), '\D', '', 'g');
+  if length(digits) <> 13 then raise exception 'Enter the owner''s 13-digit CNIC'; end if;
+  if coalesce(btrim(p_address), '') = '' then raise exception 'Enter the premises address'; end if;
+  if p_lat is null or p_lng is null then raise exception 'Pin the premises on the map'; end if;
+
+  update businesses
+     set cnic_no = btrim(p_cnic), address = btrim(p_address),
+         lat = p_lat, lng = p_lng, verified_at = now()
+   where profile_id = p_profile;
 end; $$;
 
 create or replace function set_business_status(p_profile uuid, p_status business_status)
@@ -891,6 +1231,60 @@ returns void language plpgsql security definer set search_path = public as $$
 begin
   if not is_admin() then raise exception 'admins only'; end if;
   update businesses set status = p_status where profile_id = p_profile;
+end; $$;
+
+-- ---------- Commission, as the admin sets it ----------
+-- One account kind at a time, because the two cards live on two different
+-- admin tabs and neither should silently rewrite the other's rates.
+create or replace function set_platform_commission(
+  p_scope  text,
+  p_fixed  numeric,
+  p_custom numeric
+)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if p_scope not in ('provider', 'business') then
+    raise exception 'Scope must be provider or business';
+  end if;
+  if p_fixed is null or p_custom is null then
+    raise exception 'Both rates are required';
+  end if;
+  if p_fixed < 0 or p_fixed > 1 or p_custom < 0 or p_custom > 1 then
+    raise exception 'A commission rate is a fraction between 0 and 1';
+  end if;
+
+  update platform_settings
+     set provider_fixed  = case when p_scope = 'provider' then round(p_fixed, 3)  else provider_fixed  end,
+         provider_custom = case when p_scope = 'provider' then round(p_custom, 3) else provider_custom end,
+         business_fixed  = case when p_scope = 'business' then round(p_fixed, 3)  else business_fixed  end,
+         business_custom = case when p_scope = 'business' then round(p_custom, 3) else business_custom end,
+         updated_at = now(),
+         updated_by = auth.uid()
+   where id;
+end; $$;
+
+-- One entry point for both account kinds, so the admin screens don't have to
+-- know which table an id lives in. Null clears the override.
+create or replace function set_account_commission(p_profile uuid, p_rate numeric)
+returns void language plpgsql security definer set search_path = public as $$
+declare is_biz boolean; is_pro boolean;
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if p_rate is not null and (p_rate < 0 or p_rate > 1) then
+    raise exception 'A commission rate is a fraction between 0 and 1';
+  end if;
+
+  select exists (select 1 from businesses where profile_id = p_profile) into is_biz;
+  select exists (select 1 from providers  where profile_id = p_profile) into is_pro;
+
+  if is_biz then
+    update businesses set commission_rate = round(p_rate, 3) where profile_id = p_profile;
+  elsif is_pro then
+    update providers  set commission_rate = round(p_rate, 3) where profile_id = p_profile;
+  else
+    raise exception 'That account is neither a technician nor a business';
+  end if;
 end; $$;
 
 -- Invite an existing, approved technician by phone. The lookup lives in here
@@ -1117,24 +1511,168 @@ end; $$;
 -- it, which is why it is the BUSINESS that calls it, not an admin.
 --
 -- Any membership status: you settle up with people who have already left.
+create or replace function business_share_outstanding(p_provider uuid)
+returns numeric language sql security definer stable set search_path = public as $$
+  select round(-coalesce(sum(amount), 0), 2)
+  from provider_ledger
+  where provider_id = p_provider and type = 'business_share';
+$$;
+
 create or replace function business_settle_with_tech(p_provider uuid, p_amount numeric)
 returns void language plpgsql security definer set search_path = public as $$
-declare biz uuid := auth.uid();
+declare biz uuid := auth.uid(); owed numeric;
 begin
   if not is_active_business() then raise exception 'Not a business account'; end if;
   if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+
+  -- Was existence-only, so 'invited', 'declined' and 'removed' all passed —
+  -- and business_invite_technician creates an 'invited' row without the
+  -- technician's consent. A business could therefore mint a membership
+  -- against any approved technician and write ledger rows referencing them.
   if not exists (select 1 from business_members m
-                 where m.business_id = biz and m.provider_id = p_provider) then
+                 where m.business_id = biz and m.provider_id = p_provider
+                   and m.status = 'active') then
     raise exception 'Not one of your technicians';
   end if;
 
+  owed := business_share_outstanding(p_provider);
+  if p_amount > owed + 0.005 then
+    raise exception 'That is more than the % they still owe you', round(owed, 2);
+  end if;
+
   insert into provider_ledger(provider_id, job_id, type, amount, balance) values
-    (p_provider, null, 'business_share',  p_amount, 0),   -- clears their debt
-    (biz,        null, 'business_share', -p_amount, 0);   -- clears the receivable
+    (p_provider, null, 'business_share',  p_amount, 0),
+    (biz,        null, 'business_share', -p_amount, 0);
 end; $$;
 
-revoke all on function grant_business_account(uuid)                       from public;
+create or replace function business_settle_with_tech(p_provider uuid, p_amount numeric)
+returns void language plpgsql security definer set search_path = public as $$
+declare biz uuid := auth.uid(); owed numeric;
+begin
+  if not is_active_business() then raise exception 'Not a business account'; end if;
+  if p_amount is null or p_amount <= 0 then raise exception 'Amount must be positive'; end if;
+
+  -- Was existence-only, so 'invited', 'declined' and 'removed' all passed —
+  -- and business_invite_technician creates an 'invited' row without the
+  -- technician's consent. A business could therefore mint a membership
+  -- against any approved technician and write ledger rows referencing them.
+  if not exists (select 1 from business_members m
+                 where m.business_id = biz and m.provider_id = p_provider
+                   and m.status = 'active') then
+    raise exception 'Not one of your technicians';
+  end if;
+
+  owed := business_share_outstanding(p_provider);
+  if p_amount > owed + 0.005 then
+    raise exception 'That is more than the % they still owe you', round(owed, 2);
+  end if;
+
+  insert into provider_ledger(provider_id, job_id, type, amount, balance) values
+    (p_provider, null, 'business_share',  p_amount, 0),
+    (biz,        null, 'business_share', -p_amount, 0);
+end; $$;
+
+-- The product promises "a re-visit or a refund" in two places and the ledger
+-- had no way to issue one: a dispute changed a text column and nothing else,
+-- so the technician kept owing commission on money they had handed back.
+--
+-- Reversal rows are derived from the PAYMENTS row, not recomputed from the
+-- job, so a reversal always mirrors exactly what was booked even if the job
+-- has since been edited by an admin.
+--
+-- Why 'adjustment' for the commission leg rather than a positive 'commission'
+-- row: summarizeLedger takes abs() of commission, so an opposite-signed
+-- commission row would ADD to the gross instead of cancelling it.
+-- 'adjustment' counts toward `settled`, which is exactly the required effect.
+create or replace function reverse_job_charges(p_job uuid, p_reason text)
+returns void language plpgsql security definer set search_path = public as $$
+declare j jobs%rowtype; pay payments%rowtype; biz_cut numeric;
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+  if p_reason is null or length(btrim(p_reason)) < 3 then
+    raise exception 'Give a reason for the reversal';
+  end if;
+
+  select * into j from jobs where id = p_job for update;
+  if not found then raise exception 'Job not found'; end if;
+
+  select * into pay from payments where job_id = p_job for update;
+  if not found then raise exception 'That job was never paid, so there is nothing to reverse'; end if;
+
+  -- Idempotent: one reversal per job, so a dispute reopened twice cannot
+  -- reverse twice.
+  if exists (select 1 from provider_ledger where job_id = p_job and type = 'adjustment') then
+    raise exception 'That job has already been reversed';
+  end if;
+
+  if j.business_id is null then
+    insert into provider_ledger(provider_id, job_id, type, amount, balance) values
+      (j.provider_id, p_job, 'earning',    -pay.provider_payout, 0),
+      (j.provider_id, p_job, 'adjustment',  pay.commission,      0);
+  else
+    biz_cut := pay.amount - pay.provider_payout;
+    insert into provider_ledger(provider_id, job_id, type, amount, balance) values
+      (j.provider_id, p_job, 'earning',        -pay.provider_payout, 0),
+      (j.provider_id, p_job, 'business_share',  biz_cut,             0),
+      (j.business_id, p_job, 'business_share', -biz_cut,             0),
+      (j.business_id, p_job, 'adjustment',      pay.commission,      0);
+  end if;
+
+  update payments set status = 'refunded' where job_id = p_job;
+
+  update disputes
+     set resolution = coalesce(resolution || ' | ', '') || 'Reversed: ' || btrim(p_reason)
+   where job_id = p_job;
+end; $$;
+
+-- `payments` was write-only: nothing in the app ever read it, so nothing
+-- compared it to `provider_ledger`. A function rather than a view, so it can
+-- be gated on is_admin() — views carry no RLS of their own.
+create or replace function admin_reconciliation()
+returns table (
+  paid_without_payment  bigint,
+  duplicate_payments    bigint,
+  payments_commission   numeric,
+  ledger_commission     numeric,
+  commission_delta      numeric,
+  stranded_completed    bigint,
+  stranded_value        numeric
+)
+language plpgsql security definer set search_path = public as $$
+declare pc numeric; lc numeric;
+begin
+  if not is_admin() then raise exception 'admins only'; end if;
+
+  select coalesce(sum(commission), 0) into pc
+    from payments where status <> 'refunded';
+
+  -- Commission raised, net of anything reversed. A reversal books an
+  -- 'adjustment' rather than a negative 'commission', so both legs have to be
+  -- counted for the two sides to agree.
+  select coalesce(sum(case when type = 'commission' then abs(amount) else 0 end), 0)
+       - coalesce(sum(case when type = 'adjustment' then amount else 0 end), 0)
+    into lc from provider_ledger;
+
+  return query select
+    (select count(*) from jobs j
+      where j.status in ('paid', 'rated')
+        and not exists (select 1 from payments p where p.job_id = j.id)),
+    (select count(*) from (
+       select job_id from payments group by job_id having count(*) > 1) d),
+    round(pc, 2),
+    round(lc, 2),
+    round(pc - lc, 2),
+    -- Commission is only ever booked on the move to `paid`. A job left at
+    -- `completed` was done and settled in cash with nothing owed to Karighar.
+    (select count(*) from jobs
+      where status = 'completed' and updated_at < now() - interval '3 days'),
+    (select coalesce(sum(price), 0) from jobs
+      where status = 'completed' and updated_at < now() - interval '3 days');
+end; $$;
+
+revoke all on function grant_business_account(uuid, text, text, double precision, double precision) from public;
 revoke all on function set_business_status(uuid, business_status)         from public;
+revoke all on function update_business_details(uuid, text, text, double precision, double precision) from public;
 revoke all on function business_invite_technician(text, numeric)          from public;
 revoke all on function business_respond_invite(uuid, boolean)             from public;
 revoke all on function business_set_share(uuid, numeric)                  from public;
@@ -1143,9 +1681,22 @@ revoke all on function business_assign_job(uuid, uuid)                    from p
 revoke all on function business_reassign_job(uuid, uuid)                  from public;
 revoke all on function business_place_bid(uuid, uuid, numeric, text, int) from public;
 revoke all on function business_settle_with_tech(uuid, numeric)             from public;
+revoke all on function reverse_job_charges(uuid, text)                      from public;
+revoke all on function commission_outstanding(uuid)                         from public;
+revoke all on function business_share_outstanding(uuid)                     from public;
+revoke all on function admin_reconciliation()                               from public;
+revoke all on function set_platform_commission(text, numeric, numeric)      from public;
+revoke all on function set_account_commission(uuid, numeric)                from public;
+revoke all on function default_commission_rate(job_type, text)              from public;
+revoke all on function resolve_commission_rate(uuid, uuid, job_type)        from public;
 
-grant execute on function grant_business_account(uuid)                       to authenticated, service_role;
+grant execute on function grant_business_account(uuid, text, text, double precision, double precision) to authenticated, service_role;
 grant execute on function set_business_status(uuid, business_status)         to authenticated, service_role;
+grant execute on function set_platform_commission(text, numeric, numeric)    to authenticated, service_role;
+grant execute on function set_account_commission(uuid, numeric)              to authenticated, service_role;
+grant execute on function default_commission_rate(job_type, text)            to authenticated, service_role;
+grant execute on function resolve_commission_rate(uuid, uuid, job_type)      to authenticated, service_role;
+grant execute on function update_business_details(uuid, text, text, double precision, double precision) to authenticated, service_role;
 grant execute on function business_invite_technician(text, numeric)          to authenticated, service_role;
 grant execute on function business_respond_invite(uuid, boolean)             to authenticated, service_role;
 grant execute on function business_set_share(uuid, numeric)                  to authenticated, service_role;
@@ -1154,6 +1705,10 @@ grant execute on function business_assign_job(uuid, uuid)                    to 
 grant execute on function business_reassign_job(uuid, uuid)                  to authenticated, service_role;
 grant execute on function business_place_bid(uuid, uuid, numeric, text, int) to authenticated, service_role;
 grant execute on function business_settle_with_tech(uuid, numeric)             to authenticated, service_role;
+grant execute on function reverse_job_charges(uuid, text)                      to authenticated, service_role;
+grant execute on function commission_outstanding(uuid)                         to authenticated, service_role;
+grant execute on function business_share_outstanding(uuid)                     to authenticated, service_role;
+grant execute on function admin_reconciliation()                               to authenticated, service_role;
 
 -- ---------- Notifications on job / bid changes ----------
 -- new.status is an enum; cast before replace(), which has no enum overload.
@@ -1257,6 +1812,15 @@ alter table notifications      enable row level security;
 alter table house_promos       enable row level security;
 alter table businesses         enable row level security;
 alter table business_members   enable row level security;
+alter table business_services  enable row level security;
+alter table platform_settings  enable row level security;
+
+-- Platform knobs. Readable by any signed-in account: a pro already sees the
+-- commission on every one of their own jobs in /pro/history, so the rate is
+-- not a secret. Writes are admin-only and go through set_platform_commission.
+create policy settings_read  on platform_settings for select to authenticated using (true);
+create policy settings_admin on platform_settings for all
+  using (is_admin()) with check (is_admin());
 
 -- Profiles: everyone reads own; admin reads all; owner updates own.
 create policy profiles_self  on profiles for select using (id = auth.uid() or is_admin());
@@ -1307,6 +1871,9 @@ create policy prov_self on providers for all using (profile_id = auth.uid() or i
   with check (profile_id = auth.uid() or is_admin());
 create policy provsvc_self on provider_services for all using (provider_id = auth.uid() or is_admin())
   with check (provider_id = auth.uid() or is_admin());
+create policy bizsvc_self on business_services for all
+  using (business_id = auth.uid() or is_admin())
+  with check (business_id = auth.uid() or is_admin());
 
 -- Businesses: granted by Karighar, so there is deliberately NO insert policy
 -- for `authenticated`. The owner may edit presentation (about, service_areas)
@@ -1559,6 +2126,8 @@ create or replace view public_business_profiles as
          b.rating_avg,
          b.jobs_completed,
          b.service_areas,
+         b.lat,
+         b.lng,
          (select count(*) from business_members m
            where m.business_id = b.profile_id and m.status = 'active') as team_size
   from businesses b
@@ -1573,6 +2142,37 @@ exception when others then
 end $$;
 
 grant select on public_business_profiles to anon, authenticated;
+
+-- What each business covers. `business_services` is owner/admin-only
+-- (bizsvc_self), the same shape as provider_services — but unlike a
+-- technician, a business is a PLACE, and a pin on a map says nothing without
+-- the trade behind it, so the association goes out through a view.
+--
+-- Nothing here is new information: `services` and `service_categories` are
+-- already world-readable (svc_read / cat_read are both `using (true)`). The
+-- view publishes only which active business covers which live service.
+create or replace view public_business_services as
+  select bs.business_id,
+         s.id         as service_id,
+         s.name       as service_name,
+         c.id         as category_id,
+         c.name       as category_name,
+         c.icon       as category_icon,
+         c.sort_order as category_sort
+  from business_services bs
+  join businesses b         on b.profile_id = bs.business_id
+  join services s           on s.id = bs.service_id
+  join service_categories c on c.id = s.category_id
+  where b.status = 'active' and s.is_active and c.is_active;
+
+do $$
+begin
+  execute 'alter view public_business_services set (security_invoker = off)';
+exception when others then
+  raise notice 'security_invoker unsupported here; owner rights are the default';
+end $$;
+
+grant select on public_business_services to anon, authenticated;
 
 -- The reviews behind that rating. A customer cannot assemble this himself:
 -- `rev_read` is `using (true)` so reviews are public, but a business's
@@ -1618,6 +2218,30 @@ grant select on public_business_reviews to anon, authenticated;
 insert into storage.buckets (id, name, public)
   values ('verification', 'verification', false)
   on conflict (id) do nothing;
+
+-- Profile pictures, in a SEPARATE and public bucket. An avatar shows next to
+-- a pro on /map and on a public company profile, both of which an anonymous
+-- visitor can open, so the object has to be world-readable — which is
+-- exactly why it must not share the verification bucket with CNIC scans.
+insert into storage.buckets (id, name, public)
+  values ('avatars', 'avatars', true)
+  on conflict (id) do update set public = true;
+
+drop policy if exists avatars_read on storage.objects;
+create policy avatars_read on storage.objects for select
+  using (bucket_id = 'avatars');
+drop policy if exists avatars_own_write on storage.objects;
+create policy avatars_own_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+-- Needed as well as insert: the client uploads with `upsert: true`, which is
+-- an UPDATE once the object exists.
+drop policy if exists avatars_own_update on storage.objects;
+create policy avatars_own_update on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists avatars_own_delete on storage.objects;
+create policy avatars_own_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Providers upload/read their own files; admins read all.
 -- `storage` lives outside the public schema, so these survive a

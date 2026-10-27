@@ -131,7 +131,7 @@ export default function HomeScreen() {
       <Scroll>
         <header className="hh">
           <Link className="who" href={user ? "/profile" : "/signin"}>
-            <Ava name={profile?.full_name ?? user?.email ?? null} />
+            <Ava name={profile?.full_name ?? user?.email ?? null} src={profile?.avatar_url} />
             <div>
               <small>Salaam 👋</small>
               <b>{profile?.full_name || (user ? "Your profile" : "Welcome")}</b>
@@ -288,7 +288,7 @@ export default function HomeScreen() {
             <div className="hrow">
               {pros.slice(0, 6).map((p) => (
                 <Link key={p.id} className="pro-card" href={`/providers/view/?id=${p.id}`}>
-                  <Ava name={proName(p)} size="lg" />
+                  <Ava name={proName(p)} src={p.avatar_url} size="lg" />
                   <div>
                     <b>{proName(p)}</b>
                     <small>{p.service_areas?.[0] ?? "Karachi"}</small>

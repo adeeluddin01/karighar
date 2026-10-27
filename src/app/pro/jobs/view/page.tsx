@@ -138,6 +138,11 @@ function ProJobDetailContent() {
     setBusy(false);
   }
 
+  // A quote can only be given from on site. 'completed' is excluded too:
+  // advance() already refuses to complete a job with no price, so the only
+  // way to be there unpriced is an admin override.
+  const canPrice = job ? ["arrived", "in_progress"].includes(job.status) : false;
+
   async function setPrice() {
     const value = Number(priceInput);
     if (!value || value <= 0) {
@@ -311,28 +316,42 @@ function ProJobDetailContent() {
 
         {/* ---------- right ---------- */}
         <div className="flex flex-col gap-5">
-          {/* Quote job: Pro sets the final price once (then it's locked) */}
+          {/* Quote job: the Pro sets the final price once (then it's locked),
+              and only once they are on site. Quoting from `assigned` means
+              pricing work you have not seen, and the customer is then held to
+              that figure. The database enforces the same window — this is the
+              explanation, not the gate. */}
           {job.price == null && !["rated", "paid", "cancelled"].includes(job.status) && (
-            <Card className="bg-warning-light">
-              <p className="text-sm font-semibold text-warning-foreground">This job needs a price</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Inspect the work, then set the final price for the customer.
-              </p>
-              <div className="mt-3 space-y-2">
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="Final price"
-                  prefix="Rs"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  aria-label="Final price"
-                />
-                <Button disabled={busy} className="w-full" onClick={setPrice}>
-                  Set price
-                </Button>
-              </div>
-            </Card>
+            canPrice ? (
+              <Card className="bg-warning-light">
+                <p className="text-sm font-semibold text-warning-foreground">This job needs a price</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Inspect the work, then set the final price for the customer.
+                </p>
+                <div className="mt-3 space-y-2">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="Final price"
+                    prefix="Rs"
+                    value={priceInput}
+                    onChange={(e) => setPriceInput(e.target.value)}
+                    aria-label="Final price"
+                  />
+                  <Button disabled={busy} className="w-full" onClick={setPrice}>
+                    Set price
+                  </Button>
+                </div>
+              </Card>
+            ) : (
+              <Card>
+                <p className="text-sm font-semibold">Price after you arrive</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This is a quote job. Mark yourself <strong>Arrived</strong> and take a look at
+                  the work first — you can set the final price from here then.
+                </p>
+              </Card>
+            )
           )}
 
           {/* Next action */}

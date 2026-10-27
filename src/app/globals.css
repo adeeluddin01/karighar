@@ -396,6 +396,7 @@ body {
 .legacy-ui .field .pre {
   font-weight: 500;
   color: var(--muted-foreground);
+  flex: none;
 }
 .legacy-ui .field.err {
   border-color: var(--destructive);
@@ -513,6 +514,18 @@ body {
   color: var(--primary-foreground);
   font-weight: 700;
   flex-shrink: 0;
+  /* The picture is absolutely placed over the initials, so the well needs a
+     containing block and has to clip the image back to a circle. */
+  position: relative;
+  overflow: hidden;
+}
+.legacy-ui .avatar .avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 .legacy-ui .avatar.sm {
   width: 2.2rem;

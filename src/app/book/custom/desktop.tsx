@@ -130,7 +130,10 @@ export default function CustomJobPage() {
     const catName = cats.find((c) => c.id === categoryId)?.name ?? "Custom job";
 
     await supabase.from("customers").upsert(
-      { profile_id: userId, default_address: fullAddress },
+      // lat/lng too, not just the text. The phone lane already saved these;
+      // without them the pin you drop here never becomes your saved location,
+      // so /map and the next booking fall back to the address string alone.
+      { profile_id: userId, default_address: fullAddress, lat: pos?.lat ?? null, lng: pos?.lng ?? null },
       { onConflict: "profile_id" }
     );
 
@@ -148,7 +151,9 @@ export default function CustomJobPage() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: null,
-        commission_rate: 0.15,
+        // No commission_rate: jobs_enforce_insert stamps it from
+        // platform_settings and overwrites whatever the client sends, so a
+        // literal here is dead weight that reads as if the client decided it.
       })
       .select("id")
       .single();

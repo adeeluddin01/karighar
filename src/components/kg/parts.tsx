@@ -20,11 +20,14 @@ export function initials(name?: string | null) {
 /** Round initials avatar, optionally with the leaf verified tick. */
 export function Ava({
   name,
+  src,
   size,
   verified,
   className,
 }: {
   name?: string | null;
+  /** A profile picture. Initials show through if it's absent or fails. */
+  src?: string | null;
   size?: "lg" | "xl";
   verified?: boolean;
   className?: string;
@@ -32,6 +35,19 @@ export function Ava({
   return (
     <span className={clsx("ava", size, className)}>
       {initials(name)}
+      {src && (
+        // Layered over the initials, so a broken URL degrades to them rather
+        // than to a hole. See <Avatar> on the web lane for the same pattern.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          className="ava-img"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
       {verified && (
         <i className="vbadge">
           <KIcon name="check" />

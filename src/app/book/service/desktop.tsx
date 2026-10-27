@@ -182,7 +182,10 @@ function BookServiceContent() {
 
     // Ensure a customer profile row exists (FK target for jobs).
     await supabase.from("customers").upsert(
-      { profile_id: userId, default_address: fullAddress },
+      // lat/lng too, not just the text. The phone lane already saved these;
+      // without them the pin you drop here never becomes your saved location,
+      // so /map and the next booking fall back to the address string alone.
+      { profile_id: userId, default_address: fullAddress, lat: pos?.lat ?? null, lng: pos?.lng ?? null },
       { onConflict: "profile_id" }
     );
 
@@ -200,7 +203,8 @@ function BookServiceContent() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: service.base_price,
-        commission_rate: 0.2,
+        // No commission_rate: jobs_enforce_insert stamps it from
+        // platform_settings and overwrites whatever the client sends.
       })
       .select("id")
       .single();

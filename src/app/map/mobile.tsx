@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/lib/useUser";
 import { Screen, TabBar } from "@/components/kg/Screen";
@@ -9,6 +10,8 @@ import { KIcon } from "@/components/kg/icons";
 import { Ava, EmptyK, Pill, Rate, Skel } from "@/components/kg/parts";
 import { NearbyMap, type MapJob } from "@/components/kg/NearbyMap";
 import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
+import { businessName, fetchBusinessPins, type BusinessPin } from "@/lib/businesses";
+import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
 import { areaOf } from "@/lib/area";
 import type { Job, Service } from "@/lib/types";
@@ -18,7 +21,12 @@ const OPEN: Job["status"][] = ["created", "bidding", "assigned", "en_route", "ar
 
 export default function MapScreen() {
   const { user } = useUser();
+  const router = useRouter();
   const [pros, setPros] = useState<PublicPro[] | null>(null);
+  // Companies are the only thing on this screen with real coordinates, so
+  // they are the only thing that can be pinned. Empty on an installation
+  // with no business accounts, which leaves the map exactly as it was.
+  const [firms, setFirms] = useState<BusinessPin[]>([]);
   const [degraded, setDegraded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [from, setFrom] = useState<number | null>(null);
@@ -31,14 +39,16 @@ export default function MapScreen() {
   const load = useCallback(async () => {
     const supabase = createClient();
     setBusy(true);
-    const [result, { data: services }] = await Promise.all([
+    const [result, { data: services }, pins] = await Promise.all([
       fetchPublicPros(supabase, { limit: 30 }),
       supabase.from("services").select("base_price").eq("is_active", true),
+      fetchBusinessPins(supabase),
     ]);
     const prices = ((services as Pick<Service, "base_price">[]) ?? [])
       .map((s) => s.base_price)
       .filter((p): p is number => p !== null);
     setFrom(prices.length ? Math.min(...prices) : null);
+    setFirms(pins);
     setPros(result.pros);
     setDegraded(result.degraded);
     setError(result.error);
@@ -81,7 +91,13 @@ export default function MapScreen() {
   return (
     <Screen>
       <div className="map">
-        <NearbyMap home={home} jobs={jobs} recenter={recenter} />
+        <NearbyMap
+          home={home}
+          jobs={jobs}
+          businesses={firms}
+          onPickBusiness={(id) => router.push(`/businesses/view/?id=${id}`)}
+          recenter={recenter}
+        />
 
         <div className="map-top">
           <Link className="ic" href="/" aria-label="Back">
@@ -153,7 +169,7 @@ export default function MapScreen() {
           <div className="list">
             {pros.map((p) => (
               <Link key={p.id} className="pro-row card" href={`/providers/view/?id=${p.id}`}>
-                <Ava name={proName(p)} verified />
+                <Ava name={proName(p)} src={p.avatar_url} verified />
                 <div>
                   <b>{proName(p)}</b>
                   <small>
@@ -168,6 +184,50 @@ export default function MapScreen() {
               </Link>
             ))}
           </div>
+        )}
+
+        {/* Companies, below the pros. Nothing renders on an installation
+            with no business accounts, which is every one of them today. */}
+        {firms.length > 0 && (
+          <>
+            <div className="sh-head">
+              <div>
+                <h2>Service companies</h2>
+                <small>
+                  {firms.length} {firms.length === 1 ? "company" : "companies"} pinned on the map
+                </small>
+              </div>
+            </div>
+            <div className="list">
+              {firms.map((f) => (
+                <Link key={f.id} className="pro-row card" href={`/businesses/view/?id=${f.id}`}>
+                  <span className="firm-mark" aria-hidden="true">
+                    <KIcon name={categoryIcon(f.trades[0]?.icon ?? null)} />
+                  </span>
+                  <div>
+                    <b>{businessName(f)}</b>
+                    <span className="trades">
+                      {/* The icons repeat what the pin shows; the names say
+                          what they mean, since a pin cannot. */}
+                      {f.trades.slice(0, 3).map((t) => (
+                        <KIcon key={t.id} name={categoryIcon(t.icon)} />
+                      ))}
+                      <small>
+                        {f.trades.length
+                          ? f.trades.map((t) => t.name).join(" · ")
+                          : "General work"}
+                      </small>
+                    </span>
+                    <Rate
+                      value={f.rating_avg}
+                      suffix={`${f.team_size} on the team`}
+                    />
+                  </div>
+                  <KIcon name="chev-r" className="chev" />
+                </Link>
+              ))}
+            </div>
+          </>
         )}
 
         {pros !== null && pros.length > 0 && (

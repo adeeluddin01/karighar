@@ -421,6 +421,51 @@
     height: 76px;
     font-size: 24px;
   }
+  .kg .kg-hidden {
+    display: none;
+  }
+  /* The avatar well doubles as the picker on this lane. */
+  .kg .ava-pick {
+    position: relative;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    flex: none;
+    display: inline-flex;
+    border-radius: 50%;
+  }
+  .kg .ava-pick:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+  .kg .ava-cam {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--act);
+    color: #fff;
+    border: 2px solid var(--card);
+  }
+  .kg .ava-cam svg {
+    width: 13px;
+    height: 13px;
+  }
+  /* Sits over the initials, clipped to the circle — `.ava` is already
+     `position: relative`, and the verified badge relies on that too. */
+  .kg .ava .ava-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+  }
   .kg .vbadge {
     position: absolute;
     right: -2px;
@@ -1373,6 +1418,40 @@
   .kg .pro-row b {
     display: block;
     font-size: 14px;
+  }
+  /* The trades behind a company's map pin, echoed in its sheet row so the
+     icon on the map is readable rather than a guess. */
+  .kg .trades {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    color: var(--mute);
+  }
+  .kg .trades svg {
+    width: 15px;
+    height: 15px;
+  }
+  .kg .trades small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .kg .firm-mark {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: var(--r-sm);
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--brand-fg);
+  }
+  .kg .firm-mark svg {
+    width: 20px;
+    height: 20px;
   }
   .kg .otp {
     display: flex;

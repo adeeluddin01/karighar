@@ -174,3 +174,41 @@ describe("dispatched jobs (business accounts)", () => {
     expect(s.businessShareNet).toBe(-600);
   });
 });
+
+/* P1-3 from the financial audit: `commissionOwed` clamps at zero, which meant
+   a settlement larger than the balance showed as settled-in-full instead of
+   as a credit. The signed balance is what makes an overshoot visible. */
+describe("over-settlement is visible, not absorbed", () => {
+  it("reports a credit when more was remitted than raised", () => {
+    const s = summarizeLedger([
+      { type: "commission", amount: -350 },
+      { type: "payout", amount: 1000 },
+    ]);
+    expect(s.commissionOwed).toBe(0); // unchanged: screens never show negative debt
+    expect(s.commissionBalance).toBe(-650); // but the overshoot is now legible
+  });
+
+  it("agrees with commissionOwed whenever nothing is over-settled", () => {
+    for (const settled of [0, 100, 350]) {
+      const s = summarizeLedger([
+        { type: "commission", amount: -350 },
+        { type: "payout", amount: settled },
+      ]);
+      expect(s.commissionBalance).toBe(s.commissionOwed);
+    }
+  });
+
+  // A reversal books an 'adjustment', which lands in the same `settled`
+  // bucket as a remittance — so reversing a job returns the balance to zero.
+  it("nets to zero when a job is reversed", () => {
+    const s = summarizeLedger([
+      { type: "earning", amount: 1400 },
+      { type: "commission", amount: -350 },
+      { type: "earning", amount: -1400 }, // reversal legs
+      { type: "adjustment", amount: 350 },
+    ]);
+    expect(s.netEarnings).toBe(0);
+    expect(s.commissionBalance).toBe(0);
+    expect(s.commissionOwed).toBe(0);
+  });
+});

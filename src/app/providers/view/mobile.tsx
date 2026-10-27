@@ -103,7 +103,7 @@ function ProviderProfileContent() {
       <TopBar title={proName(profile)} back="/map" />
       <Scroll underTop pad="cta">
         <div className="me card">
-          <Ava name={proName(profile)} size="xl" verified />
+          <Ava name={proName(profile)} src={profile.avatar_url} size="xl" verified />
           <div>
             <b>{proName(profile)}</b>
             <small>

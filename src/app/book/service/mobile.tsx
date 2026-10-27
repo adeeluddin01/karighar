@@ -272,7 +272,8 @@ function BookServiceContent() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: service.base_price,
-        commission_rate: 0.2,
+        // No commission_rate: jobs_enforce_insert stamps it from
+        // platform_settings and overwrites whatever the client sends.
       })
       .select("id")
       .single();

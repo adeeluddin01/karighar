@@ -84,7 +84,7 @@ export function Sidebar() {
               href="/profile"
               className="flex items-center gap-2.5 rounded-xl p-1.5 hover:bg-secondary"
             >
-              <Avatar name={profile?.full_name || user.email} size="sm" />
+              <Avatar name={profile?.full_name || user.email} src={profile?.avatar_url} size="sm" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
                   {profile?.full_name ?? "Account"}

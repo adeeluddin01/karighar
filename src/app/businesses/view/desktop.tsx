@@ -5,12 +5,19 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Avatar, Card, EmptyState, Pill, Spinner } from "@/components/ui";
+import { BusinessesMap } from "@/components/maps/BusinessesMap";
+import { CATEGORY_ICON_WEB, CATEGORY_ICON_FALLBACK } from "@/lib/catalogIcons";
+import type { IconName } from "@/components/Icon";
 import {
   businessName,
   fetchPublicBusiness,
   type BusinessReview,
+  type BusinessTrade,
   type PublicBusiness,
 } from "@/lib/businesses";
+
+const webIcon = (slug: string | null) =>
+  (CATEGORY_ICON_WEB[slug ?? ""] ?? CATEGORY_ICON_FALLBACK) as IconName;
 
 function Stars({ n }: { n: number }) {
   const filled = Math.round(n || 0);
@@ -26,6 +33,7 @@ function BusinessProfileContent() {
   const id = useSearchParams().get("id") ?? "";
   const [business, setBusiness] = useState<PublicBusiness | null>(null);
   const [reviews, setReviews] = useState<BusinessReview[]>([]);
+  const [trades, setTrades] = useState<BusinessTrade[]>([]);
   // `loading` is DERIVED, not set in the effect: an early `setLoading(false)`
   // for a missing id would be a synchronous setState in an effect body
   // (react-hooks/set-state-in-effect). With no id there is nothing to load,
@@ -42,6 +50,7 @@ function BusinessProfileContent() {
       const res = await fetchPublicBusiness(createClient(), id);
       setBusiness(res.business);
       setReviews(res.reviews);
+      setTrades(res.trades);
       setLoaded(true);
     })();
   }, [id]);
@@ -72,7 +81,7 @@ function BusinessProfileContent() {
     <AppShell width="narrow">
       <Card>
         <div className="flex items-center gap-4">
-          <Avatar name={name} size="lg" />
+          <Avatar name={name} src={business.avatar_url} size="lg" />
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-extrabold tracking-tight">{name}</h1>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -101,6 +110,20 @@ function BusinessProfileContent() {
           </>
         )}
 
+        {trades.length > 0 && (
+          <>
+            <div className="sep" />
+            <p className="text-xs font-semibold text-muted-foreground">What they do</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {trades.map((t) => (
+                <Pill key={t.id} tone="gray" icon={webIcon(t.icon)}>
+                  {t.name}
+                </Pill>
+              ))}
+            </div>
+          </>
+        )}
+
         {business.service_areas?.length > 0 && (
           <>
             <div className="sep" />
@@ -115,6 +138,28 @@ function BusinessProfileContent() {
           </>
         )}
       </Card>
+
+      {/* A company trades from a fixed premises, so where it is is part of
+          who it is — unlike an independent pro, who has no address at all. */}
+      {business.lat != null && business.lng != null && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-xl font-bold tracking-tight">Where they work from</h2>
+          <BusinessesMap
+            firms={[
+              {
+                id: business.id,
+                full_name: business.full_name,
+                rating_avg: business.rating_avg,
+                jobs_completed: business.jobs_completed,
+                team_size: business.team_size,
+                lat: business.lat,
+                lng: business.lng,
+                trades,
+              },
+            ]}
+          />
+        </section>
+      )}
 
       <div className="mt-8 mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">Reviews</h2>

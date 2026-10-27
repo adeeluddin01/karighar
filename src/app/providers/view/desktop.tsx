@@ -76,7 +76,7 @@ function ProviderProfileContent() {
     <AppShell width="narrow">
       <Card>
         <div className="flex items-center gap-4">
-          <Avatar name={profile.full_name} size="lg" />
+          <Avatar name={profile.full_name} src={profile.avatar_url} size="lg" />
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-extrabold tracking-tight">
               {profile.full_name ?? "Provider"}

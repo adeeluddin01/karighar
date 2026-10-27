@@ -48,7 +48,7 @@ export function AppHeader() {
                   className="flex items-center gap-1 rounded-full border border-border py-1 pl-1 pr-2"
                   aria-label="Account"
                 >
-                  <Avatar name={profile?.full_name || user.email} size="sm" />
+                  <Avatar name={profile?.full_name || user.email} src={profile?.avatar_url} size="sm" />
                   <Icon name="chevron" size="sm" className="rotate-90 text-muted-foreground" />
                 </button>
                 {menuOpen && (

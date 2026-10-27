@@ -7,14 +7,27 @@ import { useToast } from "@/components/Toast";
 import { Avatar, Button, Card, EmptyState, Input, KV, Stat, formatPKR } from "@/components/ui";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import type { Profile } from "@/lib/types";
+import { clsx } from "@/lib/clsx";
 
 type Row = { id: string; name: string; phone: string | null; summary: LedgerSummary };
+
+type Recon = {
+  paid_without_payment: number;
+  duplicate_payments: number;
+  payments_commission: number;
+  ledger_commission: number;
+  commission_delta: number;
+  stranded_completed: number;
+  stranded_value: number;
+};
 
 export default function AdminSettlements() {
   const toast = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // P2-7: `payments` was write-only — nothing ever compared it to the ledger.
+  const [recon, setRecon] = useState<Recon | null>(null);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -44,6 +57,8 @@ export default function AdminSettlements() {
     });
     result.sort((a, b) => b.summary.commissionOwed - a.summary.commissionOwed);
     setRows(result);
+    const { data: rec } = await supabase.rpc("admin_reconciliation");
+    setRecon(Array.isArray(rec) ? ((rec[0] as Recon) ?? null) : ((rec as Recon) ?? null));
   }, []);
 
   useEffect(() => {
@@ -77,6 +92,8 @@ export default function AdminSettlements() {
 
   return (
     <AdminShell>
+
+      {recon && <Reconciliation r={recon} />}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat icon="wallet" label="Commission outstanding" value={formatPKR(totalOwed)} />
         <Stat icon="check" label="Settled to date" value={formatPKR(totalSettled)} />
@@ -141,5 +158,51 @@ export default function AdminSettlements() {
         </div>
       )}
     </AdminShell>
+  );
+}
+
+
+/**
+ * Does the ledger agree with the payment record?
+ *
+ * Nothing asked this before — `payments` is written by jobs_on_paid and was
+ * never read back, so a divergence (an admin override, a half-applied patch)
+ * had nothing to surface it. A reversal books an 'adjustment' rather than a
+ * negative 'commission', so both legs are netted before comparing.
+ */
+function Reconciliation({ r }: { r: Recon }) {
+  const clean =
+    r.paid_without_payment === 0 && r.duplicate_payments === 0 && Math.abs(r.commission_delta) < 0.01;
+  return (
+    <Card className={clsx("mb-6", clean ? "" : "bg-warning-light")}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold">
+            {clean ? "Books reconcile" : "Books do not reconcile"}
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Commission recorded in <code>payments</code> against commission raised in the ledger,
+            net of reversals.
+          </p>
+        </div>
+        <span className={clsx("text-lg font-extrabold", clean ? "text-success" : "text-warning-foreground")}>
+          {clean ? "✓" : formatPKR(r.commission_delta)}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <KV label="In payments">{formatPKR(r.payments_commission)}</KV>
+        <KV label="In ledger">{formatPKR(r.ledger_commission)}</KV>
+        <KV label="Paid, no payment row">{r.paid_without_payment}</KV>
+        <KV label="Duplicate payments">{r.duplicate_payments}</KV>
+      </div>
+      {r.stranded_completed > 0 && (
+        <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+          <strong>{r.stranded_completed}</strong> job
+          {r.stranded_completed === 1 ? " has" : "s have"} sat at <em>completed</em> for more than
+          three days, worth {formatPKR(r.stranded_value)}. Commission is only raised on the move to
+          paid, so nothing is owed on these yet.
+        </p>
+      )}
+    </Card>
   );
 }

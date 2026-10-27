@@ -254,7 +254,7 @@ export default function ProDashboard() {
       {/* Greeting */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Avatar name={profile?.full_name || user?.email} size="lg" />
+          <Avatar name={profile?.full_name || user?.email} src={profile?.avatar_url} size="lg" />
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight">
               Salaam, {profile?.full_name?.split(" ")[0] ?? "Pro"}

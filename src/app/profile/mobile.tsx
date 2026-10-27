@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -13,7 +13,10 @@ import { Ava, Pill, Skel, Well } from "@/components/kg/parts";
 import { proEntry } from "@/components/nav";
 import { useDarkMode } from "@/lib/theme";
 import { areaOf, joinAddress, splitAddress } from "@/lib/area";
+import { MapPicker } from "@/components/maps/MapPicker";
+import type { LatLng } from "@/lib/maps";
 import { KARACHI_AREAS, type Customer, type Provider } from "@/lib/types";
+import { AVATAR_ACCEPT, uploadAvatar } from "@/lib/avatar";
 import { BRAND } from "@/lib/config";
 
 export default function ProfileScreen() {
@@ -24,6 +27,7 @@ export default function ProfileScreen() {
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [address, setAddress] = useState<string | null>(null);
+  const [pin, setPin] = useState<LatLng | null>(null);
   const [counts, setCounts] = useState<{
     jobs: number;
     done: number;
@@ -35,6 +39,12 @@ export default function ProfileScreen() {
   // without this they land on a customer's profile: "0 Bookings, 0
   // Completed" and an address prompt offering to send pros to them.
   const [biz, setBiz] = useState<{ team: number; jobs: number } | null>(null);
+
+  // Held locally too, so the new picture appears the instant it uploads —
+  // useUser() reads the profile row once on mount and never again.
+  const [avatarEdit, setAvatarEdit] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [editMe, setEditMe] = useState(false);
   const [editAddr, setEditAddr] = useState(false);
@@ -62,6 +72,7 @@ export default function ProfileScreen() {
         ]);
       const row = customer as Partial<Customer> | null;
       setAddress(row?.default_address ?? null);
+      setPin(row?.lat != null && row?.lng != null ? { lat: row.lat, lng: row.lng } : null);
       setCounts({
         jobs: jobs ?? 0,
         done: done ?? 0,
@@ -121,6 +132,34 @@ export default function ProfileScreen() {
   }
 
   const name = profile?.full_name ?? null;
+  // `""` after a removal, not null, so `??` doesn't fall back to the stale
+  // saved value before useUser() ever re-reads the row.
+  const avatarSrc = avatarEdit ?? profile?.avatar_url ?? "";
+
+  async function pickAvatar(file: File | undefined) {
+    if (!file || !user) return;
+    setAvatarBusy(true);
+    const supabase = createClient();
+    const up = await uploadAvatar(supabase, user.id, file);
+    if (up.error) {
+      setAvatarBusy(false);
+      toast(up.error, "error");
+      return;
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ avatar_url: up.url })
+      .eq("id", user.id)
+      .select("id")
+      .single();
+    setAvatarBusy(false);
+    if (error) {
+      toast("Couldn't save your picture — " + error.message, "error");
+      return;
+    }
+    setAvatarEdit(up.url);
+    toast("Profile picture updated.", "success");
+  }
   const memberSince = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("en-GB", { month: "short", year: "numeric" })
     : null;
@@ -142,7 +181,31 @@ export default function ProfileScreen() {
         </header>
 
         <div className="me card">
-          <Ava name={name ?? user.email} size="xl" />
+          {/* The whole well is the control — a 76px tap target beats a
+              separate link, and there is no room for one in this row. */}
+          <button
+            type="button"
+            className="ava-pick"
+            disabled={avatarBusy}
+            onClick={() => fileRef.current?.click()}
+            aria-label={avatarSrc ? "Change profile picture" : "Add a profile picture"}
+          >
+            <Ava name={name ?? user.email} src={avatarSrc} size="xl" />
+            <i className="ava-cam" aria-hidden="true">
+              <KIcon name={avatarBusy ? "refresh" : "camera"} />
+            </i>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={AVATAR_ACCEPT}
+            className="kg-hidden"
+            onChange={(e) => {
+              void pickAvatar(e.target.files?.[0]);
+              // Reset, so picking the SAME file again still fires onChange.
+              e.target.value = "";
+            }}
+          />
           <div>
             <b>{name ?? "Your profile"}</b>
             <small>{profile?.phone ?? user.email}</small>
@@ -372,9 +435,11 @@ export default function ProfileScreen() {
         <EditAddressSheet
           userId={user.id}
           current={address}
+          currentPin={pin}
           onClose={() => setEditAddr(false)}
-          onSaved={(next) => {
+          onSaved={(next, nextPin) => {
             setAddress(next);
+            setPin(nextPin);
             setEditAddr(false);
             toast("Address saved", "success");
           }}
@@ -453,15 +518,24 @@ function EditProfileSheet({
 function EditAddressSheet({
   userId,
   current,
+  currentPin,
   onClose,
   onSaved,
 }: {
   userId: string;
   current: string | null;
+  currentPin: LatLng | null;
   onClose: () => void;
-  onSaved: (next: string) => void;
+  onSaved: (next: string, pin: LatLng | null) => void;
 }) {
   const toast = useToast();
+  const [pin, setPin] = useState<LatLng | null>(currentPin);
+  // MapPicker centres itself on Karachi when it opens with no pin, and that
+  // fires onChange straight away. Without this the map would silently
+  // overwrite the area you picked from the dropdown before you touched
+  // anything. The first callback is only adopted when there WAS a pin to
+  // move, i.e. when it can only have come from the user.
+  const autoSeed = useRef(currentPin === null);
   const saved = splitAddress(current);
   const [area, setArea] = useState(
     saved.area && KARACHI_AREAS.includes(saved.area) ? saved.area : KARACHI_AREAS[0]
@@ -474,7 +548,15 @@ function EditAddressSheet({
     setBusy(true);
     const { error } = await createClient()
       .from("customers")
-      .upsert({ profile_id: userId, default_address: next }, { onConflict: "profile_id" })
+      .upsert(
+        {
+          profile_id: userId,
+          default_address: next,
+          lat: pin?.lat ?? null,
+          lng: pin?.lng ?? null,
+        },
+        { onConflict: "profile_id" }
+      )
       .select("profile_id")
       .single();
     setBusy(false);
@@ -482,7 +564,7 @@ function EditAddressSheet({
       toast("Couldn't save — " + error.message, "error");
       return;
     }
-    onSaved(next);
+    onSaved(next, pin);
   }
 
   return (
@@ -510,6 +592,24 @@ function EditAddressSheet({
           aria-label="Address"
         />
       </label>
+      {/* The pin, not just the text. Without it we only ever had a street
+          name to send a pro to. */}
+      <div style={{ marginTop: 10 }}>
+        <MapPicker
+          value={pin}
+          onChange={(next, addr) => {
+            setPin(next);
+            if (autoSeed.current) {
+              autoSeed.current = false;   // that was the opening auto-centre
+              return;
+            }
+            if (addr) {
+              const found = areaOf(addr);
+              if (found && KARACHI_AREAS.includes(found)) setArea(found);
+            }
+          }}
+        />
+      </div>
       <button
         type="button"
         className="btn wide"

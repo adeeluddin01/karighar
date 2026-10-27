@@ -64,19 +64,41 @@ export type Provider = {
   jobs_completed: number;
   service_areas: string[];
   verified_at: string | null;
+  /**
+   * Karighar's cut for this one pro, or null to follow the platform default.
+   * Admin-owned — `providers_guard_trusted_cols` coerces it back on a
+   * self-write, or a pro could set their own commission to zero.
+   */
+  commission_rate: number | null;
 };
 
 /**
- * A dispatcher that assigns jobs to technicians on its team. Granted by
- * Karighar, never self-selected. No CNIC fields: a business never works a
- * job, so it carries no verification of its own — every technician beneath
- * it is still individually verified.
+ * A real trading entity that dispatches jobs to technicians on its team.
+ * Granted by Karighar, never self-selected — which is why the identity and
+ * premises below are recorded by the admin at grant time and coerced back by
+ * `businesses_guard_trusted_cols` on any self-write. Every technician beneath
+ * it is still individually verified in their own right.
  */
 export type Business = {
   profile_id: string;
   status: BusinessStatus;
   about: string | null;
   service_areas: string[];
+  // Admin-owned. The business may edit `about` and `service_areas`, nothing else here.
+  cnic_no: string | null;
+  cnic_front_url: string | null;
+  cnic_back_url: string | null;
+  owner_selfie_url: string | null;
+  verified_at: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  /**
+   * Karighar's cut for this one company, or null for the platform default.
+   * On a dispatched job the BUSINESS is billed, so this is the rate that
+   * applies and the technician's own override is ignored. Admin-owned.
+   */
+  commission_rate: number | null;
   rating_avg: number;
   jobs_completed: number;
   created_at: string;
@@ -100,7 +122,11 @@ export type BusinessMember = {
   removed_at: string | null;
 };
 
-/** The `public_business_profiles` view — no phone, no member identities. */
+/**
+ * The `public_business_profiles` view — no phone, no member identities, and
+ * never the CNIC or street address. Coordinates are public because a business
+ * is a place people can find.
+ */
 export type PublicBusinessProfile = {
   id: string;
   full_name: string | null;
@@ -109,6 +135,8 @@ export type PublicBusinessProfile = {
   rating_avg: number;
   jobs_completed: number;
   service_areas: string[];
+  lat: number | null;
+  lng: number | null;
   team_size: number;
 };
 
