@@ -68,6 +68,9 @@ export default function AdminOverview() {
           <LinkButton href="/admin/settlements" variant="ghost" size="sm" icon="wallet">
             Settlements
           </LinkButton>
+          <LinkButton href="/profile/ratings" variant="ghost" size="sm" icon="star">
+            All reviews
+          </LinkButton>
         </div>
       </div>
     </AdminShell>

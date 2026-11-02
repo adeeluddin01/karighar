@@ -342,6 +342,18 @@ export default function ProfileScreen() {
               </Link>
             </>
           )}
+          <Link href="/profile/ratings">
+            <Well icon="star" size="sm" />
+            <div>
+              <b>{profile?.role === "admin" ? "All reviews" : "My ratings"}</b>
+              <small>
+                {profile?.role === "admin"
+                  ? "Every review on the platform"
+                  : "Who rated you, and who you rated"}
+              </small>
+            </div>
+            <KIcon name="chev-r" className="chev" />
+          </Link>
           <Link href="/settings">
             <Well icon="wallet" size="sm" />
             <div>

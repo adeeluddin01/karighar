@@ -401,6 +401,9 @@ export default function ProfilePage() {
             Become a service provider
           </Row>
         )}
+        <Row href="/profile/ratings" icon="star">
+          {profile?.role === "admin" ? "All reviews" : "My ratings"}
+        </Row>
         <Row href="/settings" icon="settings">
           Settings
         </Row>
