@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { ProViewToggle } from "@/components/ProViewToggle";
 import { MapGate } from "@/components/maps/MapGate";
 import { MapController } from "@/components/maps/MapController";
 import { Directions, FitToJobs } from "@/components/maps/JobsMapParts";
@@ -36,7 +38,19 @@ function directionsHref(job: Pinned) {
 }
 
 export default function ProviderMapPage() {
-  const { user, loading } = useRequireAuth("/pro/map");
+  const { user, profile, loading } = useRequireAuth("/pro/map");
+  const router = useRouter();
+
+  // Pro-area page: a signed-in non-provider opening the URL directly gets
+  // their own home, not an empty map. Customers have their own /map;
+  // pending providers pass — the check is profile.role, not approval.
+  useEffect(() => {
+    if (!loading && profile && profile.role !== "provider") {
+      router.replace(
+        profile.role === "customer" ? "/" : profile.role === "business" ? "/business" : "/admin",
+      );
+    }
+  }, [loading, profile, router]);
   const [mine, setMine] = useState<Pinned[]>([]);
   const [open, setOpen] = useState<Pinned[]>([]);
 
@@ -91,6 +105,8 @@ export default function ProviderMapPage() {
     [mine, open]
   );
 
+  if (!loading && profile && profile.role !== "provider") return null;
+
   if (loading || !user) {
     return (
       <AppShell>
@@ -108,9 +124,7 @@ export default function ProviderMapPage() {
         subtitle="Green dots are your jobs, orange ones are up for grabs. Tap a dot for directions, or use the locate button to put yourself on the map."
       />
       <div className="mb-4">
-        <Link href="/pro/dashboard" className="btn-ghost btn-sm">
-          List view
-        </Link>
+        <ProViewToggle active="map" />
       </div>
 
       {!GOOGLE_MAPS_KEY ? (
