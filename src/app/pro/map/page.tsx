@@ -8,6 +8,7 @@ import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { ProViewToggle } from "@/components/ProViewToggle";
 import { MapGate } from "@/components/maps/MapGate";
 import { MapController } from "@/components/maps/MapController";
 import { Directions, FitToJobs } from "@/components/maps/JobsMapParts";
@@ -108,9 +109,7 @@ export default function ProviderMapPage() {
         subtitle="Green dots are your jobs, orange ones are up for grabs. Tap a dot for directions, or use the locate button to put yourself on the map."
       />
       <div className="mb-4">
-        <Link href="/pro/dashboard" className="btn-ghost btn-sm">
-          List view
-        </Link>
+        <ProViewToggle active="map" />
       </div>
 
       {!GOOGLE_MAPS_KEY ? (

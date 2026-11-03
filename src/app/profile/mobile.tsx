@@ -50,9 +50,14 @@ export default function ProfileScreen() {
   const [editAddr, setEditAddr] = useState(false);
 
   const isBusiness = profile?.role === "business";
+  const isProvider = profile?.role === "provider";
 
+  // Providers skip the customer counts below: their "Bookings" figure
+  // counted jobs where they were the CUSTOMER (usually zero), which is
+  // how a pro landed on a profile showing "0 Bookings, 0 Completed"
+  // while holding real work. Their figures come from the providers row.
   useEffect(() => {
-    if (!user || isBusiness) return;
+    if (!user || isBusiness || isProvider) return;
     const supabase = createClient();
     (async () => {
       const [{ data: customer }, { count: jobs }, { count: done }] =
@@ -80,7 +85,7 @@ export default function ProfileScreen() {
         jobsRated: row?.jobs_rated ?? 0,
       });
     })();
-  }, [user, isBusiness]);
+  }, [user, isBusiness, isProvider]);
 
   useEffect(() => {
     if (!user || !isBusiness) return;
@@ -248,6 +253,21 @@ export default function ProfileScreen() {
               <small>Dispatcher</small>
             </div>
           </div>
+        ) : isProvider ? (
+          <div className="stats3 cardless">
+            <div>
+              <b>{provider?.jobs_completed ?? "—"}</b>
+              <small>Jobs done</small>
+            </div>
+            <div>
+              <b>{provider?.rating_avg ? provider.rating_avg.toFixed(1) : "New"}</b>
+              <small>Pro rating</small>
+            </div>
+            <div>
+              <b>Pro</b>
+              <small>As a technician</small>
+            </div>
+          </div>
         ) : (
           <div className="stats3 cardless">
             <div>
@@ -261,23 +281,6 @@ export default function ProfileScreen() {
             <div>
               <b>{counts && counts.jobsRated > 0 ? counts.ratingAvg.toFixed(1) : "—"}</b>
               <small>{counts && counts.jobsRated > 0 ? "Your rating" : "Not rated yet"}</small>
-            </div>
-          </div>
-        )}
-
-        {provider?.status === "approved" && (
-          <div className="stats3 cardless">
-            <div>
-              <b>{provider.rating_avg ? provider.rating_avg.toFixed(1) : "New"}</b>
-              <small>Pro rating</small>
-            </div>
-            <div>
-              <b>{provider.jobs_completed}</b>
-              <small>Jobs done</small>
-            </div>
-            <div>
-              <b>Pro</b>
-              <small>As a technician</small>
             </div>
           </div>
         )}
@@ -342,6 +345,41 @@ export default function ProfileScreen() {
                 </div>
                 <KIcon name="chev-r" className="chev" />
               </Link>
+            </>
+          ) : isProvider ? (
+            <>
+              {/* Bookings &amp; receipts is a customer surface — a provider
+                  has no bookings of their own, and this link sent them to
+                  an empty customer list while their real past jobs hid
+                  behind the dashboard's "Earnings" button. Past jobs live
+                  here now, labelled as what they are. */}
+              <Link href="/pro/history">
+                <Well icon="history" size="sm" />
+                <div>
+                  <b>Past jobs &amp; earnings</b>
+                  <small>Completed and paid jobs, and what you owe</small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </Link>
+              {provider?.status === "approved" ? (
+                <Link href="/pro/services">
+                  <Well icon="wrench" size="sm" />
+                  <div>
+                    <b>Manage my services &amp; areas</b>
+                    <small>Trades and areas you cover</small>
+                  </div>
+                  <KIcon name="chev-r" className="chev" />
+                </Link>
+              ) : (
+                <Link href="/pro/onboarding">
+                  <Well icon="shield" size="sm" />
+                  <div>
+                    <b>View my verification details</b>
+                    <small>Your application and documents</small>
+                  </div>
+                  <KIcon name="chev-r" className="chev" />
+                </Link>
+              )}
             </>
           ) : (
             <>
