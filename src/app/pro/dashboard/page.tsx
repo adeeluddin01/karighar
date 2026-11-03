@@ -54,10 +54,15 @@ export default function ProDashboard() {
   const [bidNote, setBidNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [custRatings, setCustRatings] = useState<Map<string, PublicCustomerRating>>(new Map());
+  // Same never-stuck guarantee as the job view: a failed fetch used to
+  // leave `fetching` true forever on the dashboard spinner.
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
+    setLoadError(false);
+    try {
     const { data: prov } = await supabase
       .from("providers")
       .select("*")
@@ -102,11 +107,15 @@ export default function ProDashboard() {
         // Assigned jobs are fetched for every status, not just approved:
         // a suspended pro keeps the work they already hold, and the
         // suspended screen below needs the list to show it.
+        // Paid jobs are NOT here: they live in History (which lists paid /
+        // rated / cancelled), so the two screens partition the job list
+        // with no overlap and no gap. Before this, a paid job showed on
+        // both screens, and the dashboard's "active" list held finished work.
         supabase
           .from("jobs")
           .select("*")
           .eq("provider_id", user.id)
-          .not("status", "in", "(rated,cancelled)")
+          .not("status", "in", "(rated,cancelled,paid)")
           .order("created_at", { ascending: false }),
         supabase.from("provider_ledger").select("*").eq("provider_id", user.id),
       ]);
@@ -138,7 +147,11 @@ export default function ProDashboard() {
         );
       }
     }
-    setFetching(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setFetching(false);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -217,6 +230,27 @@ export default function ProDashboard() {
     return (
       <AppShell>
         <Spinner label="Loading your jobs…" />
+      </AppShell>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <AppShell>
+        <Card className="text-center">
+          <p className="text-muted-foreground">
+            Couldn&apos;t load your jobs — check your connection and try again.
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() => {
+              setFetching(true);
+              load();
+            }}
+          >
+            Retry
+          </Button>
+        </Card>
       </AppShell>
     );
   }

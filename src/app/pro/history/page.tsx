@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import {
+  Button,
   Card,
   EmptyState,
   LinkButton,
@@ -25,11 +26,15 @@ export default function ProviderHistoryPage() {
   const [wallet, setWallet] = useState<LedgerSummary | null>(null);
   const [walletError, setWalletError] = useState(false);
   const [fetching, setFetching] = useState(true);
+  // Same never-stuck guarantee as the job view and dashboard.
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
     (async () => {
+      setLoadError(false);
+      try {
       const [{ data: jobRows }, ledger] = await Promise.all([
         supabase
           .from("jobs")
@@ -49,7 +54,11 @@ export default function ProviderHistoryPage() {
         setWalletError(false);
         setWallet(summarizeLedger((ledger.data as LedgerEntry[]) || []));
       }
-      setFetching(false);
+      } catch {
+        setLoadError(true);
+      } finally {
+        setFetching(false);
+      }
     })();
   }, [user]);
 
@@ -121,7 +130,19 @@ export default function ProviderHistoryPage() {
 
       <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Past jobs</h2>
 
-      {fetching ? (
+      {loadError ? (
+        <Card className="text-center">
+          <p className="text-muted-foreground">
+            Couldn&apos;t load your history — check your connection and try again.
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </Card>
+      ) : fetching ? (
         <Spinner />
       ) : jobs.length === 0 ? (
         <EmptyState icon="calendar" title="No completed jobs yet" hint="Accepted jobs land here once paid.">

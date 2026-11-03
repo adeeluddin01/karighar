@@ -53,6 +53,10 @@ function ProJobDetailContent() {
   const [job, setJob] = useState<Job | null>(null);
   const [customer, setCustomer] = useState<Profile | null>(null);
   const [fetching, setFetching] = useState(true);
+  // A failed fetch used to leave `fetching` true forever — the page sat on
+  // "Loading job…" with no error and no retry. The loader now always clears
+  // in `finally`, and a failure renders this instead of the spinner.
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [priceInput, setPriceInput] = useState("");
   const [jobCommission, setJobCommission] = useState<number | null>(null);
@@ -74,6 +78,8 @@ function ProJobDetailContent() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    setLoadError(false);
+    try {
     const { data } = await supabase.from("jobs").select("*").eq("id", jobId).single();
     const j = data as Job | null;
     setJob(j);
@@ -103,7 +109,11 @@ function ProJobDetailContent() {
           : null,
       );
     }
-    setFetching(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setFetching(false);
+    }
   }, [jobId]);
 
   useEffect(() => {
@@ -205,6 +215,29 @@ function ProJobDetailContent() {
     return (
       <AppShell>
         <Spinner label="Loading job…" />
+      </AppShell>
+    );
+  }
+  if (loadError) {
+    return (
+      <AppShell>
+        <Card className="text-center">
+          <p className="text-muted-foreground">
+            Couldn&apos;t load this job — check your connection and try again.
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() => {
+              setFetching(true);
+              load();
+            }}
+          >
+            Retry
+          </Button>
+          <LinkButton href="/pro/dashboard" variant="ghost" size="sm" className="mt-4 ml-2">
+            Back to dashboard
+          </LinkButton>
+        </Card>
       </AppShell>
     );
   }
