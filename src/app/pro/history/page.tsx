@@ -23,13 +23,14 @@ export default function ProviderHistoryPage() {
   const { user, loading } = useRequireAuth("/pro/history");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [wallet, setWallet] = useState<LedgerSummary | null>(null);
+  const [walletError, setWalletError] = useState(false);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
     (async () => {
-      const [{ data: jobRows }, { data: ledger }] = await Promise.all([
+      const [{ data: jobRows }, ledger] = await Promise.all([
         supabase
           .from("jobs")
           .select("*")
@@ -39,7 +40,15 @@ export default function ProviderHistoryPage() {
         supabase.from("provider_ledger").select("type,amount").eq("provider_id", user.id),
       ]);
       setJobs((jobRows as Job[]) || []);
-      setWallet(summarizeLedger((ledger as LedgerEntry[]) || []));
+      // A failed ledger read used to default silently to Rs 0 — a
+      // pro who genuinely owed money would have seen a clean zero.
+      if (ledger.error) {
+        setWalletError(true);
+        setWallet(null);
+      } else {
+        setWalletError(false);
+        setWallet(summarizeLedger((ledger.data as LedgerEntry[]) || []));
+      }
       setFetching(false);
     })();
   }, [user]);
@@ -69,22 +78,24 @@ export default function ProviderHistoryPage() {
             commission on your own jobs, and your business's share of the cash
             you collected on theirs. An attached technician owes Karighar
             nothing on dispatched work — the business is billed for that. */}
-        {dueToBusiness > 0 ? (
-          <Stat
-            icon="users"
-            label="Due to your business"
-            value={formatPKR(dueToBusiness)}
-            className="col-span-2 sm:col-span-1"
-          />
-        ) : (
-          <Stat
-            icon="trend"
-            label={`Owed to ${BRAND.name}`}
-            value={formatPKR(owed)}
-            className="col-span-2 sm:col-span-1"
-          />
+        {/* Both figures, side by side, never either/or: a technician can
+            hold business cash and owe Karighar commission at the same time
+            (on different jobs), and the old slot hid one of them. */}
+        <Stat
+          icon="trend"
+          label={`Owed to ${BRAND.name}`}
+          value={walletError ? "—" : formatPKR(owed)}
+        />
+        {dueToBusiness > 0 && (
+          <Stat icon="users" label="Due to your business" value={formatPKR(dueToBusiness)} />
         )}
       </div>
+
+      {walletError && (
+        <p className="mt-3 text-xs text-destructive">
+          Couldn&apos;t load your wallet — the figures above may be incomplete. Try reloading.
+        </p>
+      )}
 
       {owed > 0 && (
         <Card className="mt-4 bg-warning-light">

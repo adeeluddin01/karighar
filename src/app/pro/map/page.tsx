@@ -107,6 +107,11 @@ export default function ProviderMapPage() {
         title="Jobs map"
         subtitle="Green dots are your jobs, orange ones are up for grabs. Tap a dot for directions, or use the locate button to put yourself on the map."
       />
+      <div className="mb-4">
+        <Link href="/pro/dashboard" className="btn-ghost btn-sm">
+          List view
+        </Link>
+      </div>
 
       {!GOOGLE_MAPS_KEY ? (
         <Card className="bg-warning-light text-warning-foreground">

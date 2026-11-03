@@ -9,7 +9,13 @@ import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/mon
 import type { Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 
-type Row = { id: string; name: string; phone: string | null; summary: LedgerSummary };
+type Row = {
+  id: string;
+  name: string;
+  phone: string | null;
+  role: string | null;
+  summary: LedgerSummary;
+};
 
 type Recon = {
   paid_without_payment: number;
@@ -52,6 +58,7 @@ export default function AdminSettlements() {
         id,
         name: p?.full_name ?? "Pro",
         phone: p?.phone ?? null,
+        role: p?.role ?? null,
         summary: summarizeLedger(byProvider.get(id)!),
       };
     });
@@ -89,6 +96,8 @@ export default function AdminSettlements() {
 
   const totalOwed = rows.reduce((s, r) => s + r.summary.commissionOwed, 0);
   const totalSettled = rows.reduce((s, r) => s + r.summary.settled, 0);
+  const totalCash = rows.reduce((s, r) => s + r.summary.cashSettled, 0);
+  const totalCancelled = rows.reduce((s, r) => s + r.summary.cancelled, 0);
 
   return (
     <AdminShell>
@@ -96,7 +105,12 @@ export default function AdminSettlements() {
       {recon && <Reconciliation r={recon} />}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat icon="wallet" label="Commission outstanding" value={formatPKR(totalOwed)} />
-        <Stat icon="check" label="Settled to date" value={formatPKR(totalSettled)} />
+        {/* `settled` used to count reversals as cash. Cash remitted and debt
+            cancelled are now separate, so the admin can see both. */}
+        <Stat icon="check" label="Cash settled to date" value={formatPKR(totalCash)} />
+        {totalCancelled > 0 && (
+          <Stat icon="check" label="Debt cancelled (reversals)" value={formatPKR(totalCancelled)} />
+        )}
         <Stat
           icon="users"
           label="Providers with a balance"
@@ -105,7 +119,7 @@ export default function AdminSettlements() {
         />
       </div>
 
-      <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Provider balances</h2>
+      <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Account balances</h2>
 
       {rows.length === 0 ? (
         <EmptyState icon="wallet" title="No provider earnings yet" hint="Balances appear once jobs are paid." />
@@ -117,7 +131,20 @@ export default function AdminSettlements() {
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <Avatar name={r.name} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold">{r.name}</p>
+                    <p className="font-bold">
+                      {r.name}
+                      {r.role && r.role !== "provider" && (
+                        <span className="ml-2 text-xs font-semibold text-muted-foreground">
+                          · {r.role}
+                        </span>
+                      )}
+                    </p>
+                    {r.summary.commissionBalance < 0 && (
+                      <p className="text-xs text-warning-foreground">
+                        Credit {formatPKR(-r.summary.commissionBalance)} — more settled or reversed
+                        than raised.
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">{r.phone ?? "—"}</p>
                     <div className="mt-2 max-w-xs">
                       <KV label="Net earned">{formatPKR(r.summary.netEarnings)}</KV>

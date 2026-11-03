@@ -265,6 +265,23 @@ export default function ProfileScreen() {
           </div>
         )}
 
+        {provider?.status === "approved" && (
+          <div className="stats3 cardless">
+            <div>
+              <b>{provider.rating_avg ? provider.rating_avg.toFixed(1) : "New"}</b>
+              <small>Pro rating</small>
+            </div>
+            <div>
+              <b>{provider.jobs_completed}</b>
+              <small>Jobs done</small>
+            </div>
+            <div>
+              <b>Pro</b>
+              <small>As a technician</small>
+            </div>
+          </div>
+        )}
+
         {pro && (
           <Link className="promo" href={pro.href}>
             <div>
@@ -302,6 +319,14 @@ export default function ProfileScreen() {
                       ? `${biz.team} technician${biz.team === 1 ? "" : "s"}`
                       : "Invite and manage technicians"}
                   </small>
+                </div>
+                <KIcon name="chev-r" className="chev" />
+              </Link>
+              <Link href="/business/services">
+                <Well icon="wrench" size="sm" />
+                <div>
+                  <b>Services</b>
+                  <small>Trades and areas your team covers</small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
               </Link>

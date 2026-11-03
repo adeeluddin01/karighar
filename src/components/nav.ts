@@ -44,6 +44,8 @@ export const NAV: Record<Role, NavLink[]> = {
     { href: "/admin/businesses", label: "Businesses", icon: "building" },
     { href: "/admin/jobs", label: "Jobs", icon: "briefcase" },
     { href: "/admin/settlements", label: "Settlements", icon: "wallet" },
+    { href: "/admin/disputes", label: "Disputes", icon: "alert" },
+    { href: "/admin/catalog", label: "Catalog", icon: "wrench" },
     { href: "/notifications", label: "Alerts", icon: "bell" },
     { href: "/profile", label: "Profile", icon: "user" },
   ],
@@ -80,9 +82,9 @@ export const PHONE_NAV: Record<Role, PhoneNavLink[]> = {
   // working surface rather than a browse screen.
   guest: [
     { href: "/", label: "Home", icon: "home", kicon: "home" },
-    { href: "/bookings", label: "Bookings", icon: "book", kicon: "cal" },
     { href: "/book", label: "Services", icon: "wrench", kicon: "wrench" },
-    { href: "/profile", label: "Profile", icon: "user", kicon: "user" },
+    { href: "/pro", label: "Become a Pro", icon: "briefcase", kicon: "briefcase" },
+    { href: "/support", label: "Support", icon: "chat", kicon: "chat" },
   ],
   customer: [
     { href: "/", label: "Home", icon: "home", kicon: "home" },

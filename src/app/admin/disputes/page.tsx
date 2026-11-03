@@ -17,7 +17,7 @@ type Dispute = {
   resolution: string | null;
   created_at: string;
 };
-type Row = Dispute & { jobTitle?: string; raiser?: string };
+type Row = Dispute & { jobTitle?: string; jobStatus?: string; raiser?: string };
 
 export default function AdminDisputes() {
   const toast = useToast();
@@ -36,7 +36,7 @@ export default function AdminDisputes() {
     const userIds = [...new Set(list.map((d) => d.raised_by))];
     const [{ data: jobs }, { data: profs }] = await Promise.all([
       jobIds.length
-        ? supabase.from("jobs").select("id,title").in("id", jobIds)
+        ? supabase.from("jobs").select("id,title,status").in("id", jobIds)
         : Promise.resolve({ data: [] }),
       userIds.length
         ? supabase.from("profiles").select("id,full_name").in("id", userIds)
@@ -46,6 +46,7 @@ export default function AdminDisputes() {
       list.map((d) => ({
         ...d,
         jobTitle: (jobs as { id: string; title: string }[])?.find((j) => j.id === d.job_id)?.title,
+        jobStatus: (jobs as { id: string; status: string }[])?.find((j) => j.id === d.job_id)?.status,
         raiser: (profs as { id: string; full_name: string }[])?.find((p) => p.id === d.raised_by)
           ?.full_name,
       }))
@@ -55,6 +56,25 @@ export default function AdminDisputes() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A disputed job is terminal in the status machine for non-admins, so
+  // without this an admin who resolves a dispute without reversing leaves
+  // the job frozen at `disputed` forever. Sending it back to `completed`
+  // lets payment (or a fresh dispute) proceed normally.
+  async function sendBack(row: Row) {
+    setBusy(row.id);
+    const { error } = await createClient().rpc("admin_update_job_status", {
+      p_job: row.job_id,
+      p_status: "completed",
+    });
+    setBusy(null);
+    if (error) {
+      toast("Couldn't move that job — " + error.message, "error");
+      return;
+    }
+    toast("Job sent back to completed.", "success");
+    await load();
+  }
 
   async function resolve(row: Row) {
     setBusy(row.id);
@@ -143,6 +163,11 @@ export default function AdminDisputes() {
                 >
                   Reverse charges
                 </Button>
+                {d.jobStatus === "disputed" && (
+                  <Button size="sm" variant="ghost" disabled={busy === d.id} onClick={() => sendBack(d)}>
+                    Back to completed
+                  </Button>
+                )}
                 <Button size="sm" disabled={busy === d.id} onClick={() => resolve(d)}>
                   Resolve
                 </Button>

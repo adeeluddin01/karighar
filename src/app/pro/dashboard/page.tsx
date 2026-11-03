@@ -22,6 +22,7 @@ import {
   Tabs,
   formatPKR,
 } from "@/components/ui";
+import { summarizeLedger, type LedgerSummary } from "@/lib/money";
 import {
   JOB_STATUS_LABEL,
   type BusinessMember,
@@ -45,6 +46,8 @@ export default function ProDashboard() {
   const [invite, setInvite] = useState<Membership | null>(null);
   const [team, setTeam] = useState<Membership | null>(null);
   const [fetching, setFetching] = useState(true);
+  const [wallet, setWallet] = useState<LedgerSummary | null>(null);
+  const [walletError, setWalletError] = useState(false);
   const [tab, setTab] = useState<Tab>("open");
   const [bidFor, setBidFor] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState("");
@@ -85,21 +88,35 @@ export default function ProDashboard() {
     setTeam(attach(activeRow));
     setInvite(attach(invitedRow));
 
-    if ((prov as Provider | null)?.status === "approved") {
-      const [{ data: open }, { data: assigned }] = await Promise.all([
-        supabase
-          .from("jobs")
-          .select("*")
-          .is("provider_id", null)
-          .in("status", ["created", "bidding"])
-          .order("created_at", { ascending: false }),
+    {
+      const approved = (prov as Provider | null)?.status === "approved";
+      const [{ data: open }, { data: assigned }, ledger] = await Promise.all([
+        approved
+          ? supabase
+              .from("jobs")
+              .select("*")
+              .is("provider_id", null)
+              .in("status", ["created", "bidding"])
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [] }),
+        // Assigned jobs are fetched for every status, not just approved:
+        // a suspended pro keeps the work they already hold, and the
+        // suspended screen below needs the list to show it.
         supabase
           .from("jobs")
           .select("*")
           .eq("provider_id", user.id)
           .not("status", "in", "(rated,cancelled)")
           .order("created_at", { ascending: false }),
+        supabase.from("provider_ledger").select("*").eq("provider_id", user.id),
       ]);
+      if (ledger.error) {
+        setWalletError(true);
+        setWallet(null);
+      } else {
+        setWalletError(false);
+        setWallet(summarizeLedger(ledger.data as never));
+      }
       const openJobs = (open as Job[]) || [];
       const myJobs = (assigned as Job[]) || [];
       setAvailable(openJobs);
@@ -130,12 +147,16 @@ export default function ProDashboard() {
 
   async function acceptFixed(job: Job) {
     setBusy(true);
-    await createClient()
+    const { error } = await createClient()
       .from("jobs")
       .update({ provider_id: user!.id, status: "assigned" })
       .eq("id", job.id);
-    await load();
     setBusy(false);
+    if (error) {
+      toast("Couldn't accept that job — " + error.message, "error");
+      return;
+    }
+    await load();
   }
 
   async function respondToInvite(accept: boolean) {
@@ -217,6 +238,9 @@ export default function ProDashboard() {
   }
 
   if (provider.status !== "approved") {
+    const inFlight = mine.filter((j) =>
+      ["assigned", "en_route", "arrived", "in_progress"].includes(j.status),
+    );
     return (
       <AppShell>
         <EmptyState
@@ -229,7 +253,7 @@ export default function ProDashboard() {
           hint={
             provider.status === "pending"
               ? "Our team is reviewing your profile. You'll be able to accept jobs once approved (usually 1–2 days)."
-              : "Please contact support for details."
+              : "You can't take new jobs while suspended, but the work you already hold still runs."
           }
         >
           <LinkButton href="/pro/onboarding" variant="ghost" size="sm">
@@ -239,6 +263,27 @@ export default function ProDashboard() {
             Contact support
           </LinkButton>
         </EmptyState>
+        {inFlight.length > 0 && (
+          <div className="mt-6">
+            <h2 className="mb-3 text-lg font-bold">Jobs you already hold</h2>
+            <div className="flex flex-col gap-4">
+              {inFlight.map((job) => (
+                <Link key={job.id} href={`/pro/jobs/view/?id=${job.id}`} className="opt">
+                  <span className="flex w-full items-start justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block text-base font-bold">{job.title}</span>
+                      <span className="block text-sm text-muted-foreground">{job.address}</span>
+                    </span>
+                    <span className="whitespace-nowrap text-right">
+                      <Pill tone="info">{JOB_STATUS_LABEL[job.status]}</Pill>
+                      <span className="mt-2 block font-bold">{formatPKR(job.price)}</span>
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </AppShell>
     );
   }
@@ -248,6 +293,11 @@ export default function ProDashboard() {
   const attached = !!team;
   const effTab: Tab = attached ? "active" : tab;
   const list = effTab === "open" ? available : mine;
+  const activeCount = mine.filter((j) =>
+    ["assigned", "en_route", "arrived", "in_progress"].includes(j.status),
+  ).length;
+  // Freelance cap (DB-enforced by patch v26): independent pros only.
+  const atCap = !attached && activeCount >= 3;
 
   return (
     <AppShell>
@@ -330,7 +380,32 @@ export default function ProDashboard() {
           value={formatPKR(pipeline)}
           className={attached ? undefined : "col-span-2 sm:col-span-1"}
         />
+        {wallet && wallet.commissionOwed > 0 && (
+          <Stat icon="wallet" label="Owed to Karighar" value={formatPKR(wallet.commissionOwed)} />
+        )}
+        {wallet && wallet.businessShareNet < 0 && (
+          <Stat
+            icon="wallet"
+            label="Due to your business"
+            value={formatPKR(-wallet.businessShareNet)}
+          />
+        )}
       </div>
+      {walletError && (
+        <p className="mt-3 text-xs text-destructive">
+          Couldn&apos;t load your wallet — the figures above don&apos;t include commission. Try
+          reloading.
+        </p>
+      )}
+
+      {atCap && (
+        <Card className="mt-4 bg-warning-light">
+          <p className="text-sm font-semibold text-warning-foreground">
+            You&apos;re at your 3 active jobs — finish one before taking another, so other pros get
+            a turn.
+          </p>
+        </Card>
+      )}
 
       {/* Karighar's own promo to its pros — copy comes from `house_promos`,
           so marketing can change it without a redeploy. Renders nothing when
@@ -353,6 +428,9 @@ export default function ProDashboard() {
             ]}
           />
         )}
+        <LinkButton href="/pro/map" variant="ghost" size="sm" icon="nav">
+          Map view
+        </LinkButton>
         <LinkButton href="/pro/history" variant="ghost" size="sm" icon="trend">
           Earnings
         </LinkButton>
@@ -422,10 +500,10 @@ export default function ProDashboard() {
                         <Button
                           size="sm"
                           className="mt-2"
-                          disabled={busy}
+                          disabled={busy || atCap}
                           onClick={() => acceptFixed(job)}
                         >
-                          Accept
+                          {atCap ? "At 3-job limit" : "Accept"}
                         </Button>
                       ) : (
                         <Button

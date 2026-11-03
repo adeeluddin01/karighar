@@ -23,6 +23,7 @@ import {
   Avatar,
   Button,
   Card,
+  Input,
   KV,
   LinkButton,
   Pill,
@@ -66,6 +67,8 @@ function BookingDetailContent() {
 
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+  const [tip, setTip] = useState(0);
+  const [showUnassign, setShowUnassign] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
@@ -142,15 +145,19 @@ function BookingDetailContent() {
 
   async function acceptBid(bid: BidWithPro) {
     setBusy(true);
-    const supabase = createClient();
-    await supabase
-      .from("jobs")
-      .update({ provider_id: bid.provider_id, price: bid.amount, status: "assigned" })
-      .eq("id", jobId);
-    await supabase.from("bids").update({ status: "awarded" }).eq("id", bid.id);
-    await supabase.from("bids").update({ status: "rejected" }).eq("job_id", jobId).neq("id", bid.id);
-    await load();
+    // Atomic award: job assignment + bid award/reject in one transaction.
+    // The old three-update version could mark a bid awarded even when the
+    // job update itself was rejected.
+    const { error } = await createClient().rpc("customer_award_bid", {
+      p_job: jobId,
+      p_bid: bid.id,
+    });
     setBusy(false);
+    if (error) {
+      toast("Couldn't accept that quote — " + error.message, "error");
+      return;
+    }
+    await load();
   }
 
   async function cancelJob() {
@@ -174,18 +181,93 @@ function BookingDetailContent() {
     toast("Booking cancelled", "success");
   }
 
+  async function confirmPaid() {
+    setBusy(true);
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ status: "paid" })
+      .eq("id", jobId)
+      .select("id")
+      .single();
+    setBusy(false);
+    if (error) {
+      toast("Couldn't record the payment — " + error.message, "error");
+      return;
+    }
+    await load();
+    toast("Payment recorded. Thanks!", "success");
+  }
+
+  async function unassignPro() {
+    setBusy(true);
+    const { error } = await createClient().rpc("customer_unassign_pro", {
+      p_job: jobId,
+    });
+    setBusy(false);
+    if (error) {
+      toast("Couldn't remove the pro — " + error.message, "error");
+      return;
+    }
+    setShowUnassign(false);
+    await load();
+    toast("Pro removed — your job is open again.", "success");
+  }
+
+  async function acceptProposal() {
+    if (!job?.proposed_price) return;
+    setBusy(true);
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ price: job.proposed_price, proposed_price: null })
+      .eq("id", jobId);
+    setBusy(false);
+    if (error) {
+      toast("Couldn't accept the price — " + error.message, "error");
+      return;
+    }
+    await load();
+  }
+
+  async function declineProposal() {
+    setBusy(true);
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ proposed_price: null })
+      .eq("id", jobId);
+    setBusy(false);
+    if (error) {
+      toast("Couldn't decline the price — " + error.message, "error");
+      return;
+    }
+    await load();
+  }
+
   async function submitReview(e: React.FormEvent) {
     e.preventDefault();
     if (!job?.provider_id || !user) return;
     setBusy(true);
     const supabase = createClient();
-    await supabase.from("reviews").insert({
+    const body = [
+      comment.trim(),
+      tip > 0 ? `Tipped ${formatPKR(tip)} in cash.` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const { error } = await supabase.from("reviews").insert({
       job_id: jobId,
       customer_id: user.id,
       provider_id: job.provider_id,
       rating,
-      comment: comment || null,
+      comment: body || null,
     });
+    if (error) {
+      setBusy(false);
+      toast("Couldn't submit your review — " + error.message, "error");
+      return;
+    }
+    // Only move to rated once the review actually saved. The old code
+    // set rated unconditionally, which permanently lost the review on
+    // any insert failure.
     await supabase.from("jobs").update({ status: "rated" }).eq("id", jobId);
     await load();
     setBusy(false);
@@ -211,7 +293,10 @@ function BookingDetailContent() {
     );
   }
 
-  const canCancel = ["created", "bidding", "assigned"].includes(job.status);
+  const canCancel = ["created", "bidding", "assigned", "en_route", "arrived", "in_progress"].includes(
+    job.status,
+  );
+  const canUnassign = job.status === "assigned" && !!job.provider_id;
   const canReview = job.status === "paid" && !hasReview && job.provider_id;
   const awaitingPayment = job.status === "completed";
   const isLive = ["en_route", "arrived", "in_progress"].includes(job.status);
@@ -413,9 +498,33 @@ function BookingDetailContent() {
           {awaitingPayment && (
             <Card className="bg-warning-light">
               <p className="text-sm text-warning-foreground">
-                Work completed. Please pay <strong>{formatPKR(job.price)}</strong> in cash. Once your
-                pro confirms payment, you can leave a rating.
+                Work completed. Please pay <strong>{formatPKR(job.price)}</strong> in cash. Confirming
+                here records the payment — JazzCash, EasyPaisa and card are coming soon.
               </p>
+              <Button className="mt-3" disabled={busy} onClick={confirmPaid}>
+                Confirm paid
+              </Button>
+            </Card>
+          )}
+
+          {/* Price proposal: pro set a price on site, customer accepts it */}
+          {job.proposed_price != null && job.price == null && (
+            <Card className="bg-warning-light">
+              <p className="text-sm font-semibold text-warning-foreground">
+                Your pro proposed {formatPKR(job.proposed_price)} for this job.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Accepting makes this the final price. Declining lets the pro propose again — or
+                remove the pro to reopen the job.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" disabled={busy} onClick={acceptProposal}>
+                  Accept price
+                </Button>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={declineProposal}>
+                  Decline
+                </Button>
+              </div>
             </Card>
           )}
 
@@ -444,11 +553,47 @@ function BookingDetailContent() {
                   placeholder="How was the service? (optional)"
                   aria-label="Review comment"
                 />
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={tip || ""}
+                  onChange={(e) => setTip(Number(e.target.value) || 0)}
+                  prefix="Rs"
+                  placeholder="Cash tip (optional)"
+                  aria-label="Cash tip"
+                />
                 <Button type="submit" disabled={busy} className="w-full">
                   Submit rating
                 </Button>
               </form>
             </Card>
+          )}
+
+          {/* Remove the assigned pro and reopen the job */}
+          {canUnassign && (
+            <>
+              {showUnassign ? (
+                <Card>
+                  <p className="text-sm font-semibold">Remove this pro?</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Your job goes back to the open pool so another pro can take it. Nothing has
+                    been paid yet, so no money moves.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="danger" size="sm" className="flex-1" disabled={busy} onClick={unassignPro}>
+                      Remove pro and reopen job
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowUnassign(false)}>
+                      Keep pro
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => setShowUnassign(true)}>
+                  Remove pro and reopen job
+                </Button>
+              )}
+            </>
           )}
 
           {/* Cancel */}

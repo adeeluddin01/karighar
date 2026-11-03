@@ -26,6 +26,35 @@ const OPEN = new Set<JobStatus>([
   "completed",
 ]);
 
+// Per-status action, mirroring the mobile bookings list (which already
+// had these). The desktop list used to be a bare list with a status pill
+// only, so a desktop customer had to open every booking to do anything.
+function ctaFor(job: Job): string | null {
+  switch (job.status) {
+    case "assigned":
+    case "en_route":
+    case "arrived":
+    case "in_progress":
+      return "Track booking";
+    case "bidding":
+      return "See quotes";
+    case "completed":
+      return "Confirm paid";
+    case "paid":
+      return "Rate your pro";
+    case "rated":
+      return "View receipt";
+    default:
+      return null;
+  }
+}
+
+function stranded(job: Job): boolean {
+  if (job.status !== "completed") return false;
+  const updated = new Date(job.updated_at).getTime();
+  return Number.isFinite(updated) && Date.now() - updated > 3 * 24 * 60 * 60 * 1000;
+}
+
 export default function BookingsPage() {
   const { user, loading } = useRequireAuth("/bookings");
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -102,6 +131,14 @@ export default function BookingsPage() {
                   ? new Date(job.scheduled_at).toLocaleString("en-PK")
                   : "No time set"}
               </span>
+              {ctaFor(job) && (
+                <span className="mt-1 block text-xs font-semibold text-primary">{ctaFor(job)}</span>
+              )}
+              {stranded(job) && (
+                <span className="mt-1 block text-xs text-warning-foreground">
+                  Awaiting payment for over 3 days — open the booking to confirm paid.
+                </span>
+              )}
             </Link>
           ))}
         </div>

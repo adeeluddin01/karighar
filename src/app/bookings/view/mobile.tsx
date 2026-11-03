@@ -87,6 +87,7 @@ function BookingContent() {
   const [chat, setChat] = useState(false);
   const [report, setReport] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [confirmUnassign, setConfirmUnassign] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [sharingLive, setSharingLive] = useState(false);
   const [now, setNow] = useState<number | null>(null);
@@ -174,15 +175,60 @@ function BookingContent() {
 
   async function acceptBid(bid: BidWithPro) {
     setBusy(true);
-    const supabase = createClient();
-    await supabase
-      .from("jobs")
-      .update({ provider_id: bid.provider_id, price: bid.amount, status: "assigned" })
-      .eq("id", jobId);
-    await supabase.from("bids").update({ status: "awarded" }).eq("id", bid.id);
-    await supabase.from("bids").update({ status: "rejected" }).eq("job_id", jobId).neq("id", bid.id);
-    await load();
+    // Atomic award: job assignment + bid award/reject in one transaction.
+    const { error } = await createClient().rpc("customer_award_bid", {
+      p_job: jobId,
+      p_bid: bid.id,
+    });
     setBusy(false);
+    if (error) {
+      toast("Couldn't accept that quote — " + error.message, "error");
+      return;
+    }
+    await load();
+  }
+
+  async function unassignPro() {
+    setBusy(true);
+    const { error } = await createClient().rpc("customer_unassign_pro", {
+      p_job: jobId,
+    });
+    setBusy(false);
+    if (error) {
+      toast("Couldn't remove the pro — " + error.message, "error");
+      return;
+    }
+    await load();
+    toast("Pro removed — your job is open again.", "success");
+  }
+
+  async function acceptProposal() {
+    if (!job?.proposed_price) return;
+    setBusy(true);
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ price: job.proposed_price, proposed_price: null })
+      .eq("id", jobId);
+    setBusy(false);
+    if (error) {
+      toast("Couldn't accept the price — " + error.message, "error");
+      return;
+    }
+    await load();
+  }
+
+  async function declineProposal() {
+    setBusy(true);
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ proposed_price: null })
+      .eq("id", jobId);
+    setBusy(false);
+    if (error) {
+      toast("Couldn't decline the price — " + error.message, "error");
+      return;
+    }
+    await load();
   }
 
   async function cancelJob() {
@@ -540,21 +586,58 @@ function BookingContent() {
           </div>
 
           <div className="row-links">
-            {job.status === "assigned" ? (
-              <button type="button" className="link mute" onClick={() => setCancelling(true)}>
-                Cancel booking
-              </button>
-            ) : (
-              <button type="button" className="link mute" onClick={() => setReport(true)}>
-                <KIcon name="alert" xs />
-                Report an issue
-              </button>
-            )}
+            <button type="button" className="link mute" onClick={() => setCancelling(true)}>
+              Cancel booking
+            </button>
+            <button type="button" className="link mute" onClick={() => setReport(true)}>
+              <KIcon name="alert" xs />
+              Report an issue
+            </button>
             <span className="link">
               {job.price === null ? "On quote" : formatPKR(job.price)} · pay in cash
             </span>
           </div>
         </div>
+
+        {job.proposed_price != null && job.price == null && (
+          <div className="card" style={{ marginTop: 12 }}>
+            <b>Your pro proposed {formatPKR(job.proposed_price)}</b>
+            <small>
+              Accepting makes this the final price. Declining lets the pro propose again.
+            </small>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button type="button" className="btn sm" disabled={busy} onClick={acceptProposal}>
+                Accept price
+              </button>
+              <button type="button" className="btn sm ghost" disabled={busy} onClick={declineProposal}>
+                Decline
+              </button>
+            </div>
+          </div>
+        )}
+
+        {job.status === "assigned" && (
+          <div style={{ marginTop: 12 }}>
+            {confirmUnassign ? (
+              <div className="card">
+                <b>Remove this pro?</b>
+                <small>Your job goes back to the open pool. Nothing has been paid yet.</small>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button type="button" className="btn sm danger" disabled={busy} onClick={unassignPro}>
+                    Remove pro and reopen job
+                  </button>
+                  <button type="button" className="btn sm ghost" onClick={() => setConfirmUnassign(false)}>
+                    Keep pro
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="link mute" onClick={() => setConfirmUnassign(true)}>
+                Remove pro and reopen job
+              </button>
+            )}
+          </div>
+        )}
 
         {chatSheet}
         {reportSheet}
