@@ -116,7 +116,9 @@ function ProviderProfileContent() {
 
       <div className="mt-8 mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">Reviews</h2>
-        <span className="text-xs text-muted-foreground">{reviews.length} total</span>
+        <span className="text-xs text-muted-foreground">
+          {reviews.length === 20 ? "Showing latest 20" : `${reviews.length} shown`}
+        </span>
       </div>
 
       {reviews.length === 0 ? (

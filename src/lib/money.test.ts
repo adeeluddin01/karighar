@@ -211,4 +211,17 @@ describe("over-settlement is visible, not absorbed", () => {
     expect(s.commissionBalance).toBe(0);
     expect(s.commissionOwed).toBe(0);
   });
+
+  it("splits cash settled from debt cancelled", () => {
+    const s = summarizeLedger([
+      { type: "earning", amount: 1600 },
+      { type: "commission", amount: -400 },
+      { type: "payout", amount: 100 },
+      { type: "adjustment", amount: 50 },
+    ]);
+    expect(s.cashSettled).toBe(100);
+    expect(s.cancelled).toBe(50);
+    expect(s.settled).toBe(150);
+    expect(s.commissionOwed).toBe(250);
+  });
 });

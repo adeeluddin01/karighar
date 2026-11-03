@@ -149,8 +149,7 @@ function BookInner() {
                       <span className="text-sm text-muted-foreground">{s.description}</span>
                       <span className="text-xs text-muted-foreground">
                         per {s.unit}
-                        {s.visit_fee > 0 &&
-                          ` · visit fee ${formatPKR(s.visit_fee)} (waived if booked)`}
+
                       </span>
                     </Link>
                   ))}

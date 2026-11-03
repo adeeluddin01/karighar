@@ -55,6 +55,8 @@ function ProJobDetailContent() {
   const [fetching, setFetching] = useState(true);
   const [busy, setBusy] = useState(false);
   const [priceInput, setPriceInput] = useState("");
+  const [jobCommission, setJobCommission] = useState<number | null>(null);
+  const [showCancel, setShowCancel] = useState(false);
   // Provider -> customer rating: whether this job already has one, and the
   // customer's running average.
   const [myRating, setMyRating] = useState<CustomerReview | null>(null);
@@ -76,9 +78,14 @@ function ProJobDetailContent() {
     const j = data as Job | null;
     setJob(j);
     if (j) {
-      const [{ data: cust }, { data: mine }, { data: rating }] = await Promise.all([
+      const [{ data: cust }, { data: mine }, { data: rating }, ledger] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", j.customer_id).maybeSingle(),
         supabase.from("customer_reviews").select("*").eq("job_id", j.id).maybeSingle(),
+        supabase
+          .from("provider_ledger")
+          .select("amount")
+          .eq("job_id", j.id)
+          .eq("type", "commission"),
         // The view, not `customers` — that table holds the address and
         // coordinates, so ratings go out through the aggregates only.
         supabase
@@ -90,6 +97,11 @@ function ProJobDetailContent() {
       setCustomer(cust as Profile | null);
       setMyRating(mine as CustomerReview | null);
       setCustRating(rating as PublicCustomerRating | null);
+      setJobCommission(
+        ledger.data
+          ? Math.abs((ledger.data as { amount: number }[]).reduce((s, r) => s + r.amount, 0))
+          : null,
+      );
     }
     setFetching(false);
   }, [jobId]);
@@ -129,7 +141,12 @@ function ProJobDetailContent() {
 
   async function advance(to: JobStatus) {
     if (to === "completed" && (job?.price == null || job.price === 0)) {
-      toast("Set the final price before completing this job.", "error");
+      toast(
+        job?.proposed_price != null
+          ? "The customer hasn't accepted your proposed price yet."
+          : "Propose a price first — the customer must accept it before you can complete.",
+        "error",
+      );
       return;
     }
     setBusy(true);
@@ -150,14 +167,37 @@ function ProJobDetailContent() {
       return;
     }
     setBusy(true);
-    const { error } = await createClient().from("jobs").update({ price: value }).eq("id", jobId);
+    // A proposal, not a price: the customer must accept it before it
+    // becomes the job's price. The old code set the price unilaterally
+    // and the customer first saw it on the Bill at completion.
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ proposed_price: value })
+      .eq("id", jobId);
     setBusy(false);
     if (error) {
       toast(error.message, "error");
       return;
     }
     setPriceInput("");
-    toast("Price set — the customer can see it now.", "success");
+    toast("Price proposed — the customer must accept it before you can complete.", "success");
+    await load();
+  }
+
+  async function cancelJob() {
+    setBusy(true);
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ status: "cancelled" })
+      .eq("id", jobId)
+      .select("id")
+      .single();
+    setBusy(false);
+    if (error) {
+      toast("Couldn't cancel the job — " + error.message, "error");
+      return;
+    }
+    setShowCancel(false);
     await load();
   }
 
@@ -316,30 +356,36 @@ function ProJobDetailContent() {
 
         {/* ---------- right ---------- */}
         <div className="flex flex-col gap-5">
-          {/* Quote job: the Pro sets the final price once (then it's locked),
-              and only once they are on site. Quoting from `assigned` means
-              pricing work you have not seen, and the customer is then held to
-              that figure. The database enforces the same window — this is the
+          {/* Quote job: the Pro proposes a price once on site, and the
+              customer must accept it before it becomes the job's price.
+              The database enforces the same window — this is the
               explanation, not the gate. */}
           {job.price == null && !["rated", "paid", "cancelled"].includes(job.status) && (
             canPrice ? (
               <Card className="bg-warning-light">
                 <p className="text-sm font-semibold text-warning-foreground">This job needs a price</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Inspect the work, then set the final price for the customer.
+                  Inspect the work, then propose a price. The customer must accept it before you
+                  can complete the job.
                 </p>
+                {job.proposed_price != null && (
+                  <p className="mt-2 text-sm">
+                    Waiting for the customer to accept {formatPKR(job.proposed_price)} — you can
+                    propose a different figure below.
+                  </p>
+                )}
                 <div className="mt-3 space-y-2">
                   <Input
                     type="number"
                     inputMode="numeric"
-                    placeholder="Final price"
+                    placeholder="Proposed price"
                     prefix="Rs"
                     value={priceInput}
                     onChange={(e) => setPriceInput(e.target.value)}
-                    aria-label="Final price"
+                    aria-label="Proposed price"
                   />
                   <Button disabled={busy} className="w-full" onClick={setPrice}>
-                    Set price
+                    Propose price
                   </Button>
                 </div>
               </Card>
@@ -365,10 +411,40 @@ function ProJobDetailContent() {
             <Card className="bg-success-light text-center">
               <p className="text-sm font-semibold text-success">Job complete</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Commission owed:{" "}
-                {formatPKR(job.price ? job.price * job.commission_rate : 0)}
+                {job.business_id
+                  ? "Commission on this job is billed to your business, not to you."
+                  : jobCommission != null
+                    ? `Commission owed: ${formatPKR(jobCommission)}`
+                    : "See History for the exact commission figure."}
               </p>
             </Card>
+          )}
+
+          {/* Pro cancel: the state machine allows cancel through in_progress,
+              but the pro had no cancel control at all. */}
+          {["assigned", "en_route", "arrived", "in_progress"].includes(job.status) && (
+            <>
+              {showCancel ? (
+                <Card>
+                  <p className="text-sm font-semibold">Cancel this job?</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    The customer will be notified and the job will end.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="danger" size="sm" className="flex-1" disabled={busy} onClick={cancelJob}>
+                      Confirm cancellation
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowCancel(false)}>
+                      Keep job
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => setShowCancel(true)}>
+                  Cancel job
+                </Button>
+              )}
+            </>
           )}
 
           {/* Rate the customer — available from 'completed' on, and still

@@ -21,6 +21,12 @@ export type LedgerSummary = {
   netEarnings: number; // what the Pro keeps (payout portion)
   commissionGross: number; // total commission generated
   settled: number; // commission already remitted to the platform
+  /** Cash actually remitted (`payout` rows only). `settled` also counts
+      `adjustment` rows (reversals), so the two must not be conflated in
+      any "cash received" total. */
+  cashSettled: number;
+  /** Debt cancelled by reversals (`adjustment` rows). Not cash. */
+  cancelled: number;
   commissionOwed: number; // outstanding commission the Pro owes KARIGHAR
   /**
    * The same figure, SIGNED. `commissionOwed` clamps at zero so the screens
@@ -51,6 +57,8 @@ export function summarizeLedger(entries: LedgerEntry[]): LedgerSummary {
   let netEarnings = 0;
   let commissionGross = 0;
   let settled = 0;
+  let cashSettled = 0;
+  let cancelled = 0;
   let businessShareNet = 0;
   for (const e of entries) {
     switch (e.type) {
@@ -61,8 +69,12 @@ export function summarizeLedger(entries: LedgerEntry[]): LedgerSummary {
         commissionGross += Math.abs(e.amount);
         break;
       case "payout":
+        settled += e.amount;
+        cashSettled += e.amount;
+        break;
       case "adjustment":
         settled += e.amount;
+        cancelled += e.amount;
         break;
       case "business_share":
         businessShareNet += e.amount;
@@ -83,6 +95,8 @@ export function summarizeLedger(entries: LedgerEntry[]): LedgerSummary {
     netEarnings: Math.round(netEarnings * 100) / 100,
     commissionGross: Math.round(commissionGross * 100) / 100,
     settled: Math.round(settled * 100) / 100,
+    cashSettled: Math.round(cashSettled * 100) / 100,
+    cancelled: Math.round(cancelled * 100) / 100,
     commissionOwed: Math.max(0, Math.round((commissionGross - settled) * 100) / 100),
     commissionBalance: Math.round((commissionGross - settled) * 100) / 100,
     businessShareNet: Math.round(businessShareNet * 100) / 100,

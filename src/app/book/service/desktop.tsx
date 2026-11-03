@@ -301,8 +301,7 @@ function BookServiceContent() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           per {service.unit}
-          {service.visit_fee > 0 &&
-            ` · visit fee ${formatPKR(service.visit_fee)} (waived if booked)`}
+
         </p>
       </Card>
 

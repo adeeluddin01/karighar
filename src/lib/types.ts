@@ -165,6 +165,9 @@ export type Job = {
    */
   business_id: string | null;
   tech_share: number | null;
+  /** Pro-proposed price on a job that has no agreed price yet; the customer
+      accepts it (it becomes `price`) or declines it. Null otherwise. */
+  proposed_price: number | null;
   cancel_reason: string | null;
   created_at: string;
   updated_at: string;

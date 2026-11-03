@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminShell } from "@/components/AdminShell";
-import { Card, DataTable, EmptyState, Pill, Tabs, formatPKR } from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import { Button, Card, DataTable, EmptyState, Pill, Select, Tabs, formatPKR } from "@/components/ui";
 import { JOB_STATUS_LABEL, type Job, type JobStatus } from "@/lib/types";
 
 const CLOSED = new Set<JobStatus>(["paid", "rated", "cancelled"]);
@@ -18,8 +19,30 @@ function tone(status: JobStatus) {
 }
 
 export default function AdminJobs() {
+  const toast = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const [statusFor, setStatusFor] = useState<Record<string, JobStatus>>({});
+  const [busy, setBusy] = useState(false);
+
+  // Stuck-job fix: the triggers allow admin overrides, but no admin screen
+  // ever exposed one, so fixing a stuck job needed SQL.
+  async function moveJob(job: Job) {
+    const to = statusFor[job.id];
+    if (!to || to === job.status) return;
+    setBusy(true);
+    const { error } = await createClient().rpc("admin_update_job_status", {
+      p_job: job.id,
+      p_status: to,
+    });
+    setBusy(false);
+    if (error) {
+      toast("Couldn't move that job — " + error.message, "error");
+      return;
+    }
+    setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, status: to } : j)));
+    toast(`Job moved to ${JOB_STATUS_LABEL[to]}.`, "success");
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -61,7 +84,7 @@ export default function AdminJobs() {
             <EmptyState icon="inbox" title="No jobs in this view" />
           ) : (
             <DataTable
-              head={["Job", "Customer area", "Created", "Assigned", "Amount", "Status"]}
+              head={["Job", "Customer area", "Created", "Assigned", "Amount", "Status", "Move to"]}
             >
               {shown.map((job) => (
                 <tr key={job.id}>
@@ -96,6 +119,33 @@ export default function AdminJobs() {
                   <td className="whitespace-nowrap font-semibold">{formatPKR(job.price)}</td>
                   <td>
                     <Pill tone={tone(job.status)}>{JOB_STATUS_LABEL[job.status]}</Pill>
+                  </td>
+                  <td>
+                    <div className="flex gap-2">
+                      <Select
+                        value={statusFor[job.id] ?? job.status}
+                        onChange={(e) =>
+                          setStatusFor((m) => ({ ...m, [job.id]: e.target.value as JobStatus }))
+                        }
+                        aria-label={`Move ${job.title} to`}
+                      >
+                        {(
+                          Object.keys(JOB_STATUS_LABEL) as JobStatus[]
+                        ).map((s) => (
+                          <option key={s} value={s}>
+                            {JOB_STATUS_LABEL[s]}
+                          </option>
+                        ))}
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy || (statusFor[job.id] ?? job.status) === job.status}
+                        onClick={() => moveJob(job)}
+                      >
+                        Move
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
