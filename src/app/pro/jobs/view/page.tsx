@@ -53,6 +53,10 @@ function ProJobDetailContent() {
   const [job, setJob] = useState<Job | null>(null);
   const [customer, setCustomer] = useState<Profile | null>(null);
   const [fetching, setFetching] = useState(true);
+  // A failed fetch used to leave `fetching` true forever — the page sat on
+  // "Loading job…" with no error and no retry. The loader now always clears
+  // in `finally`, and a failure renders this instead of the spinner.
+  const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [priceInput, setPriceInput] = useState("");
   const [jobCommission, setJobCommission] = useState<number | null>(null);
@@ -74,11 +78,24 @@ function ProJobDetailContent() {
 
   const load = useCallback(async () => {
     const supabase = createClient();
+    setLoadError(false);
+    try {
     const { data } = await supabase.from("jobs").select("*").eq("id", jobId).single();
     const j = data as Job | null;
     setJob(j);
     if (j) {
-      const [{ data: cust }, { data: mine }, { data: rating }, ledger] = await Promise.all([
+      // BUG FIX 2026-11-03: these bindings were swapped — the 3rd query
+      // returns the ledger ARRAY and the 4th returns the single ratings
+      // OBJECT, but they were named the other way round. So `ledger.data`
+      // was the ratings object, `.reduce` threw "not a function", the
+      // loader rejected before clearing `fetching`, and the page sat on
+      // "Loading job…" forever. It only fired for customers who already
+      // have a ratings row (otherwise ledger.data was null and the throw
+      // was skipped) — which is why it looked job-specific. It also
+      // silently fed the ledger array into setCustRating, so rated
+      // customers showed as "New customer".
+      const [{ data: cust }, { data: mine }, { data: ledgerRows }, { data: rating }] =
+        await Promise.all([
         supabase.from("profiles").select("*").eq("id", j.customer_id).maybeSingle(),
         supabase.from("customer_reviews").select("*").eq("job_id", j.id).maybeSingle(),
         supabase
@@ -98,12 +115,16 @@ function ProJobDetailContent() {
       setMyRating(mine as CustomerReview | null);
       setCustRating(rating as PublicCustomerRating | null);
       setJobCommission(
-        ledger.data
-          ? Math.abs((ledger.data as { amount: number }[]).reduce((s, r) => s + r.amount, 0))
+        ledgerRows
+          ? Math.abs((ledgerRows as { amount: number }[]).reduce((s, r) => s + r.amount, 0))
           : null,
       );
     }
-    setFetching(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setFetching(false);
+    }
   }, [jobId]);
 
   useEffect(() => {
@@ -205,6 +226,29 @@ function ProJobDetailContent() {
     return (
       <AppShell>
         <Spinner label="Loading job…" />
+      </AppShell>
+    );
+  }
+  if (loadError) {
+    return (
+      <AppShell>
+        <Card className="text-center">
+          <p className="text-muted-foreground">
+            Couldn&apos;t load this job — check your connection and try again.
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() => {
+              setFetching(true);
+              load();
+            }}
+          >
+            Retry
+          </Button>
+          <LinkButton href="/pro/dashboard" variant="ghost" size="sm" className="mt-4 ml-2">
+            Back to dashboard
+          </LinkButton>
+        </Card>
       </AppShell>
     );
   }
