@@ -104,7 +104,7 @@ create trigger jobs_freelance_cap_t before insert or update on jobs
 -- only for a genuine unassign).
 -- Replacing the function body: the case list gains the two
 -- unassign targets for `assigned`. (NOT wrapped in a DO block: the
--- function's own $$ body delimiter would end a DO block early and
+-- function's own dollar-quote body delimiter would end a DO block early and
 -- leave `declare` as top-level SQL — that was the 42601 error.)
 create or replace function jobs_enforce_status()
 returns trigger language plpgsql set search_path = public as $$
