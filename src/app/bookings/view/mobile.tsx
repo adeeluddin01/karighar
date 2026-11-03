@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { googleDirectionsUrl } from "@/lib/maps";
 import { useRequireAuth } from "@/lib/useUser";
@@ -70,8 +70,25 @@ function BookingContent() {
   const search = useSearchParams();
   const jobId = search.get("id") ?? "";
   const isNew = search.get("new") === "1";
-  const { user, loading } = useRequireAuth(`/bookings/view/?id=${jobId}`);
+  const { user, profile, loading } = useRequireAuth(`/bookings/view/?id=${jobId}`);
+  const router = useRouter();
   const toast = useToast();
+
+  // Customer-area page: the read rules let a job's PROVIDER open this URL
+  // too, which used to show them customer controls — Pay now, Confirm
+  // paid, cancel, remove-the-pro. A provider belongs on their job view
+  // for the same job; other roles go to their home.
+  useEffect(() => {
+    if (!loading && profile && profile.role !== "customer") {
+      router.replace(
+        profile.role === "provider"
+          ? `/pro/jobs/view/?id=${jobId}`
+          : profile.role === "business"
+            ? "/business"
+            : "/admin/jobs",
+      );
+    }
+  }, [loading, profile, jobId, router]);
 
   const [job, setJob] = useState<Job | null>(null);
   const [pro, setPro] = useState<Profile | null>(null);
@@ -320,6 +337,7 @@ function BookingContent() {
       </Screen>
     );
   }
+  if (profile && profile.role !== "customer") return null;
 
   if (!job) {
     return (

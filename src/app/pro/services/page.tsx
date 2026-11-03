@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
@@ -8,7 +9,20 @@ import { Button, Card, Chip, PageHeader, Pill, Spinner } from "@/components/ui";
 import { KARACHI_AREAS, type ServiceCategory, type Service } from "@/lib/types";
 
 export default function ProviderServicesPage() {
-  const { user, loading } = useRequireAuth("/pro/services");
+  const { user, profile, loading } = useRequireAuth("/pro/services");
+  const router = useRouter();
+
+  // Pro-area page: a signed-in non-provider opening the URL directly gets
+  // their own home, not an empty services editor they could write junk
+  // rows into. Pending providers pass — the check is profile.role, not
+  // approval status.
+  useEffect(() => {
+    if (!loading && profile && profile.role !== "provider") {
+      router.replace(
+        profile.role === "customer" ? "/" : profile.role === "business" ? "/business" : "/admin",
+      );
+    }
+  }, [loading, profile, router]);
   const [cats, setCats] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [selectedCats, setSelectedCats] = useState<string[]>([]);
@@ -65,6 +79,8 @@ export default function ProviderServicesPage() {
     setBusy(false);
     setSaved(true);
   }
+
+  if (!loading && profile && profile.role !== "provider") return null;
 
   if (loading || !user) {
     return (

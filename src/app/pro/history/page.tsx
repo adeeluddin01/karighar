@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
@@ -21,7 +22,19 @@ import { JOB_STATUS_LABEL, type Job } from "@/lib/types";
 import { BRAND } from "@/lib/config";
 
 export default function ProviderHistoryPage() {
-  const { user, loading } = useRequireAuth("/pro/history");
+  const { user, profile, loading } = useRequireAuth("/pro/history");
+  const router = useRouter();
+
+  // Pro-area page: a signed-in non-provider opening the URL directly gets
+  // their own home, not an empty history. Pending providers pass — the
+  // check is profile.role, not approval status.
+  useEffect(() => {
+    if (!loading && profile && profile.role !== "provider") {
+      router.replace(
+        profile.role === "customer" ? "/" : profile.role === "business" ? "/business" : "/admin",
+      );
+    }
+  }, [loading, profile, router]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [wallet, setWallet] = useState<LedgerSummary | null>(null);
   const [walletError, setWalletError] = useState(false);
@@ -61,6 +74,8 @@ export default function ProviderHistoryPage() {
       }
     })();
   }, [user]);
+
+  if (!loading && profile && profile.role !== "provider") return null;
 
   const done = jobs.filter((j) => j.status !== "cancelled").length;
   const owed = wallet?.commissionOwed ?? 0;

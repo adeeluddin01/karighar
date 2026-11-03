@@ -48,7 +48,7 @@ const NEXT: Partial<Record<JobStatus, { to: JobStatus; label: string }>> = {
 function ProJobDetailContent() {
   const jobId = useSearchParams().get("id") ?? "";
   const router = useRouter();
-  const { user, loading } = useRequireAuth(`/pro/jobs/view/?id=${jobId}`);
+  const { user, profile, loading } = useRequireAuth(`/pro/jobs/view/?id=${jobId}`);
   const toast = useToast();
   const [job, setJob] = useState<Job | null>(null);
   const [customer, setCustomer] = useState<Profile | null>(null);
@@ -130,6 +130,23 @@ function ProJobDetailContent() {
   useEffect(() => {
     if (user) load();
   }, [user, load]);
+
+  // Pro-area page: the read rules let a job's CUSTOMER open this URL too
+  // (they're a party to the job), which used to show them pro controls —
+  // advance, price proposal, cancel, rate-the-customer. A customer belongs
+  // on their booking view for the same job; other roles go to their home.
+  // Pending providers pass — the check is profile.role, not approval.
+  useEffect(() => {
+    if (!loading && profile && profile.role !== "provider") {
+      router.replace(
+        profile.role === "customer"
+          ? `/bookings/view/?id=${jobId}`
+          : profile.role === "business"
+            ? "/business"
+            : "/admin/jobs",
+      );
+    }
+  }, [loading, profile, jobId, router]);
 
   async function submitCustomerRating() {
     if (!job || !user || !stars) return;
@@ -229,6 +246,7 @@ function ProJobDetailContent() {
       </AppShell>
     );
   }
+  if (profile && profile.role !== "provider") return null;
   if (loadError) {
     return (
       <AppShell>
