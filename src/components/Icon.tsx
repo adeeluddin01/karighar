@@ -59,7 +59,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-const ICONS: Record<string, LucideIcon> = {
+// Deliberately NOT typed as Record<string, ...>: with that annotation
+// `keyof typeof ICONS` collapses to `string`, and an invalid icon name
+// sails through the build and then crashes the whole page at runtime
+// (ICONS[name] is undefined, and React cannot render undefined). With
+// `satisfies`, the keys stay literal, so a bad name is a build error,
+// and the runtime guard below is only a second line of defence.
+const ICONS = {
   home: Home,
   book: BookCheck,
   pin: MapPin,
@@ -113,7 +119,7 @@ const ICONS: Record<string, LucideIcon> = {
   sun: Sun,
   camera: Camera,
   washingmachine: WashingMachine,
-};
+} satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;
 
@@ -130,6 +136,15 @@ export function Icon({
 }) {
   const px = SIZES[size];
   const Cmp = ICONS[name];
+  // Fail safe, never fail the page: an unknown icon (bad data, a typo
+  // that slipped past the type system) renders nothing instead of
+  // throwing "Element type is invalid" and unmounting the whole screen.
+  if (!Cmp) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(`Unknown icon: ${name}`);
+    }
+    return null;
+  }
   return (
     <Cmp
       width={px}

@@ -22,7 +22,7 @@ import {
   Tabs,
   formatPKR,
 } from "@/components/ui";
-import { summarizeLedger, type LedgerSummary } from "@/lib/money";
+import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import {
   JOB_STATUS_LABEL,
   type BusinessMember,
@@ -115,7 +115,7 @@ export default function ProDashboard() {
         setWallet(null);
       } else {
         setWalletError(false);
-        setWallet(summarizeLedger(ledger.data as never));
+        setWallet(summarizeLedger((ledger.data as LedgerEntry[] | null) ?? []));
       }
       const openJobs = (open as Job[]) || [];
       const myJobs = (assigned as Job[]) || [];
@@ -428,7 +428,7 @@ export default function ProDashboard() {
             ]}
           />
         )}
-        <LinkButton href="/pro/map" variant="ghost" size="sm" icon="nav">
+        <LinkButton href="/pro/map" variant="ghost" size="sm" icon="map">
           Map view
         </LinkButton>
         <LinkButton href="/pro/history" variant="ghost" size="sm" icon="trend">
