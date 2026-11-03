@@ -102,30 +102,30 @@ create trigger jobs_freelance_cap_t before insert or update on jobs
 -- moves to created/bidding by anyone else are still blocked by the
 -- guard (pro branch never allows them; customer branch allows them
 -- only for a genuine unassign).
-do $$ begin
-  -- Replacing the function body: the case list gains the two
-  -- unassign targets for `assigned`.
-  create or replace function jobs_enforce_status()
-  returns trigger language plpgsql set search_path = public as $$
-  declare ok boolean;
-  begin
-    if is_admin() then return new; end if;
-    ok := case old.status
-      when 'created'     then new.status in ('assigned','cancelled')
-      when 'bidding'     then new.status in ('assigned','cancelled')
-      when 'assigned'    then new.status in ('en_route','cancelled','created','bidding')
-      when 'en_route'    then new.status in ('arrived','cancelled')
-      when 'arrived'     then new.status in ('in_progress','cancelled')
-      when 'in_progress' then new.status in ('completed','cancelled')
-      when 'completed'   then new.status in ('paid','disputed')
-      when 'paid'        then new.status in ('rated','disputed')
-      else false end;
-    if not ok then
-      raise exception 'Illegal status change: % -> %', old.status, new.status;
-    end if;
-    return new;
-  end; $$;
-end $$;
+-- Replacing the function body: the case list gains the two
+-- unassign targets for `assigned`. (NOT wrapped in a DO block: the
+-- function's own $$ body delimiter would end a DO block early and
+-- leave `declare` as top-level SQL — that was the 42601 error.)
+create or replace function jobs_enforce_status()
+returns trigger language plpgsql set search_path = public as $$
+declare ok boolean;
+begin
+  if is_admin() then return new; end if;
+  ok := case old.status
+    when 'created'     then new.status in ('assigned','cancelled')
+    when 'bidding'     then new.status in ('assigned','cancelled')
+    when 'assigned'    then new.status in ('en_route','cancelled','created','bidding')
+    when 'en_route'    then new.status in ('arrived','cancelled')
+    when 'arrived'     then new.status in ('in_progress','cancelled')
+    when 'in_progress' then new.status in ('completed','cancelled')
+    when 'completed'   then new.status in ('paid','disputed')
+    when 'paid'        then new.status in ('rated','disputed')
+    else false end;
+  if not ok then
+    raise exception 'Illegal status change: % -> %', old.status, new.status;
+  end if;
+  return new;
+end; $$;
 
 -- Guard: customer unassign exemption, checked BEFORE the bid check
 -- (which would otherwise raise "cannot be unassigned" on the null
