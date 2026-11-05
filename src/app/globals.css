@@ -91,7 +91,7 @@ html[lang="ur"] {
 }
 
 html[lang="ur"] body {
-  line-height: 1.9;
+  line-height: 2.1;
 }
 
 /* Dark theme — follows the OS unless the user forced light. Only the raw
@@ -483,7 +483,7 @@ body {
   align-items: flex-start;
   gap: 0.5rem;
   padding: 1rem;
-  text-align: left;
+  text-align: start;
   width: 100%;
   border: 1.5px solid var(--border);
   background: var(--card);
@@ -587,7 +587,7 @@ body {
 }
 .legacy-ui .kv > :last-child {
   font-weight: 600;
-  text-align: right;
+  text-align: end;
 }
 
 .legacy-ui .toggle {
@@ -650,7 +650,7 @@ body {
   font-size: 0.875rem;
 }
 .legacy-ui .data-table th {
-  text-align: left;
+  text-align: start;
   font-weight: 600;
   color: var(--muted-foreground);
   font-size: 0.75rem;

@@ -7,10 +7,12 @@ import { useRequireAuth } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, Chip, PageHeader, Pill, Spinner } from "@/components/ui";
 import { KARACHI_AREAS, type ServiceCategory, type Service } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 
 export default function ProviderServicesPage() {
   const { user, profile, loading } = useRequireAuth("/pro/services");
   const router = useRouter();
+  const { t } = useLanguage();
 
   // Pro-area page: a signed-in non-provider opening the URL directly gets
   // their own home, not an empty services editor they could write junk
@@ -85,19 +87,19 @@ export default function ProviderServicesPage() {
   if (loading || !user) {
     return (
       <AppShell>
-        <Spinner label="Loading…" />
+        <Spinner label={t("services.loading")} />
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <PageHeader title="My services" subtitle="Choose what you offer and where you work." />
+      <PageHeader title={t("services.title")} subtitle={t("services.subtitle")} />
 
       <Card>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">Services you offer</h2>
-          <span className="text-xs text-muted-foreground">{selectedCats.length} selected</span>
+          <h2 className="text-base font-bold">{t("services.offer")}</h2>
+          <span className="text-xs text-muted-foreground">{selectedCats.length} {t("services.selected")}</span>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {cats.map((c) => (
@@ -114,8 +116,8 @@ export default function ProviderServicesPage() {
 
       <Card className="mt-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold">Areas you cover</h2>
-          <span className="text-xs text-muted-foreground">{areas.length} selected</span>
+          <h2 className="text-base font-bold">{t("services.areas")}</h2>
+          <span className="text-xs text-muted-foreground">{areas.length} {t("services.selected")}</span>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {KARACHI_AREAS.map((a) => (
@@ -128,11 +130,11 @@ export default function ProviderServicesPage() {
 
       <div className="mt-6 flex items-center gap-3">
         <Button disabled={busy} onClick={save}>
-          {busy ? "Saving…" : "Save changes"}
+          {busy ? t("profile.saving") : t("profile.saveChanges")}
         </Button>
         {saved && (
           <Pill tone="ok" icon="check">
-            Saved
+            {t("profile.saved")}
           </Pill>
         )}
       </div>

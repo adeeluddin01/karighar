@@ -257,6 +257,19 @@ const STRINGS: Record<string, Entry> = {
   "pro.listView": { en: "List view", ur: "فہرست" },
   "pro.mapView": { en: "Map view", ur: "نقشہ" },
 
+  // ---- pro services (My Services tab) ----
+  // Category and area names stay as entered (database / list data), like
+  // service names everywhere else — only the chrome is translated.
+  "services.title": { en: "My services", ur: "میری سروسز" },
+  "services.subtitle": {
+    en: "Choose what you offer and where you work.",
+    ur: "منتخب کریں کہ آپ کیا پیش کرتے ہیں اور کہاں کام کرتے ہیں۔",
+  },
+  "services.offer": { en: "Services you offer", ur: "وہ سروسز جو آپ پیش کرتے ہیں" },
+  "services.areas": { en: "Areas you cover", ur: "وہ علاقے جنہیں آپ کور کرتے ہیں" },
+  "services.selected": { en: "selected", ur: "منتخب" },
+  "services.loading": { en: "Loading…", ur: "لوڈ ہو رہا ہے…" },
+
   // ---- provider application status (Profile pill) ----
   "status.approved": { en: "Approved", ur: "منظور شدہ" },
   "status.pending": { en: "Pending", ur: "زیرِ غور" },
