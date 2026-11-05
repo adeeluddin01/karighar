@@ -193,12 +193,114 @@ const STRINGS: Record<string, Entry> = {
     en: "Switch the app language to Urdu",
     ur: "ایپ کی زبان اردو میں بدلیں",
   },
+  "settings.appearance": { en: "Appearance", ur: "ظاہری شکل" },
+  "settings.themeHint": {
+    en: "Choose a theme, or follow your device setting.",
+    ur: "تھیم منتخب کریں یا اپنے آلے کی ترتیب استعمال کریں۔",
+  },
+  "settings.themeLight": { en: "Light", ur: "ہلکا" },
+  "settings.themeDark": { en: "Dark", ur: "گہرا" },
+  "settings.themeSystem": { en: "System", ur: "سسٹم" },
+  "settings.preferences": { en: "Preferences", ur: "ترجیحات" },
+  "settings.pushNotif": { en: "Push notifications", ur: "پش اطلاعات" },
+  "settings.pushNotifDesc": {
+    en: "Job updates & messages",
+    ur: "کام کی اپڈیٹس اور پیغامات",
+  },
+  "settings.workWithUs": { en: "Work with us", ur: "ہمارے ساتھ کام کریں" },
+  "settings.proDashboard": { en: "Pro dashboard", ur: "پرو ڈیش بورڈ" },
+  "settings.proDashboardHint": {
+    en: "Your jobs, earnings and commission",
+    ur: "آپ کے کام، آمدنی اور کمیشن",
+  },
+  "settings.finishVerification": {
+    en: "Finish pro verification",
+    ur: "پرو تصدیق مکمل کریں",
+  },
+  "settings.becomePro": { en: "Become a pro", ur: "پرو بنیں" },
+  "settings.becomeProHint": {
+    en: "Get matched to jobs near you and keep 80–85% of each one",
+    ur: "اپنے قریب کے کام حاصل کریں اور ہر کام کا 80–85% رکھیں",
+  },
+  "settings.application": { en: "Application", ur: "درخواست" },
+  "settings.inProgress": { en: "in progress", ur: "جاری ہے" },
+  "settings.statusPending": { en: "pending", ur: "زیرِ غور" },
+  "settings.statusSuspended": { en: "suspended", ur: "معطل" },
+  "settings.statusRejected": { en: "rejected", ur: "مسترد" },
+  "settings.account": { en: "Account", ur: "اکاؤنٹ" },
+  "settings.email": { en: "Email", ur: "ای میل" },
+  "settings.changePassword": { en: "Change password", ur: "پاس ورڈ بدلیں" },
+  "settings.resetLinkHint": {
+    en: "We'll email you a reset link",
+    ur: "ہم آپ کو ری سیٹ لنک ای میل کریں گے",
+  },
+  "settings.resetLinkSent": {
+    en: "Password reset link sent to your email.",
+    ur: "پاس ورڈ ری سیٹ لنک آپ کے ای میل پر بھیج دیا گیا ہے۔",
+  },
+  "settings.logOut": { en: "Log out", ur: "لاگ آؤٹ" },
+  "settings.about": { en: "About", ur: "متعلق" },
+  "settings.aboutLegal": { en: "About & legal", ur: "متعلق اور قانونی" },
+  "settings.helpSupport": { en: "Help & Support", ur: "مدد اور سپورٹ" },
+  "settings.terms": { en: "Terms", ur: "شرائط" },
+  "settings.termsOfService": { en: "Terms of service", ur: "سروس کی شرائط" },
+  "settings.privacy": { en: "Privacy", ur: "پرائیویسی" },
+  "settings.privacyPolicy": { en: "Privacy policy", ur: "پرائیویسی پالیسی" },
+
+  // ---- pro view toggle (map page only) ----
+  "pro.listView": { en: "List view", ur: "فہرست" },
+  "pro.mapView": { en: "Map view", ur: "نقشہ" },
 };
 
 function lookup(lang: Lang, key: string): string {
   const entry = STRINGS[key];
   if (!entry) return key;
   return lang === "ur" ? entry.ur : entry.en;
+}
+
+// proEntry() (components/nav.ts) returns plain English copy. Settings
+// renders it, so it gets translated here — keyed by href, since that is
+// what distinguishes the three entries. Anything unrecognised passes
+// through in English rather than blanking.
+export type ProEntry = { href: string; label: string; hint: string };
+
+export function translateProEntry(
+  lang: Lang,
+  entry: ProEntry | null,
+  providerStatus?: string | null
+): ProEntry | null {
+  if (!entry) return null;
+  switch (entry.href) {
+    case "/pro/dashboard":
+      return {
+        href: entry.href,
+        label: lookup(lang, "settings.proDashboard"),
+        hint: lookup(lang, "settings.proDashboardHint"),
+      };
+    case "/pro/onboarding": {
+      const status =
+        providerStatus === "pending"
+          ? lookup(lang, "settings.statusPending")
+          : providerStatus === "suspended"
+            ? lookup(lang, "settings.statusSuspended")
+            : providerStatus === "rejected"
+              ? lookup(lang, "settings.statusRejected")
+              : providerStatus ?? lookup(lang, "settings.inProgress");
+      return {
+        href: entry.href,
+        label: lookup(lang, "settings.finishVerification"),
+        hint: `${lookup(lang, "settings.application")} ${status}`,
+      };
+    }
+    case "/pro":
+      return {
+        href: entry.href,
+        label: lookup(lang, "settings.becomePro"),
+        hint: lookup(lang, "settings.becomeProHint"),
+      };
+    default:
+      return entry;
+  }
 }
 
 function subscribeLang(onChange: () => void) {
@@ -231,6 +333,8 @@ export type LanguageApi = {
   tNav: (label: string) => string;
   /** Translate a job status (JOB_STATUS_LABEL meanings). */
   tStatus: (status: JobStatus) => string;
+  /** Translate a proEntry() card (Settings, Profile). */
+  tPro: (entry: ProEntry | null, providerStatus?: string | null) => ProEntry | null;
 };
 
 const LanguageContext = createContext<LanguageApi>({
@@ -239,6 +343,7 @@ const LanguageContext = createContext<LanguageApi>({
   t: (key) => lookup("en", key),
   tNav: (label) => lookup("en", `nav:${label}`),
   tStatus: (status) => lookup("en", `status:${status}`),
+  tPro: (entry, providerStatus) => translateProEntry("en", entry, providerStatus),
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
@@ -261,6 +366,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     t: useCallback((key: string) => lookup(lang, key), [lang]),
     tNav: useCallback((label: string) => lookup(lang, `nav:${label}`), [lang]),
     tStatus: useCallback((status: JobStatus) => lookup(lang, `status:${status}`), [lang]),
+    tPro: useCallback(
+      (entry: ProEntry | null, providerStatus?: string | null) =>
+        translateProEntry(lang, entry, providerStatus),
+      [lang]
+    ),
   };
 
   return <LanguageContext.Provider value={api}>{children}</LanguageContext.Provider>;

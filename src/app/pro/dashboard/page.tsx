@@ -8,7 +8,6 @@ import { AppShell } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { Icon } from "@/components/Icon";
 import { HousePromo } from "@/components/HousePromo";
-import { ProViewToggle } from "@/components/ProViewToggle";
 import {
   Avatar,
   Button,
@@ -500,7 +499,6 @@ export default function ProDashboard() {
             ]}
           />
         )}
-        <ProViewToggle active="list" />
         <LinkButton href="/pro/history" variant="ghost" size="sm" icon="history">
           {t("pro.history")}
         </LinkButton>

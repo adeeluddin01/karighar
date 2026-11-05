@@ -38,11 +38,8 @@ function useLocalToggle(key: string, initial: boolean) {
   return [on, toggle] as const;
 }
 
-const THEMES: { key: Theme; label: string }[] = [
-  { key: "light", label: "Light" },
-  { key: "dark", label: "Dark" },
-  { key: "system", label: "System" },
-];
+// Labels come from the dictionary at render time, so Urdu mode translates them.
+const THEMES: { key: Theme }[] = [{ key: "light" }, { key: "dark" }, { key: "system" }];
 
 export default function SettingsScreen() {
   const { user, profile, providerStatus, loading } = useRequireAuth("/settings");
@@ -51,7 +48,7 @@ export default function SettingsScreen() {
   const [notif, setNotif] = useLocalToggle("pref_notifications", true);
   // Was a dead toggle writing "pref_urdu" — now drives the app language
   // (see src/lib/i18n.tsx); the old key is honoured once on first load.
-  const { t, lang, setLang } = useLanguage();
+  const { t, tPro, lang, setLang } = useLanguage();
   const [theme, setTheme] = useTheme();
   const [busy, setBusy] = useState(false);
 
@@ -63,7 +60,7 @@ export default function SettingsScreen() {
     });
     setBusy(false);
     toast(
-      error ? error.message : "Password reset link sent to your email.",
+      error ? error.message : t("settings.resetLinkSent"),
       error ? "error" : "success"
     );
   }
@@ -74,7 +71,7 @@ export default function SettingsScreen() {
     router.refresh();
   }
 
-  const pro = proEntry(profile?.role, providerStatus);
+  const pro = tPro(proEntry(profile?.role, providerStatus), providerStatus);
 
   if (loading || !user) {
     return (
@@ -92,30 +89,34 @@ export default function SettingsScreen() {
     <Screen>
       <TopBar title={t("settings.title")} back="/profile" />
       <Scroll underTop pad="plain">
-        <h3 className="lbl">Appearance</h3>
+        <h3 className="lbl">{t("settings.appearance")}</h3>
         <div className="chips" role="radiogroup" aria-label="Theme">
-          {THEMES.map((t) => (
+          {THEMES.map((th) => (
             <button
-              key={t.key}
+              key={th.key}
               type="button"
               role="radio"
-              aria-checked={theme === t.key}
-              className={clsx("chip", theme === t.key && "sel")}
-              onClick={() => setTheme(t.key)}
+              aria-checked={theme === th.key}
+              className={clsx("chip", theme === th.key && "sel")}
+              onClick={() => setTheme(th.key)}
             >
-              <KIcon name={t.key === "dark" ? "moon" : t.key === "light" ? "spark" : "globe"} xs />
-              {t.label}
+              <KIcon name={th.key === "dark" ? "moon" : th.key === "light" ? "spark" : "globe"} xs />
+              {th.key === "light"
+                ? t("settings.themeLight")
+                : th.key === "dark"
+                  ? t("settings.themeDark")
+                  : t("settings.themeSystem")}
             </button>
           ))}
         </div>
 
-        <h3 className="lbl">Preferences</h3>
+        <h3 className="lbl">{t("settings.preferences")}</h3>
         <div className="menu card">
           <label htmlFor="kg-pref-notif">
             <Well icon="bell" size="sm" />
             <div>
-              <b>Push notifications</b>
-              <small>Job updates and messages</small>
+              <b>{t("settings.pushNotif")}</b>
+              <small>{t("settings.pushNotifDesc")}</small>
             </div>
             <input
               className="sw-in"
@@ -143,7 +144,7 @@ export default function SettingsScreen() {
 
         {pro && (
           <>
-            <h3 className="lbl">Work with us</h3>
+            <h3 className="lbl">{t("settings.workWithUs")}</h3>
             <div className="menu card">
               <Link href={pro.href}>
                 <Well icon="wrench" size="sm" />
@@ -157,51 +158,51 @@ export default function SettingsScreen() {
           </>
         )}
 
-        <h3 className="lbl">Account</h3>
+        <h3 className="lbl">{t("settings.account")}</h3>
         <div className="menu card">
           <div>
             <Well icon="mail" size="sm" />
             <div>
-              <b>Email</b>
+              <b>{t("settings.email")}</b>
               <small>{user.email}</small>
             </div>
           </div>
           <button type="button" onClick={resetPassword} disabled={busy}>
             <Well icon="lock" size="sm" />
             <div>
-              <b>Change password</b>
-              <small>We&rsquo;ll email you a reset link</small>
+              <b>{t("settings.changePassword")}</b>
+              <small>{t("settings.resetLinkHint")}</small>
             </div>
             <KIcon name="chev-r" className="chev" />
           </button>
           <button type="button" className="bad" onClick={signOut}>
             <Well icon="logout" size="sm" />
             <div>
-              <b>Log out</b>
+              <b>{t("settings.logOut")}</b>
             </div>
           </button>
         </div>
 
-        <h3 className="lbl">About</h3>
+        <h3 className="lbl">{t("settings.about")}</h3>
         <div className="menu card">
           <Link href="/support">
             <Well icon="headset" size="sm" />
             <div>
-              <b>Help &amp; support</b>
+              <b>{t("settings.helpSupport")}</b>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
           <Link href="/terms">
             <Well icon="doc" size="sm" />
             <div>
-              <b>Terms of service</b>
+              <b>{t("settings.termsOfService")}</b>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
           <Link href="/privacy">
             <Well icon="shield" size="sm" />
             <div>
-              <b>Privacy policy</b>
+              <b>{t("settings.privacyPolicy")}</b>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
