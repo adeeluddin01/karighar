@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useUser } from "@/lib/useUser";
 import { Icon } from "@/components/Icon";
 import { PHONE_NAV, isActive, roleOf } from "@/components/nav";
+import { useLanguage } from "@/lib/i18n";
 import { clsx } from "@/lib/clsx";
 
 // Mobile tab bar for the pro and admin areas (the customer screens have their
@@ -16,6 +17,7 @@ import { clsx } from "@/lib/clsx";
 // provider moves between a customer screen and their own area.
 export function BottomNav() {
   const { user, profile, providerStatus, businessStatus, loading } = useUser();
+  const { tNav } = useLanguage();
   const pathname = usePathname();
   if (loading) return null;
 
@@ -32,7 +34,7 @@ export function BottomNav() {
           <Link
             key={t.href}
             href={t.href}
-            aria-label={t.label}
+            aria-label={tNav(t.label)}
             aria-current={on ? "page" : undefined}
             className={clsx(
               "inline-flex h-[54px] min-w-0 items-center gap-2 rounded-full text-sm font-extrabold",
@@ -42,7 +44,7 @@ export function BottomNav() {
             )}
           >
             <Icon name={t.icon} size="lg" />
-            {on && <span className="truncate">{t.label}</span>}
+            {on && <span className="truncate">{tNav(t.label)}</span>}
           </Link>
         );
       })}

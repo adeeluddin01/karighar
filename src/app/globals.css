@@ -79,6 +79,20 @@
   --shadow-lift: var(--shadow-lg);
 }
 
+/* Urdu: Noto Nastaliq Urdu replaces both typefaces, and Nastaliq's tall
+   glyphs need a roomier line height or they clip. English is untouched —
+   this only applies when <html lang="ur">. Note the layout itself is only
+   partly RTL-aware: flex rows flip with dir="rtl", but physical
+   left-/right- utilities (map chrome, header menu) do not mirror yet. */
+html[lang="ur"] {
+  --f-display: var(--font-urdu), "Segoe UI", system-ui, sans-serif;
+  --f-body: var(--font-urdu), "Segoe UI", system-ui, sans-serif;
+}
+
+html[lang="ur"] body {
+  line-height: 1.7;
+}
+
 /* Dark theme — follows the OS unless the user forced light. Only the raw
    redesign tokens are restated; the aliases above resolve through them. */
 @media (prefers-color-scheme: dark) {

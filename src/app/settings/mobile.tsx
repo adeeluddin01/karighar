@@ -11,6 +11,7 @@ import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Pill, Skel, Well } from "@/components/kg/parts";
 import { proEntry } from "@/components/nav";
+import { useLanguage } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/lib/theme";
 import { BRAND } from "@/lib/config";
 import { clsx } from "@/lib/clsx";
@@ -48,7 +49,9 @@ export default function SettingsScreen() {
   const router = useRouter();
   const toast = useToast();
   const [notif, setNotif] = useLocalToggle("pref_notifications", true);
-  const [urdu, setUrdu] = useLocalToggle("pref_urdu", false);
+  // Was a dead toggle writing "pref_urdu" — now drives the app language
+  // (see src/lib/i18n.tsx); the old key is honoured once on first load.
+  const { t, lang, setLang } = useLanguage();
   const [theme, setTheme] = useTheme();
   const [busy, setBusy] = useState(false);
 
@@ -76,7 +79,7 @@ export default function SettingsScreen() {
   if (loading || !user) {
     return (
       <Screen>
-        <TopBar title="Settings" back="/profile" />
+        <TopBar title={t("settings.title")} back="/profile" />
         <Scroll underTop pad="plain">
           <Skel h={100} />
           <Skel h={140} />
@@ -87,7 +90,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <TopBar title="Settings" back="/profile" />
+      <TopBar title={t("settings.title")} back="/profile" />
       <Scroll underTop pad="plain">
         <h3 className="lbl">Appearance</h3>
         <div className="chips" role="radiogroup" aria-label="Theme">
@@ -126,14 +129,14 @@ export default function SettingsScreen() {
             <Well icon="globe" size="sm" />
             <div>
               <b>اردو (Urdu)</b>
-              <small>App language · coming soon</small>
+              <small>{t("settings.languageDesc")}</small>
             </div>
             <input
               className="sw-in"
               type="checkbox"
               id="kg-pref-urdu"
-              checked={urdu}
-              onChange={(e) => setUrdu(e.target.checked)}
+              checked={lang === "ur"}
+              onChange={(e) => setLang(e.target.checked ? "ur" : "en")}
             />
           </label>
         </div>

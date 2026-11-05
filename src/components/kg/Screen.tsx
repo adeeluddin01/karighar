@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { KIcon, type KIconName } from "@/components/kg/icons";
 import { PHONE_NAV, isActive, roleOf } from "@/components/nav";
+import { useLanguage } from "@/lib/i18n";
 import { useUser } from "@/lib/useUser";
 import { clsx } from "@/lib/clsx";
 
@@ -118,6 +119,7 @@ export function Cta({ children, className }: { children: React.ReactNode; classN
  */
 export function TabBar() {
   const pathname = usePathname();
+  const { tNav } = useLanguage();
   const { user, profile, providerStatus, businessStatus } = useUser();
   // While the session resolves this reads as `guest`, whose tabs match the
   // customer set — so the common case never flickers.
@@ -132,11 +134,11 @@ export function TabBar() {
             key={t.href}
             href={t.href}
             className={clsx(on && "on")}
-            aria-label={t.label}
+            aria-label={tNav(t.label)}
             aria-current={on ? "page" : undefined}
           >
             <KIcon name={t.kicon} />
-            <span>{t.label}</span>
+            <span>{tNav(t.label)}</span>
           </Link>
         );
       })}

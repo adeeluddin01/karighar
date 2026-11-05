@@ -24,6 +24,16 @@ import {
   formatPKR,
 } from "@/components/ui";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
+import { useLanguage } from "@/lib/i18n";
+import {
+  DEFAULT_JOB_FILTERS,
+  filterJobs,
+  serviceOptions,
+  statusOptions,
+  type JobFilters,
+  type ServiceOption,
+} from "@/lib/jobFilters";
+import { JobFilters as JobFiltersBar } from "@/components/JobFilters";
 import {
   JOB_STATUS_LABEL,
   type BusinessMember,
@@ -38,10 +48,15 @@ type Membership = BusinessMember & { business?: Profile };
 
 export default function ProDashboard() {
   const { user, profile, loading } = useRequireAuth("/pro/dashboard");
+  const { t, tStatus } = useLanguage();
   const toast = useToast();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [available, setAvailable] = useState<Job[]>([]);
   const [mine, setMine] = useState<Job[]>([]);
+  // Services for the filter bar — names only; the jobs themselves carry
+  // service_id. Loaded once with the jobs, same as bookings mobile does.
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [filters, setFilters] = useState<JobFilters>(DEFAULT_JOB_FILTERS);
   // The technician's side of a business relationship: an open invite to
   // answer, or the team they already work for.
   const [invite, setInvite] = useState<Membership | null>(null);
@@ -131,6 +146,13 @@ export default function ProDashboard() {
       const myJobs = (assigned as Job[]) || [];
       setAvailable(openJobs);
       setMine(myJobs);
+
+      const { data: svcRows } = await supabase
+        .from("services")
+        .select("id,name")
+        .eq("is_active", true)
+        .order("name");
+      setServices((svcRows as ServiceOption[]) || []);
 
       // One batched read of the ratings view — it carries the aggregates only,
       // so this works for the open pool too, where the provider has no
@@ -226,6 +248,23 @@ export default function ProDashboard() {
 
   // Money still owed on jobs in flight, as a quick "pipeline" figure.
   const pipeline = useMemo(() => mine.reduce((sum, j) => sum + (j.price ?? 0), 0), [mine]);
+
+  // Filtered lists. These MUST sit above the early returns below — hooks
+  // after a conditional return change order between renders. (The tab
+  // computation moves up with them for the same reason.)
+  const attached = !!team;
+  const effTab: Tab = attached ? "active" : tab;
+  const list = effTab === "open" ? available : mine;
+  // Service options come from BOTH lists, so switching tabs never leaves
+  // the selected service without an option; the status filter only applies
+  // to Your jobs (the open pool is only created/bidding, which the type
+  // filter already covers).
+  const svc = useMemo(
+    () => serviceOptions([...available, ...mine], services),
+    [available, mine, services]
+  );
+  const shown = useMemo(() => filterJobs(list, filters), [list, filters]);
+  const activeStatuses = useMemo(() => statusOptions(mine), [mine]);
 
   if (loading || fetching) {
     return (
@@ -325,9 +364,6 @@ export default function ProDashboard() {
 
   // An attached technician has no open pool — `jobs_select` returns none, so
   // this is presentation catching up with RLS rather than a second gate.
-  const attached = !!team;
-  const effTab: Tab = attached ? "active" : tab;
-  const list = effTab === "open" ? available : mine;
   const activeCount = mine.filter((j) =>
     ["assigned", "en_route", "arrived", "in_progress"].includes(j.status),
   ).length;
@@ -407,21 +443,21 @@ export default function ProDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {!attached && <Stat icon="briefcase" label="Open requests" value={available.length} />}
-        <Stat icon="clock" label="Active jobs" value={mine.length} />
+        {!attached && <Stat icon="briefcase" label={t("pro.openRequests")} value={available.length} />}
+        <Stat icon="clock" label={t("pro.activeJobs")} value={mine.length} />
         <Stat
           icon="wallet"
-          label="In pipeline"
+          label={t("pro.inPipeline")}
           value={formatPKR(pipeline)}
           className={attached ? undefined : "col-span-2 sm:col-span-1"}
         />
         {wallet && wallet.commissionOwed > 0 && (
-          <Stat icon="wallet" label="Owed to Karighar" value={formatPKR(wallet.commissionOwed)} />
+          <Stat icon="wallet" label={t("pro.owed")} value={formatPKR(wallet.commissionOwed)} />
         )}
         {wallet && wallet.businessShareNet < 0 && (
           <Stat
             icon="wallet"
-            label="Due to your business"
+            label={t("pro.dueBusiness")}
             value={formatPKR(-wallet.businessShareNet)}
           />
         )}
@@ -451,40 +487,62 @@ export default function ProDashboard() {
       <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">
         {attached ? (
           <h2 className="text-xl font-bold tracking-tight">
-            Your jobs{mine.length ? ` (${mine.length})` : ""}
+            {t("pro.yourJobs")}
+            {mine.length ? ` (${mine.length})` : ""}
           </h2>
         ) : (
           <Tabs
             value={tab}
             onChange={setTab}
             tabs={[
-              { key: "open", label: `Open${available.length ? ` (${available.length})` : ""}` },
-              { key: "active", label: `Your jobs${mine.length ? ` (${mine.length})` : ""}` },
+              { key: "open", label: `${t("pro.open")}${available.length ? ` (${available.length})` : ""}` },
+              { key: "active", label: `${t("pro.yourJobs")}${mine.length ? ` (${mine.length})` : ""}` },
             ]}
           />
         )}
         <ProViewToggle active="list" />
         <LinkButton href="/pro/history" variant="ghost" size="sm" icon="history">
-          History
+          {t("pro.history")}
         </LinkButton>
       </div>
+
+      {/* Filters — same bar on both tabs and on the map, so a pro filters
+          the same way wherever they browse jobs. */}
+      {list.length > 0 && (
+        <div className="mb-4">
+          <JobFiltersBar
+            services={svc.options}
+            hasCustom={svc.hasCustom}
+            value={filters}
+            onChange={setFilters}
+            statusOptions={effTab === "active" ? activeStatuses : undefined}
+          />
+        </div>
+      )}
 
       {list.length === 0 ? (
         <EmptyState
           icon={effTab === "open" ? "party" : "calendar"}
-          title="Nothing here yet"
+          title={t("pro.nothingYet")}
           hint={
             effTab === "open"
-              ? "No open jobs right now. Check back soon."
+              ? t("pro.noOpenHint")
               : attached
                 ? `${team?.business?.full_name ?? "Your business"} hasn't sent you anything yet. New jobs show up here.`
-                : "Jobs you accept will show up here."
+                : t("pro.noMineHint")
           }
         />
+      ) : shown.length === 0 ? (
+        <Card className="text-center">
+          <p className="text-muted-foreground">{t("filters.noMatch")}</p>
+          <Button className="mt-4" variant="ghost" onClick={() => setFilters(DEFAULT_JOB_FILTERS)}>
+            {t("filters.clear")}
+          </Button>
+        </Card>
       ) : (
         <div className="flex flex-col gap-4">
           {effTab === "active"
-            ? mine.map((job) => (
+            ? shown.map((job) => (
                 <Link key={job.id} href={`/pro/jobs/view/?id=${job.id}`} className="opt">
                   <span className="flex w-full items-start justify-between gap-3">
                     <span className="min-w-0">
@@ -492,7 +550,7 @@ export default function ProDashboard() {
                       <span className="block text-sm text-muted-foreground">{job.address}</span>
                     </span>
                     <span className="whitespace-nowrap text-right">
-                      <Pill tone="info">{JOB_STATUS_LABEL[job.status]}</Pill>
+                      <Pill tone="info">{tStatus(job.status)}</Pill>
                       <span className="mt-2 block font-bold">{formatPKR(job.price)}</span>
                     </span>
                   </span>
@@ -501,19 +559,19 @@ export default function ProDashboard() {
                       <Icon name="calendar" size="sm" />
                       {job.scheduled_at
                         ? new Date(job.scheduled_at).toLocaleString("en-PK")
-                        : "Flexible time"}
+                        : t("pro.flexibleTime")}
                     </span>
                     <CustomerRating rating={custRatings.get(job.customer_id)} />
                   </span>
                 </Link>
               ))
-            : available.map((job) => (
+            : shown.map((job) => (
                 <Card key={job.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-base font-bold">{job.title}</h3>
-                        {job.type === "custom" && <Pill tone="warn">Custom · quote</Pill>}
+                        {job.type === "custom" && <Pill tone="warn">{t("pro.customQuote")}</Pill>}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
                       {job.description && <p className="mt-1 text-sm">{job.description}</p>}
@@ -522,7 +580,7 @@ export default function ProDashboard() {
                           <Icon name="calendar" size="sm" />
                           {job.scheduled_at
                             ? new Date(job.scheduled_at).toLocaleString("en-PK")
-                            : "Flexible time"}
+                            : t("pro.flexibleTime")}
                         </span>
                         <CustomerRating rating={custRatings.get(job.customer_id)} />
                       </p>
@@ -536,7 +594,7 @@ export default function ProDashboard() {
                           disabled={busy || atCap}
                           onClick={() => acceptFixed(job)}
                         >
-                          {atCap ? "At 3-job limit" : "Accept"}
+                          {atCap ? t("pro.atCap") : t("pro.accept")}
                         </Button>
                       ) : (
                         <Button
@@ -545,7 +603,7 @@ export default function ProDashboard() {
                           className="mt-2"
                           onClick={() => setBidFor(bidFor === job.id ? null : job.id)}
                         >
-                          {bidFor === job.id ? "Close" : "Send quote"}
+                          {bidFor === job.id ? t("common.close") : t("pro.sendQuote")}
                         </Button>
                       )}
                     </div>
@@ -586,8 +644,9 @@ export default function ProDashboard() {
  * ratings yet reads as "New customer" rather than 0.0 stars.
  */
 function CustomerRating({ rating }: { rating?: PublicCustomerRating }) {
+  const { t } = useLanguage();
   if (!rating || rating.jobs_rated === 0) {
-    return <span>New customer</span>;
+    return <span>{t("pro.newCustomer")}</span>;
   }
   return (
     <span className="flex items-center gap-1.5">

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/lib/useUser";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useLanguage } from "@/lib/i18n";
 import { Logo } from "@/components/Logo";
 import { Icon } from "@/components/Icon";
 import { Avatar } from "@/components/ui";
@@ -16,6 +17,7 @@ import { BRAND } from "@/lib/config";
 // so this collapses to nothing; navigation lives in BottomNav on small screens.
 export function AppHeader() {
   const { user, profile, providerStatus, businessStatus, loading } = useUser();
+  const { t } = useLanguage();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -66,14 +68,14 @@ export function AppHeader() {
                         <p className="truncate text-xs capitalize text-muted-foreground">{role}</p>
                       </div>
                       <MenuItem href="/profile" icon="user" onClick={() => setMenuOpen(false)}>
-                        Profile
+                        {t("common.profile")}
                       </MenuItem>
                       <MenuItem href="/settings" icon="settings" onClick={() => setMenuOpen(false)}>
-                        Settings
+                        {t("common.settings")}
                       </MenuItem>
                       {role === "customer" && (
                         <MenuItem href="/bookings" icon="book" onClick={() => setMenuOpen(false)}>
-                          My bookings
+                          {t("common.myBookings")}
                         </MenuItem>
                       )}
                       {role === "provider" && (
@@ -82,19 +84,19 @@ export function AppHeader() {
                           icon="briefcase"
                           onClick={() => setMenuOpen(false)}
                         >
-                          Dashboard
+                          {t("common.dashboard")}
                         </MenuItem>
                       )}
                       {role === "admin" && (
                         <MenuItem href="/admin" icon="building" onClick={() => setMenuOpen(false)}>
-                          Admin
+                          {t("common.admin")}
                         </MenuItem>
                       )}
                       <button
                         onClick={signOut}
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-semibold text-destructive hover:bg-destructive-light"
                       >
-                        <Icon name="logout" size="sm" /> Sign out
+                        <Icon name="logout" size="sm" /> {t("common.signOut")}
                       </button>
                     </div>
                   </>
@@ -104,10 +106,10 @@ export function AppHeader() {
           ) : (
             <>
               <Link href="/signin" className="btn-ghost btn-sm">
-                Sign in
+                {t("common.signIn")}
               </Link>
               <Link href="/signup" className="btn-primary btn-sm">
-                Sign up
+                {t("common.signUp")}
               </Link>
             </>
           )}

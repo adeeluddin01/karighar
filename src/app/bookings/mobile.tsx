@@ -9,8 +9,17 @@ import { KIcon } from "@/components/kg/icons";
 import { AlertsBell } from "@/components/kg/AlertsBell";
 import { EmptyK, Pill, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
-import { STATUS_PILL, isActiveJob, jobRef, whenLabel } from "@/components/kg/job";
+import { STATUS_PILL, STATUS_PILL_UR, isActiveJob, jobRef, whenLabel } from "@/components/kg/job";
 import { fetchPublicPros } from "@/lib/providers";
+import { useLanguage } from "@/lib/i18n";
+import {
+  DEFAULT_JOB_FILTERS,
+  filterJobs,
+  serviceOptions,
+  type JobFilters,
+  type ServiceOption,
+} from "@/lib/jobFilters";
+import { JobFilters as JobFiltersBar } from "@/components/JobFilters";
 import { formatPKR } from "@/lib/money";
 import type { Job, Service, ServiceCategory } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
@@ -20,8 +29,13 @@ type Enriched = Job & { proName?: string | null; icon?: string | null; rated?: b
 
 export default function BookingsScreen() {
   const { user, loading } = useRequireAuth("/bookings");
+  const { t, lang } = useLanguage();
   const [jobs, setJobs] = useState<Enriched[] | null>(null);
   const [pane, setPane] = useState<Pane>("active");
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  // Same filters as the desktop bookings list. No status filter here — the
+  // Active/Past panes already split by status.
+  const [filters, setFilters] = useState<JobFilters>(DEFAULT_JOB_FILTERS);
 
   useEffect(() => {
     if (!user) return;
@@ -33,13 +47,19 @@ export default function BookingsScreen() {
           .select("*")
           .eq("customer_id", user.id)
           .order("created_at", { ascending: false }),
-        supabase.from("services").select("id,category_id"),
+        supabase.from("services").select("id,name,category_id"),
         supabase.from("service_categories").select("id,icon"),
       ]);
       const list = (rows as Job[]) ?? [];
 
       const svc = new Map(
         ((services as Pick<Service, "id" | "category_id">[]) ?? []).map((s) => [s.id, s.category_id])
+      );
+      setServices(
+        ((services as Pick<Service, "id" | "name">[]) ?? []).map((s) => ({
+          id: s.id,
+          name: s.name,
+        }))
       );
       const catIcon = new Map(
         ((cats as Pick<ServiceCategory, "id" | "icon">[]) ?? []).map((c) => [c.id, c.icon])
@@ -76,13 +96,23 @@ export default function BookingsScreen() {
     };
   }, [jobs]);
 
-  const shown = pane === "active" ? active : past;
+  // Service options come from both panes, so switching panes never leaves
+  // the selected service without an option.
+  const svcOpts = useMemo(
+    () => serviceOptions(jobs ?? [], services),
+    [jobs, services]
+  );
+  const paneList = pane === "active" ? active : past;
+  const shown = useMemo(
+    () => filterJobs(paneList, filters),
+    [paneList, filters]
+  );
 
   return (
     <Screen>
       <Scroll>
         <header className="hh">
-          <h1>My bookings</h1>
+          <h1>{t("bookings.title")}</h1>
           <AlertsBell />
         </header>
 
@@ -94,7 +124,7 @@ export default function BookingsScreen() {
             className={clsx(pane === "active" && "sel")}
             onClick={() => setPane("active")}
           >
-            Active <span>{active.length}</span>
+            {t("bookings.active")} <span>{active.length}</span>
           </button>
           <button
             type="button"
@@ -103,27 +133,51 @@ export default function BookingsScreen() {
             className={clsx(pane === "past" && "sel")}
             onClick={() => setPane("past")}
           >
-            Past <span>{past.length}</span>
+            {t("bookings.past")} <span>{past.length}</span>
           </button>
         </div>
+
+        {jobs !== null && paneList.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <JobFiltersBar
+              variant="kg"
+              services={svcOpts.options}
+              hasCustom={svcOpts.hasCustom}
+              value={filters}
+              onChange={setFilters}
+            />
+          </div>
+        )}
 
         {loading || jobs === null ? (
           <div className="list">
             <Skel h={132} />
             <Skel h={132} />
           </div>
+        ) : shown.length === 0 && paneList.length > 0 ? (
+          <div className="list">
+            <div className="card" style={{ textAlign: "center", padding: 20 }}>
+              <p style={{ color: "var(--mute)" }}>{t("filters.noMatch")}</p>
+              <button
+                type="button"
+                className="btn sm ghost"
+                style={{ marginTop: 12 }}
+                onClick={() => setFilters(DEFAULT_JOB_FILTERS)}
+              >
+                {t("filters.clear")}
+              </button>
+            </div>
+          </div>
         ) : shown.length === 0 ? (
           <EmptyK
             icon={pane === "active" ? "cal" : "receipt"}
-            title={pane === "active" ? "Nothing booked right now" : "No past bookings"}
+            title={pane === "active" ? t("bookings.noActive") : t("bookings.noPast")}
             hint={
-              pane === "active"
-                ? "Book a plumber, electrician or AC technician in a couple of taps."
-                : "Finished and cancelled bookings land here with their receipts."
+              pane === "active" ? t("bookings.noActiveHint") : t("bookings.noPastHint")
             }
           >
             <Link className="btn sm" href="/book" style={{ marginTop: 10 }}>
-              Book a service
+              {t("bookings.bookService")}
             </Link>
           </EmptyK>
         ) : (
@@ -134,7 +188,7 @@ export default function BookingsScreen() {
                 <article key={job.id} className="bk card">
                   <div className="bk-top">
                     <Pill tone={pill.tone} live={pill.live} icon={pill.icon}>
-                      {pill.label}
+                      {lang === "ur" ? STATUS_PILL_UR[job.status] : pill.label}
                     </Pill>
                     <small>{whenLabel(job)}</small>
                   </div>
@@ -163,13 +217,14 @@ export default function BookingsScreen() {
 
 /** The one or two things you'd actually do to a booking in this state. */
 function Actions({ job }: { job: Enriched }) {
+  const { t } = useLanguage();
   const href = `/bookings/view/?id=${job.id}`;
 
   if (job.status === "en_route" || job.status === "arrived" || job.status === "in_progress") {
     return (
       <div className="bk-act">
         <Link className="btn sm dark" href={href}>
-          Track live
+          {t("bookings.ctaTrackLive")}
         </Link>
         <Link className="ic sm" href={href} aria-label="Call or message your pro">
           <KIcon name="phone" />
@@ -184,10 +239,10 @@ function Actions({ job }: { job: Enriched }) {
     return (
       <div className="bk-act">
         <Link className="btn sm dark" href={href}>
-          View booking
+          {t("bookings.ctaView")}
         </Link>
         <Link className="link mute" href={href}>
-          Cancel
+          {t("bookings.ctaCancel")}
         </Link>
       </div>
     );
@@ -196,10 +251,10 @@ function Actions({ job }: { job: Enriched }) {
     return (
       <div className="bk-act">
         <Link className="btn sm ghost" href={href}>
-          {job.status === "bidding" ? "See quotes" : "View booking"}
+          {job.status === "bidding" ? t("bookings.ctaQuotes") : t("bookings.ctaView")}
         </Link>
         <Link className="link mute" href={href}>
-          Cancel
+          {t("bookings.ctaCancel")}
         </Link>
       </div>
     );
@@ -208,7 +263,7 @@ function Actions({ job }: { job: Enriched }) {
     return (
       <div className="bk-act">
         <Link className="btn sm" href={href}>
-          Pay now
+          {t("bookings.ctaPayNow")}
         </Link>
       </div>
     );
@@ -217,7 +272,7 @@ function Actions({ job }: { job: Enriched }) {
     return (
       <div className="bk-act">
         <Link className="btn sm" href={href}>
-          Rate your pro
+          {t("bookings.ctaRate")}
         </Link>
       </div>
     );
@@ -226,10 +281,10 @@ function Actions({ job }: { job: Enriched }) {
     return (
       <div className="bk-act">
         <Link className="btn sm ghost" href="/book">
-          Book again
+          {t("bookings.ctaBookAgain")}
         </Link>
         <Link className="link" href={href}>
-          Receipt
+          {t("bookings.ctaReceiptShort")}
         </Link>
       </div>
     );
