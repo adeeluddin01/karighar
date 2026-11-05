@@ -7,21 +7,21 @@ import {
   isDefaultFilters,
   type JobFilters,
   type JobSort,
-  type JobTypeFilter,
   type ServiceOption,
 } from "@/lib/jobFilters";
-import type { JobStatus } from "@/lib/types";
-import { Select } from "@/components/ui";
+import type { JobStatus, JobType } from "@/lib/types";
+import { FilterDropdown } from "@/components/FilterDropdown";
 
-// One filter bar for every jobs list. The controls are the same everywhere —
-// type, service, sort, and (where it applies) status — so a pro sees the
-// same filters on the dashboard list and the map, and a customer sees them
-// on bookings.
+// One filter bar for every jobs list. The controls are the same everywhere:
+// type (multi-select), service, sort, and (where it applies) status — so a
+// pro sees the same filters on the dashboard list and the map, and a
+// customer sees them on bookings.
 //
-// `variant="kg"` renders the redesign's `.in` selects for the phone
-// bookings screen; the default renders the legacy <Select> used inside
-// <AppShell>. Same state, same options, same labels either way.
-
+// Every control is the same FilterDropdown: a button that opens a panel —
+// a bottom sheet on phones, an anchored popover on desktop — so the bar
+// works with touch and never relies on the native select popup. The
+// `variant="kg"` layout is the phone bookings screen; the default is the
+// legacy <AppShell> layout. Same state, same options, same labels either way.
 export function JobFilters({
   services,
   hasCustom,
@@ -42,106 +42,83 @@ export function JobFilters({
   const showClear = !isDefaultFilters(value);
 
   const typeControl = (
-    <Select
-      value={value.type}
-      onChange={(e) => onChange({ ...value, type: e.target.value as JobTypeFilter })}
-      aria-label={t("filters.type")}
-    >
-      <option value="all">{t("filters.typeAll")}</option>
-      <option value="fixed">{t("filters.typeFixed")}</option>
-      <option value="custom">{t("filters.typeCustom")}</option>
-    </Select>
+    <FilterDropdown
+      label={t("filters.type")}
+      allLabel={t("filters.typeAll")}
+      multiple
+      options={[
+        { value: "fixed", label: t("filters.typeFixed") },
+        { value: "custom", label: t("filters.typeCustom") },
+      ]}
+      value={value.types}
+      onChange={(types) => onChange({ ...value, types: types as JobType[] })}
+      doneLabel={t("filters.done")}
+    />
   );
 
   const serviceControl = (
-    <Select
-      value={value.serviceId}
-      onChange={(e) => onChange({ ...value, serviceId: e.target.value })}
-      aria-label={t("filters.service")}
-    >
-      <option value="all">{t("filters.serviceAll")}</option>
-      {services.map((s) => (
-        <option key={s.id} value={s.id}>
-          {s.name}
-        </option>
-      ))}
-      {hasCustom && <option value={SERVICE_CUSTOM}>{t("filters.serviceCustom")}</option>}
-    </Select>
+    <FilterDropdown
+      label={t("filters.service")}
+      allLabel={t("filters.serviceAll")}
+      options={[
+        { value: "all", label: t("filters.serviceAll") },
+        ...services.map((s) => ({ value: s.id, label: s.name })),
+        ...(hasCustom
+          ? [{ value: SERVICE_CUSTOM, label: t("filters.serviceCustom") }]
+          : []),
+      ]}
+      value={[value.serviceId]}
+      onChange={(next) => onChange({ ...value, serviceId: next[0] ?? "all" })}
+      doneLabel={t("filters.done")}
+    />
   );
 
   const sortControl = (
-    <Select
-      value={value.sort}
-      onChange={(e) => onChange({ ...value, sort: e.target.value as JobSort })}
-      aria-label={t("filters.sort")}
-    >
-      <option value="newest">{t("filters.sortNewest")}</option>
-      <option value="priceAsc">{t("filters.sortPriceAsc")}</option>
-      <option value="priceDesc">{t("filters.sortPriceDesc")}</option>
-      <option value="soonest">{t("filters.sortSoonest")}</option>
-    </Select>
+    <FilterDropdown
+      label={t("filters.sort")}
+      allLabel={t("filters.sortNewest")}
+      options={[
+        { value: "newest", label: t("filters.sortNewest") },
+        { value: "priceAsc", label: t("filters.sortPriceAsc") },
+        { value: "priceDesc", label: t("filters.sortPriceDesc") },
+        { value: "soonest", label: t("filters.sortSoonest") },
+      ]}
+      value={[value.sort]}
+      onChange={(next) =>
+        onChange({ ...value, sort: (next[0] ?? "newest") as JobSort })
+      }
+      doneLabel={t("filters.done")}
+    />
   );
 
   const statusControl = statusOptions ? (
-    <Select
-      value={value.status}
-      onChange={(e) =>
-        onChange({ ...value, status: e.target.value as "all" | JobStatus })
+    <FilterDropdown
+      label={t("filters.status")}
+      allLabel={t("filters.statusAll")}
+      options={[
+        { value: "all", label: t("filters.statusAll") },
+        ...statusOptions.map((s) => ({ value: s, label: tStatus(s) })),
+      ]}
+      value={[value.status]}
+      onChange={(next) =>
+        onChange({ ...value, status: (next[0] ?? "all") as "all" | JobStatus })
       }
-      aria-label={t("filters.status")}
-    >
-      <option value="all">{t("filters.statusAll")}</option>
-      {statusOptions.map((s) => (
-        <option key={s} value={s}>
-          {tStatus(s)}
-        </option>
-      ))}
-    </Select>
+      doneLabel={t("filters.done")}
+    />
   ) : null;
 
   if (variant === "kg") {
     return (
       <div className="flex flex-wrap gap-2">
-        <label className="in flat" style={{ flex: "1 1 140px" }}>
-          <select
-            value={value.type}
-            onChange={(e) => onChange({ ...value, type: e.target.value as JobTypeFilter })}
-            aria-label={t("filters.type")}
-          >
-            <option value="all">{t("filters.typeAll")}</option>
-            <option value="fixed">{t("filters.typeFixed")}</option>
-            <option value="custom">{t("filters.typeCustom")}</option>
-          </select>
-        </label>
-        <label className="in flat" style={{ flex: "1 1 140px" }}>
-          <select
-            value={value.serviceId}
-            onChange={(e) => onChange({ ...value, serviceId: e.target.value })}
-            aria-label={t("filters.service")}
-          >
-            <option value="all">{t("filters.serviceAll")}</option>
-            {services.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-            {hasCustom && <option value={SERVICE_CUSTOM}>{t("filters.serviceCustom")}</option>}
-          </select>
-        </label>
-        <label className="in flat" style={{ flex: "1 1 140px" }}>
-          <select
-            value={value.sort}
-            onChange={(e) => onChange({ ...value, sort: e.target.value as JobSort })}
-            aria-label={t("filters.sort")}
-          >
-            <option value="newest">{t("filters.sortNewest")}</option>
-            <option value="priceAsc">{t("filters.sortPriceAsc")}</option>
-            <option value="priceDesc">{t("filters.sortPriceDesc")}</option>
-            <option value="soonest">{t("filters.sortSoonest")}</option>
-          </select>
-        </label>
+        <div style={{ flex: "1 1 140px" }}>{typeControl}</div>
+        <div style={{ flex: "1 1 140px" }}>{serviceControl}</div>
+        <div style={{ flex: "1 1 140px" }}>{sortControl}</div>
         {showClear && (
-          <button type="button" className="btn sm ghost" onClick={() => onChange(DEFAULT_JOB_FILTERS)}>
+          <button
+            type="button"
+            className="btn sm ghost"
+            onClick={() => onChange(DEFAULT_JOB_FILTERS)}
+          >
             {t("filters.clear")}
           </button>
         )}
@@ -170,7 +147,11 @@ export function JobFilters({
         </div>
       )}
       {showClear && (
-        <button type="button" className="btn-ghost btn-sm" onClick={() => onChange(DEFAULT_JOB_FILTERS)}>
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          onClick={() => onChange(DEFAULT_JOB_FILTERS)}
+        >
           {t("filters.clear")}
         </button>
       )}

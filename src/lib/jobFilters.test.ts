@@ -68,13 +68,19 @@ describe("filterJobs", () => {
     expect(filterJobs(JOBS, DEFAULT_JOB_FILTERS).map((j) => j.id)).toEqual(["d", "a", "b", "c"]);
   });
 
-  it("filters by job type", () => {
-    expect(filterJobs(JOBS, withFilters({ type: "custom" })).map((j) => j.id)).toEqual(["c"]);
-    expect(filterJobs(JOBS, withFilters({ type: "fixed" })).map((j) => j.id)).toEqual([
+  it("filters by job type, multi-select", () => {
+    expect(filterJobs(JOBS, withFilters({ types: ["custom"] })).map((j) => j.id)).toEqual(["c"]);
+    expect(filterJobs(JOBS, withFilters({ types: ["fixed"] })).map((j) => j.id)).toEqual([
       "d",
       "a",
       "b",
     ]);
+  });
+
+  it("selecting every type, or none, passes everything through", () => {
+    const all = ["d", "a", "b", "c"];
+    expect(filterJobs(JOBS, withFilters({ types: ["fixed", "custom"] })).map((j) => j.id)).toEqual(all);
+    expect(filterJobs(JOBS, withFilters({ types: [] })).map((j) => j.id)).toEqual(all);
   });
 
   it("filters by a specific service", () => {
@@ -152,5 +158,6 @@ describe("isDefaultFilters", () => {
   it("recognises the default and a changed set", () => {
     expect(isDefaultFilters(DEFAULT_JOB_FILTERS)).toBe(true);
     expect(isDefaultFilters(withFilters({ sort: "priceAsc" }))).toBe(false);
+    expect(isDefaultFilters(withFilters({ types: ["fixed"] }))).toBe(false);
   });
 });
