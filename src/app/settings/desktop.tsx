@@ -77,7 +77,7 @@ export default function SettingsPage() {
   // The Urdu toggle used to write "pref_urdu" and do nothing. It now drives
   // the app language (see src/lib/i18n.tsx); the old key is still honoured
   // once on first load for anyone who flipped it earlier.
-  const { t, lang, setLang } = useLanguage();
+  const { t, tPro, lang, setLang } = useLanguage();
   const [theme, setTheme] = useTheme();
   const [pwMsg, setPwMsg] = useState<string | null>(null);
 
@@ -86,7 +86,7 @@ export default function SettingsPage() {
     await createClient().auth.resetPasswordForEmail(user.email, {
       redirectTo: `${siteUrl()}/signin/`,
     });
-    setPwMsg("Password reset link sent to your email.");
+    setPwMsg(t("settings.resetLinkSent"));
   }
 
   async function signOut() {
@@ -95,7 +95,7 @@ export default function SettingsPage() {
     router.refresh();
   }
 
-  const pro = proEntry(profile?.role, providerStatus);
+  const pro = tPro(proEntry(profile?.role, providerStatus), providerStatus);
 
   if (loading || !user) {
     return (
@@ -110,21 +110,27 @@ export default function SettingsPage() {
       <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
       <Card>
-        <h2 className="text-base font-bold">Appearance</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose a theme, or follow your device setting.
-        </p>
+        <h2 className="text-base font-bold">{t("settings.appearance")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t("settings.themeHint")}</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          {(["light", "dark", "system"] as Theme[]).map((t) => (
-            <Chip key={t} active={theme === t} onClick={() => setTheme(t)} className="capitalize">
-              {t}
+          {(["light", "dark", "system"] as Theme[]).map((key) => (
+            <Chip
+              key={key}
+              active={theme === key}
+              onClick={() => setTheme(key)}
+            >
+              {key === "light"
+                ? t("settings.themeLight")
+                : key === "dark"
+                  ? t("settings.themeDark")
+                  : t("settings.themeSystem")}
             </Chip>
           ))}
         </div>
       </Card>
 
       <Card padded={false} className="mt-4 overflow-hidden">
-        <Row label="Push notifications" desc="Job updates & messages">
+        <Row label={t("settings.pushNotif")} desc={t("settings.pushNotifDesc")}>
           <Toggle on={notif} onChange={toggleNotif} label="Push notifications" />
         </Row>
         <Row label="اردو (Urdu)" desc={t("settings.languageDesc")}>
@@ -137,10 +143,10 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="mt-4">
-        <h2 className="text-base font-bold">Account</h2>
+        <h2 className="text-base font-bold">{t("settings.account")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
         <Button variant="ghost" size="sm" className="mt-3" onClick={resetPassword}>
-          Change password
+          {t("settings.changePassword")}
         </Button>
         {pwMsg && (
           <Pill tone="ok" icon="check" className="mt-3">
@@ -161,26 +167,26 @@ export default function SettingsPage() {
       )}
 
       <Card className="mt-4">
-        <h2 className="text-base font-bold">About &amp; legal</h2>
+        <h2 className="text-base font-bold">{t("settings.aboutLegal")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {BRAND.name} · {BRAND.city} · v1 (MVP)
         </p>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <Link href="/support" className="font-semibold text-primary">
-            Help &amp; Support
+            {t("settings.helpSupport")}
           </Link>
           <Link href="/terms" className="font-semibold text-primary">
-            Terms
+            {t("settings.terms")}
           </Link>
           <Link href="/privacy" className="font-semibold text-primary">
-            Privacy
+            {t("settings.privacy")}
           </Link>
         </div>
       </Card>
 
       <div className="mt-6">
         <Button variant="danger" icon="logout" onClick={signOut}>
-          Sign out
+          {t("common.signOut")}
         </Button>
       </div>
     </AppShell>

@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { translateProEntry } from "@/lib/i18n";
 
 const SRC = readFileSync(join(__dirname, "i18n.tsx"), "utf8");
 
@@ -48,6 +49,30 @@ describe("i18n dictionary", () => {
     }
   });
 
+  it("covers the settings screen", () => {
+    const dict = dictionary();
+    for (const key of [
+      "settings.appearance",
+      "settings.themeLight",
+      "settings.themeDark",
+      "settings.themeSystem",
+      "settings.preferences",
+      "settings.pushNotif",
+      "settings.workWithUs",
+      "settings.account",
+      "settings.changePassword",
+      "settings.logOut",
+      "settings.about",
+      "settings.helpSupport",
+      "settings.terms",
+      "settings.privacy",
+      "pro.listView",
+      "pro.mapView",
+    ]) {
+      expect(dict.has(key), `missing settings key: ${key}`).toBe(true);
+    }
+  });
+
   it("covers every job status", () => {
     const dict = dictionary();
     for (const s of [
@@ -65,5 +90,47 @@ describe("i18n dictionary", () => {
     ]) {
       expect(dict.has(`status:${s}`), `missing status translation: ${s}`).toBe(true);
     }
+  });
+});
+
+describe("translateProEntry", () => {
+  it("translates each entry by href, in both languages", () => {
+    expect(
+      translateProEntry(
+        "ur",
+        { href: "/pro/dashboard", label: "Pro dashboard", hint: "Your jobs, earnings and commission" },
+        "approved"
+      )
+    ).toEqual({
+      href: "/pro/dashboard",
+      label: "پرو ڈیش بورڈ",
+      hint: "آپ کے کام، آمدنی اور کمیشن",
+    });
+    expect(
+      translateProEntry(
+        "ur",
+        { href: "/pro/onboarding", label: "Finish pro verification", hint: "Application pending" },
+        "pending"
+      )?.hint
+    ).toBe("درخواست زیرِ غور");
+    expect(
+      translateProEntry(
+        "ur",
+        { href: "/pro", label: "Become a pro", hint: "Get matched to jobs near you" },
+        null
+      )?.label
+    ).toBe("پرو بنیں");
+    expect(
+      translateProEntry(
+        "en",
+        { href: "/pro/dashboard", label: "Pro dashboard", hint: "Your jobs, earnings and commission" },
+        "approved"
+      )?.label
+    ).toBe("Pro dashboard");
+    expect(translateProEntry("ur", null, null)).toBeNull();
+    // An entry we don't recognise passes through instead of blanking.
+    expect(
+      translateProEntry("ur", { href: "/somewhere", label: "Elsewhere", hint: "Unknown" }, null)
+    ).toEqual({ href: "/somewhere", label: "Elsewhere", hint: "Unknown" });
   });
 });

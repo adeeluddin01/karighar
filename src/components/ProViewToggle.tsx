@@ -1,11 +1,16 @@
 import { LinkButton } from "@/components/ui";
+import { useLanguage } from "@/lib/i18n";
 
-// The pro job views used to offer one-way links instead of a switch —
-// "Map view" on the list, "List view" on the map — so there was no
-// visible toggle and no consistent order. This is one control, List
-// first then Map, used identically on both screens; the current view
-// reads as the active button.
+// The switch between the pro's two job views, List first then Map. It
+// lives ONLY on the map page: the dashboard IS the list view, so a toggle
+// there just bounced the pro between home and itself — tapping "List view"
+// on the map landed on home with the same toggle showing List active,
+// which read as a redirect rather than a view switch. From the map,
+// "List view" goes to the plain list (the provider home); "Map view"
+// stays here. The map itself is still reachable from the dashboard via
+// the sidebar and the tab bar.
 export function ProViewToggle({ active }: { active: "list" | "map" }) {
+  const { t } = useLanguage();
   return (
     <div className="flex gap-1">
       <LinkButton
@@ -13,7 +18,7 @@ export function ProViewToggle({ active }: { active: "list" | "map" }) {
         variant={active === "list" ? "primary" : "ghost"}
         size="sm"
       >
-        List view
+        {t("pro.listView")}
       </LinkButton>
       <LinkButton
         href="/pro/map"
@@ -21,7 +26,7 @@ export function ProViewToggle({ active }: { active: "list" | "map" }) {
         size="sm"
         icon="map"
       >
-        Map view
+        {t("pro.mapView")}
       </LinkButton>
     </div>
   );
