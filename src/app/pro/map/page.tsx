@@ -325,7 +325,7 @@ export default function ProviderMapPage() {
                   borderRadius: 0,
                   zIndex: 50,
                 }
-              : { height: "70vh" }
+              : { height: "30vh" }
           }
         >
           <APIProvider apiKey={GOOGLE_MAPS_KEY}>

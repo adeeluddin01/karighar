@@ -152,6 +152,7 @@ export function ProJobsList({
           value={filters}
           onChange={setFilters}
           statusOptions={effTab === "active" ? activeStatuses : undefined}
+          layout="stack"
         />
       </div>
 

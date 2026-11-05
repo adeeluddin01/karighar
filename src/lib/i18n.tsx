@@ -98,6 +98,7 @@ const STRINGS: Record<string, Entry> = {
   "filters.status": { en: "Status", ur: "حیثیت" },
   "filters.statusAll": { en: "All statuses", ur: "تمام حیثیتیں" },
   "filters.done": { en: "Done", ur: "ٹھیک ہے" },
+  "filters.button": { en: "Filters", ur: "فلٹرز" },
   "filters.clear": { en: "Clear filters", ur: "فلٹر صاف کریں" },
   "filters.noMatch": { en: "No jobs match these filters.", ur: "ان فلٹرز سے کوئی کام نہیں ملا۔" },
 

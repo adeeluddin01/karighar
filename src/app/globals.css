@@ -88,6 +88,9 @@
 html[lang="ur"] {
   --f-display: var(--font-urdu), "Segoe UI", system-ui, sans-serif;
   --f-body: var(--font-urdu), "Segoe UI", system-ui, sans-serif;
+  /* Nastaliq reads much larger than Latin at the same size, so the root
+     shrinks in Urdu mode and every rem-based size follows it down. */
+  font-size: 14px;
 }
 
 html[lang="ur"] body {

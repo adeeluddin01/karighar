@@ -33,29 +33,21 @@ export function isDefaultFilters(f: JobFilters): boolean {
 export type ServiceOption = { id: string; name: string };
 
 /**
- * The service options for a loaded list of jobs: only services that
- * actually have a job in the list, in name order. A service with no job
- * in the list would filter to an empty page, so it is never offered.
- * `hasCustom` is true when at least one job has no service (a custom
- * request) — that bucket is offered as the "Custom request" option.
+ * The service options: every active service, in name order, so the picker
+ * always lists them — even when the pro has no jobs yet (options derived
+ * from the loaded jobs came back empty then, which read as broken). A
+ * service with no job in the list filters to an empty page, which the
+ * empty state explains. `hasCustom` is true when at least one job has no
+ * service (a custom request) — that bucket is offered as the "Custom
+ * request" option.
  */
 export function serviceOptions(
   jobs: Job[],
   services: ServiceOption[]
 ): { options: ServiceOption[]; hasCustom: boolean } {
-  const byId = new Map(services.map((s) => [s.id, s]));
-  const seen = new Map<string, ServiceOption>();
-  let hasCustom = false;
-  for (const job of jobs) {
-    if (job.service_id === null) {
-      hasCustom = true;
-    } else {
-      const svc = byId.get(job.service_id);
-      if (svc) seen.set(svc.id, svc);
-    }
-  }
+  const hasCustom = jobs.some((job) => job.service_id === null);
   return {
-    options: [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    options: [...services].sort((a, b) => a.name.localeCompare(b.name)),
     hasCustom,
   };
 }
