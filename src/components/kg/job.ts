@@ -26,6 +26,25 @@ export const STATUS_PILL: Record<
   disputed: { label: "Reported", tone: "bad", icon: "alert" },
 };
 
+/**
+ * Urdu wording for the same pills. The pill labels differ slightly from
+ * JOB_STATUS_LABEL (completed → "Payment pending", rated → "Completed"),
+ * so they carry their own translation rather than sharing it.
+ */
+export const STATUS_PILL_UR: Record<JobStatus, string> = {
+  created: "پرو تلاش جاری",
+  bidding: "قیمتیں جمع",
+  assigned: "پرو مقرر",
+  en_route: "راستے میں",
+  arrived: "پہنچ گیا",
+  in_progress: "کام جاری",
+  completed: "ادائیگی باقی",
+  paid: "ادا شدہ",
+  rated: "مکمل",
+  cancelled: "منسوخ",
+  disputed: "رپورٹ شدہ",
+};
+
 /** The statuses the redesign's "Active" tab collects. */
 export const ACTIVE_STATUSES: JobStatus[] = [
   "created",

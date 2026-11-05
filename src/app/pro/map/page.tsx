@@ -6,6 +6,15 @@ import { useRouter } from "next/navigation";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
+import { useLanguage } from "@/lib/i18n";
+import {
+  DEFAULT_JOB_FILTERS,
+  filterJobs,
+  serviceOptions,
+  type JobFilters,
+  type ServiceOption,
+} from "@/lib/jobFilters";
+import { JobFilters as JobFiltersBar } from "@/components/JobFilters";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -39,6 +48,7 @@ function directionsHref(job: Pinned) {
 
 export default function ProviderMapPage() {
   const { user, profile, loading } = useRequireAuth("/pro/map");
+  const { t } = useLanguage();
   const router = useRouter();
 
   // Pro-area page: a signed-in non-provider opening the URL directly gets
@@ -53,6 +63,10 @@ export default function ProviderMapPage() {
   }, [loading, profile, router]);
   const [mine, setMine] = useState<Pinned[]>([]);
   const [open, setOpen] = useState<Pinned[]>([]);
+  // Same filters as the dashboard list — the map plots the same two lists,
+  // so it filters them the same way rather than showing unfiltered dots.
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [filters, setFilters] = useState<JobFilters>(DEFAULT_JOB_FILTERS);
 
   const [selected, setSelected] = useState<Pinned | null>(null);
   const [full, setFull] = useState(false);
@@ -63,26 +77,28 @@ export default function ProviderMapPage() {
   // Shared with the active-job screen — see useRouteToJob.
   const route = useRouteToJob();
 
-  // The one job a pro is most likely to be driving to. With several active
-  // jobs there is no single answer, so fall back to tapping a dot.
-  const soleActive = mine.length === 1 ? mine[0] : null;
+  // The one job a pro is most likely to be driving to — computed below,
+  // once the filtered lists exist. With several active jobs there is no
+  // single answer, so fall back to tapping a dot.
 
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
     (async () => {
-      const [{ data: m }, { data: o }] = await Promise.all([
+      const [{ data: m }, { data: o }, { data: svcRows }] = await Promise.all([
         supabase
           .from("jobs")
           .select("*")
           .eq("provider_id", user.id)
           .in("status", ["assigned", "en_route", "arrived", "in_progress"]),
         supabase.from("jobs").select("*").is("provider_id", null).in("status", ["created", "bidding"]),
+        supabase.from("services").select("id,name").eq("is_active", true).order("name"),
       ]);
       const pinned = (rows: Job[] | null) =>
         ((rows as Job[]) ?? []).filter((j): j is Pinned => j.lat != null && j.lng != null);
       setMine(pinned(m as Job[]));
       setOpen(pinned(o as Job[]));
+      setServices((svcRows as ServiceOption[]) || []);
     })();
   }, [user]);
 
@@ -100,10 +116,23 @@ export default function ProviderMapPage() {
     };
   }, [full]);
 
-  const points = useMemo(
-    () => [...mine, ...open].map((j) => ({ lat: j.lat, lng: j.lng })),
-    [mine, open]
+  // Filtered lists drive the dots, the counts, and the "your active job"
+  // bar below — unfiltered data never reaches the map. A filter change
+  // also closes an open job card, so it can't show a job the filters hid.
+  const svc = useMemo(
+    () => serviceOptions([...mine, ...open], services),
+    [mine, open, services]
   );
+  const visibleMine = useMemo(() => filterJobs(mine, filters), [mine, filters]);
+  const visibleOpen = useMemo(() => filterJobs(open, filters), [open, filters]);
+  const visible = useMemo(() => [...visibleMine, ...visibleOpen], [visibleMine, visibleOpen]);
+
+  const points = useMemo(
+    () => visible.map((j) => ({ lat: j.lat, lng: j.lng })),
+    [visible]
+  );
+
+  const soleActive = visibleMine.length === 1 ? visibleMine[0] : null;
 
   if (!loading && profile && profile.role !== "provider") return null;
 
@@ -115,17 +144,28 @@ export default function ProviderMapPage() {
     );
   }
 
-  const total = mine.length + open.length;
+  const total = visibleMine.length + visibleOpen.length;
 
   return (
     <AppShell>
-      <PageHeader
-        title="Jobs map"
-        subtitle="Green dots are your jobs, orange ones are up for grabs. Tap a dot for directions, or use the locate button to put yourself on the map."
-      />
+      <PageHeader title={t("pro.jobsMap")} subtitle={t("pro.mapSubtitle")} />
       <div className="mb-4">
         <ProViewToggle active="map" />
       </div>
+
+      {(mine.length > 0 || open.length > 0) && (
+        <div className="mb-4">
+          <JobFiltersBar
+            services={svc.options}
+            hasCustom={svc.hasCustom}
+            value={filters}
+            onChange={(next) => {
+              setFilters(next);
+              setSelected(null);
+            }}
+          />
+        </div>
+      )}
 
       {!GOOGLE_MAPS_KEY ? (
         <Card className="bg-warning-light text-warning-foreground">
@@ -162,7 +202,7 @@ export default function ProviderMapPage() {
                 clickableIcons={false}
                 onClick={() => setSelected(null)}
               >
-                {mine.map((j) => (
+                {visibleMine.map((j) => (
                   <Dot
                     key={j.id}
                     at={{ lat: j.lat, lng: j.lng }}
@@ -172,7 +212,7 @@ export default function ProviderMapPage() {
                     onClick={() => setSelected(j)}
                   />
                 ))}
-                {open.map((j) => (
+                {visibleOpen.map((j) => (
                   <Dot
                     key={j.id}
                     at={{ lat: j.lat, lng: j.lng }}
@@ -252,7 +292,7 @@ export default function ProviderMapPage() {
                 <div className={BOTTOM_SLOT}>
                   <JobCard
                     job={selected}
-                    mine={mine.some((j) => j.id === selected.id)}
+                    mine={visibleMine.some((j) => j.id === selected.id)}
                     locating={route.locating}
                     inAppBroken={inAppBroken}
                     onDirections={() => route.startDirections({ lat: selected.lat, lng: selected.lng })}
@@ -297,7 +337,9 @@ export default function ProviderMapPage() {
       )}
 
       {total === 0 && (
-        <p className="mt-4 text-sm text-muted-foreground">No jobs with a pinned location yet.</p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          {mine.length + open.length === 0 ? t("pro.noPinned") : t("filters.noMatch")}
+        </p>
       )}
     </AppShell>
   );
@@ -319,13 +361,14 @@ function JobCard({
   onDirections: () => void;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <Card className="shadow-lift">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate font-bold">{job.title}</p>
-            <Pill tone={mine ? "ok" : "warn"}>{mine ? "Yours" : "Available"}</Pill>
+            <Pill tone={mine ? "ok" : "warn"}>{mine ? t("pro.yours") : t("pro.available")}</Pill>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
         </div>
@@ -334,10 +377,10 @@ function JobCard({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.close")}
             className="mt-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
           >
-            Close
+            {t("common.close")}
           </button>
         </div>
       </div>
@@ -353,19 +396,19 @@ function JobCard({
           className="btn-primary btn-sm"
         >
           <Icon name="navigate" size="sm" />
-          Open in Google Maps
+          {t("pro.openInMaps")}
         </a>
         {!inAppBroken && (
           <Button size="sm" variant="ghost" onClick={onDirections} disabled={locating}>
             <Icon name="send" size="sm" />
-            {locating ? "Locating…" : "Show route here"}
+            {locating ? "Locating…" : t("pro.showRoute")}
           </Button>
         )}
         <Link
           href={mine ? `/pro/jobs/view/?id=${job.id}` : "/pro/dashboard"}
           className="btn-ghost btn-sm"
         >
-          {mine ? "Open job" : "Claim it"}
+          {mine ? t("pro.openJob") : t("pro.claimIt")}
           <Icon name="chevron" size="sm" />
         </Link>
       </div>
@@ -418,11 +461,12 @@ function Dot({
  * finding and tapping its dot first.
  */
 function ActiveJobBar({ job }: { job: Pinned }) {
+  const { t } = useLanguage();
   return (
     <Card className="shadow-lift">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-muted-foreground">Your active job</p>
+          <p className="text-xs font-semibold text-muted-foreground">{t("pro.yourActiveJob")}</p>
           <p className="truncate font-bold">{job.title}</p>
           <p className="truncate text-sm text-muted-foreground">{job.address}</p>
         </div>
@@ -434,10 +478,10 @@ function ActiveJobBar({ job }: { job: Pinned }) {
             className="btn-primary btn-sm"
           >
             <Icon name="navigate" size="sm" />
-            Directions
+            {t("pro.directions")}
           </a>
           <Link href={`/pro/jobs/view/?id=${job.id}`} className="btn-ghost btn-sm">
-            Open job
+            {t("pro.openJob")}
             <Icon name="chevron" size="sm" />
           </Link>
         </div>

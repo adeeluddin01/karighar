@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { siteUrl } from "@/lib/siteUrl";
 import { useRequireAuth } from "@/lib/useUser";
+import { useLanguage } from "@/lib/i18n";
 import { AppShell } from "@/components/AppShell";
 import { Button, Card, Chip, PageHeader, Pill, Spinner, Toggle } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -73,7 +74,10 @@ export default function SettingsPage() {
   const { user, profile, providerStatus, loading } = useRequireAuth("/settings");
   const router = useRouter();
   const [notif, toggleNotif] = useLocalToggle("pref_notifications", true);
-  const [urdu, toggleUrdu] = useLocalToggle("pref_urdu", false);
+  // The Urdu toggle used to write "pref_urdu" and do nothing. It now drives
+  // the app language (see src/lib/i18n.tsx); the old key is still honoured
+  // once on first load for anyone who flipped it earlier.
+  const { t, lang, setLang } = useLanguage();
   const [theme, setTheme] = useTheme();
   const [pwMsg, setPwMsg] = useState<string | null>(null);
 
@@ -103,7 +107,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell width="narrow">
-      <PageHeader title="Settings" subtitle="Preferences, account and legal." />
+      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
       <Card>
         <h2 className="text-base font-bold">Appearance</h2>
@@ -123,8 +127,12 @@ export default function SettingsPage() {
         <Row label="Push notifications" desc="Job updates & messages">
           <Toggle on={notif} onChange={toggleNotif} label="Push notifications" />
         </Row>
-        <Row label="اردو (Urdu)" desc="Switch app language (coming soon)">
-          <Toggle on={urdu} onChange={toggleUrdu} label="Urdu language" />
+        <Row label="اردو (Urdu)" desc={t("settings.languageDesc")}>
+          <Toggle
+            on={lang === "ur"}
+            onChange={() => setLang(lang === "ur" ? "en" : "ur")}
+            label="Urdu language"
+          />
         </Row>
       </Card>
 

@@ -9,6 +9,7 @@ import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { Avatar } from "@/components/ui";
 import { NAV, isActive, roleOf } from "@/components/nav";
+import { useLanguage } from "@/lib/i18n";
 import { BRAND } from "@/lib/config";
 import { clsx } from "@/lib/clsx";
 
@@ -20,6 +21,7 @@ export function Sidebar() {
   const router = useRouter();
 
   const role = roleOf(!!user, profile?.role, providerStatus, businessStatus);
+  const { t, tNav } = useLanguage();
   const links = NAV[role];
   const unread = useUnreadCount(user?.id);
 
@@ -55,7 +57,7 @@ export function Sidebar() {
             )}
           >
             <Icon name={l.icon} />
-            {l.label}
+            {tNav(l.label)}
             {/* Desktop had no bell anywhere — <AppHeader> carries one but is
                 md:hidden — so the unread count rides on the Alerts row. */}
             {l.href === "/notifications" && unread > 0 && (
@@ -69,10 +71,10 @@ export function Sidebar() {
 
       <div className="mt-4 flex shrink-0 flex-col gap-3">
         <div className="rounded-2xl bg-primary-light p-4">
-          <p className="text-sm font-semibold text-accent-foreground">Need help?</p>
-          <p className="mt-1 text-xs text-muted-foreground">Call us 9am – 9pm, every day.</p>
+          <p className="text-sm font-semibold text-accent-foreground">{t("common.needHelp")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("common.callHours")}</p>
           <Link href="/support" className="btn-primary btn-sm mt-3 w-full">
-            <Icon name="phone" size="sm" /> Contact support
+            <Icon name="phone" size="sm" /> {t("common.contactSupport")}
           </Link>
         </div>
 
@@ -97,23 +99,23 @@ export function Sidebar() {
                 href="/settings"
                 className="flex flex-1 items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
               >
-                <Icon name="settings" size="sm" /> Settings
+                <Icon name="settings" size="sm" /> {t("common.settings")}
               </Link>
               <button
                 onClick={signOut}
                 className="flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-semibold text-destructive hover:bg-destructive-light"
               >
-                <Icon name="logout" size="sm" /> Sign out
+                <Icon name="logout" size="sm" /> {t("common.signOut")}
               </button>
             </div>
           </div>
         ) : (
           <div className="flex flex-col gap-2 border-t border-border pt-3">
             <Link href="/signup" className="btn-primary btn-sm w-full">
-              Create account
+              {t("common.createAccount")}
             </Link>
             <Link href="/signin" className="btn-ghost btn-sm w-full">
-              Sign in
+              {t("common.signIn")}
             </Link>
           </div>
         )}
