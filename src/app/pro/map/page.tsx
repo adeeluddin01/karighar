@@ -289,23 +289,21 @@ export default function ProviderMapPage() {
       ) : (
         <>
 
-      {/* Gated on the FULL lists, not the pinned ones: a pro whose jobs
-          have no pin would otherwise never see the filter bar here, even
-          though the filters (and the List area) work off all their jobs.
-          The dots themselves stay pinned-only. */}
-      {(mineAll.length > 0 || openAll.length > 0) && (
-        <div className="mb-4">
-          <JobFiltersBar
-            services={svc.options}
-            hasCustom={svc.hasCustom}
-            value={filters}
-            onChange={(next) => {
-              setFilters(next);
-              setSelected(null);
-            }}
-          />
-        </div>
-      )}
+      {/* Unconditional: the bar is part of the tab, not of the data. A pro
+          with no jobs yet still sees the controls; the empty map below
+          explains why there is nothing to filter. Gating it on having jobs
+          made the feature look missing. The dots stay pinned-only. */}
+      <div className="mb-4">
+        <JobFiltersBar
+          services={svc.options}
+          hasCustom={svc.hasCustom}
+          value={filters}
+          onChange={(next) => {
+            setFilters(next);
+            setSelected(null);
+          }}
+        />
+      </div>
 
       {!GOOGLE_MAPS_KEY ? (
         <Card className="bg-warning-light text-warning-foreground">

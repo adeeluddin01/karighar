@@ -143,18 +143,17 @@ export function ProJobsList({
       </div>
 
       {/* Filters — same bar on both tabs and on the map, so a pro filters
-          the same way wherever they browse jobs. */}
-      {list.length > 0 && (
-        <div className="mb-4">
-          <JobFiltersBar
-            services={svc.options}
-            hasCustom={svc.hasCustom}
-            value={filters}
-            onChange={setFilters}
-            statusOptions={effTab === "active" ? activeStatuses : undefined}
-          />
-        </div>
-      )}
+          the same way wherever they browse jobs. Unconditional: hiding it
+          when the list is empty made the feature look missing. */}
+      <div className="mb-4">
+        <JobFiltersBar
+          services={svc.options}
+          hasCustom={svc.hasCustom}
+          value={filters}
+          onChange={setFilters}
+          statusOptions={effTab === "active" ? activeStatuses : undefined}
+        />
+      </div>
 
       {list.length === 0 ? (
         <EmptyState
