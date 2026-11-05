@@ -22,6 +22,7 @@ import {
   Spinner,
 } from "@/components/ui";
 import { KARACHI_AREAS, type Customer, type Provider } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 import { AVATAR_ACCEPT, uploadAvatar } from "@/lib/avatar";
 import { areaOf, joinAddress, splitAddress } from "@/lib/area";
 import type { LatLng } from "@/lib/maps";
@@ -30,6 +31,7 @@ export default function ProfilePage() {
   const { user, profile, loading } = useRequireAuth("/profile");
   const router = useRouter();
   const toast = useToast();
+  const { t, tProviderStatus } = useLanguage();
   // Edits are held as `null` until the field is actually touched, and the
   // saved value shows through until then. Seeding these from an effect meant
   // any auth event — a token refresh fires one — re-ran it and wiped whatever
@@ -123,7 +125,7 @@ export default function ProfilePage() {
       .single();
     setBusy(false);
     if (error) {
-      toast("Couldn't save your details — " + error.message, "error");
+      toast(t("profile.saveDetailsError") + error.message, "error");
       return;
     }
     setSaved(true);
@@ -148,13 +150,13 @@ export default function ProfilePage() {
       .single();
     setAddrBusy(false);
     if (error) {
-      toast("Couldn't save your address — " + error.message, "error");
+      toast(t("profile.saveAddressError") + error.message, "error");
       return;
     }
     setMe((c) => ({ ...c, default_address: joinAddress(addrLine, area) }));
     setAddrEdit(null);
     setAreaEdit(null);
-    toast("Address saved.", "success");
+    toast(t("profile.addressSaved"), "success");
   }
 
   async function pickAvatar(file: File | undefined) {
@@ -175,11 +177,11 @@ export default function ProfilePage() {
       .single();
     setAvatarBusy(false);
     if (error) {
-      toast("Couldn't save your picture — " + error.message, "error");
+      toast(t("profile.savePictureError") + error.message, "error");
       return;
     }
     setAvatarEdit(up.url);
-    toast("Profile picture updated.", "success");
+    toast(t("profile.pictureUpdated"), "success");
   }
 
   async function removeAvatar() {
@@ -196,11 +198,11 @@ export default function ProfilePage() {
       .single();
     setAvatarBusy(false);
     if (error) {
-      toast("Couldn't remove your picture — " + error.message, "error");
+      toast(t("profile.removePictureError") + error.message, "error");
       return;
     }
     setAvatarEdit("");
-    toast("Profile picture removed.", "success");
+    toast(t("profile.pictureRemoved"), "success");
   }
 
   async function signOut() {
@@ -223,12 +225,22 @@ export default function ProfilePage() {
         <Avatar name={fullName || user.email} src={avatarSrc} size="lg" />
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-extrabold tracking-tight">
-            {fullName || "Your profile"}
+            {fullName || t("profile.title")}
           </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm capitalize text-muted-foreground">
-            {profile?.role}
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {profile?.role === "customer"
+              ? t("profile.roleCustomer")
+              : profile?.role === "provider"
+                ? t("profile.roleProvider")
+                : profile?.role === "business"
+                  ? t("profile.roleBusiness")
+                  : profile?.role === "admin"
+                    ? t("profile.roleAdmin")
+                    : profile?.role}
             {provider && (
-              <Pill tone={provider.status === "approved" ? "ok" : "warn"}>{provider.status}</Pill>
+              <Pill tone={provider.status === "approved" ? "ok" : "warn"}>
+                {tProviderStatus(provider.status)}
+              </Pill>
             )}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -250,7 +262,7 @@ export default function ProfilePage() {
               onClick={() => fileRef.current?.click()}
             >
               <Icon name="camera" size="sm" />
-              {avatarBusy ? "Uploading…" : avatarSrc ? "Change photo" : "Add a photo"}
+              {avatarBusy ? t("profile.uploading") : avatarSrc ? t("profile.changePhoto") : t("profile.addPhoto")}
             </Button>
             {avatarSrc && (
               <button
@@ -259,7 +271,7 @@ export default function ProfilePage() {
                 disabled={avatarBusy}
                 onClick={() => void removeAvatar()}
               >
-                Remove
+                {t("profile.remove")}
               </button>
             )}
           </div>
@@ -268,30 +280,30 @@ export default function ProfilePage() {
 
       {(me?.jobs_rated ?? 0) > 0 && (
         <Card className="mt-4">
-          <KV label="Your rating as a customer">
+          <KV label={t("profile.yourRatingCustomer")}>
             <Rating value={me?.rating_avg} />
           </KV>
-          <KV label="Ratings received">{me?.jobs_rated}</KV>
+          <KV label={t("profile.ratingsReceived")}>{me?.jobs_rated}</KV>
           <p className="mt-2 text-xs text-muted-foreground">
-            Left by the pros who did your jobs. Pros see this before accepting.
+            {t("profile.ratingsHint")}
           </p>
         </Card>
       )}
 
       {provider?.status === "approved" && (
         <Card className="mt-4">
-          <KV label="Rating">
+          <KV label={t("profile.rating")}>
             <Rating value={provider.rating_avg} />
           </KV>
-          <KV label="Jobs completed">{provider.jobs_completed}</KV>
+          <KV label={t("profile.jobsCompleted")}>{provider.jobs_completed}</KV>
         </Card>
       )}
 
       <form onSubmit={save} className="mt-6 space-y-4">
-        <Field label="Full name">
+        <Field label={t("profile.fullName")}>
           <Input value={fullName} onChange={(e) => setNameEdit(e.target.value)} required />
         </Field>
-        <Field label="Phone">
+        <Field label={t("profile.phone")}>
           <Input
             value={phone}
             onChange={(e) => setPhoneEdit(e.target.value)}
@@ -299,17 +311,17 @@ export default function ProfilePage() {
             autoComplete="tel"
           />
         </Field>
-        <Field label="Email" hint="Email can't be changed here.">
+        <Field label={t("profile.email")} hint={t("profile.emailHint")}>
           <Input className="opacity-60" value={user.email ?? ""} disabled />
         </Field>
 
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save changes"}
+            {busy ? t("profile.saving") : t("profile.saveChanges")}
           </Button>
           {saved && (
             <Pill tone="ok" icon="check">
-              Saved
+              {t("profile.saved")}
             </Pill>
           )}
         </div>
@@ -317,8 +329,8 @@ export default function ProfilePage() {
 
       {isBusiness && (
         <Card className="mt-4">
-          <KV label="Technicians on your team">{biz?.team ?? "—"}</KV>
-          <KV label="Jobs dispatched">{biz?.jobs ?? "—"}</KV>
+          <KV label={t("profile.teamCount")}>{biz?.team ?? "—"}</KV>
+          <KV label={t("profile.jobsDispatched")}>{biz?.jobs ?? "—"}</KV>
         </Card>
       )}
 
@@ -327,12 +339,12 @@ export default function ProfilePage() {
           Not shown to a business: nobody is ever sent to a dispatcher. */}
       {!isBusiness && (
       <Card className="mt-8">
-        <h2 className="text-base font-bold">Saved address</h2>
+        <h2 className="text-base font-bold">{t("profile.savedAddress")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Where we send pros by default. You can still change it per booking.
+          {t("profile.savedAddressHint")}
         </p>
         <div className="mt-4 space-y-4">
-          <Field label="Area">
+          <Field label={t("profile.area")}>
             <Select value={area} onChange={(e) => setAreaEdit(e.target.value)}>
               {KARACHI_AREAS.map((a) => (
                 <option key={a} value={a}>
@@ -341,17 +353,14 @@ export default function ProfilePage() {
               ))}
             </Select>
           </Field>
-          <Field label="House / flat, street, landmark">
+          <Field label={t("profile.addressLine")}>
             <Input
               value={addrLine}
               onChange={(e) => setAddrEdit(e.target.value)}
               placeholder="Flat 4B, Shahbaz Lane 2"
             />
           </Field>
-          <Field
-            label="Drop a pin"
-            hint="Optional, but it gets the pro to your door instead of your street."
-          >
+          <Field label={t("profile.dropPin")} hint={t("profile.dropPinHint")}>
             <MapPicker
               value={pos ?? (me?.lat != null && me?.lng != null ? { lat: me.lat, lng: me.lng } : null)}
               onChange={(next, address) => {
@@ -370,7 +379,7 @@ export default function ProfilePage() {
             />
           </Field>
           <Button disabled={addrBusy || !addrDirty} onClick={saveAddress}>
-            {addrBusy ? "Saving…" : "Save address"}
+            {addrBusy ? t("profile.saving") : t("profile.saveAddress")}
           </Button>
         </div>
       </Card>
@@ -380,38 +389,38 @@ export default function ProfilePage() {
         {isBusiness ? (
           <>
             <Row href="/business/team" icon="users">
-              Your team
+              {t("profile.yourTeam")}
             </Row>
             <Row href="/business/earnings" icon="wallet">
-              Earnings &amp; commission
+              {t("profile.earningsCommission")}
             </Row>
           </>
         ) : provider ? (
           provider.status === "approved" ? (
             <Row href="/pro/services" icon="wrench">
-              Manage my services &amp; areas
+              {t("profile.manageServices")}
             </Row>
           ) : (
             <Row href="/pro/onboarding" icon="shield">
-              View my verification details
+              {t("profile.viewVerification")}
             </Row>
           )
         ) : (
           <Row href="/pro" icon="briefcase">
-            Become a service provider
+            {t("settings.becomePro")}
           </Row>
         )}
         <Row href="/profile/ratings" icon="star">
-          {profile?.role === "admin" ? "All reviews" : "My ratings"}
+          {profile?.role === "admin" ? t("profile.allReviews") : t("profile.myRatings")}
         </Row>
         <Row href="/settings" icon="settings">
-          Settings
+          {t("common.settings")}
         </Row>
         <button
           onClick={signOut}
-          className="flex w-full items-center gap-3 p-4 text-left font-semibold text-destructive hover:bg-destructive-light"
+          className="flex w-full items-center gap-3 p-4 text-start font-semibold text-destructive hover:bg-destructive-light"
         >
-          <Icon name="logout" size="sm" /> Sign out
+          <Icon name="logout" size="sm" /> {t("common.signOut")}
         </button>
       </Card>
     </AppShell>
@@ -434,7 +443,7 @@ function Row({
     >
       <Icon name={icon} size="sm" className="text-muted-foreground" />
       <span className="flex-1">{children}</span>
-      <Icon name="chevron" size="sm" className="text-muted-foreground" />
+      <Icon name="chevron" size="sm" className="text-muted-foreground rtl:-scale-x-100" />
     </Link>
   );
 }

@@ -59,7 +59,7 @@ export default function NotificationsPage() {
               key={n.id}
               onClick={() => open(n)}
               className={clsx(
-                "block w-full border-b border-border p-4 text-left last:border-b-0 hover:bg-secondary",
+                "block w-full border-b border-border p-4 text-start last:border-b-0 hover:bg-secondary",
                 !n.read && "bg-primary-light/50"
               )}
             >

@@ -113,6 +113,12 @@ const STRINGS: Record<string, Entry> = {
   "pro.atCap": { en: "At 3-job limit", ur: "3 کام کی حد" },
   "pro.customQuote": { en: "Custom · quote", ur: "کسٹم · قیمت پر" },
   "pro.newCustomer": { en: "New customer", ur: "نیا کسٹمر" },
+  "pro.submitQuote": { en: "Submit quote", ur: "قیمت جمع کرائیں" },
+  "pro.yourQuote": { en: "Your quote", ur: "آپ کی قیمت" },
+  "pro.quoteNote": {
+    en: "Note (optional) — what's included",
+    ur: "نوٹ (اختیاری) — کیا شامل ہے",
+  },
   "pro.flexibleTime": { en: "Flexible time", ur: "لچکدار وقت" },
   "pro.nothingYet": { en: "Nothing here yet", ur: "یہاں کچھ نہیں" },
   "pro.noOpenHint": {
@@ -250,6 +256,143 @@ const STRINGS: Record<string, Entry> = {
   // ---- pro view toggle (map page only) ----
   "pro.listView": { en: "List view", ur: "فہرست" },
   "pro.mapView": { en: "Map view", ur: "نقشہ" },
+
+  // ---- provider application status (Profile pill) ----
+  "status.approved": { en: "Approved", ur: "منظور شدہ" },
+  "status.pending": { en: "Pending", ur: "زیرِ غور" },
+  "status.suspended": { en: "Suspended", ur: "معطل" },
+  "status.rejected": { en: "Rejected", ur: "مسترد" },
+
+  // ---- profile (desktop + mobile) ----
+  "profile.title": { en: "Your profile", ur: "آپ کی پروفائل" },
+  "profile.roleCustomer": { en: "Customer", ur: "کسٹمر" },
+  "profile.roleProvider": { en: "Provider", ur: "پرو" },
+  "profile.roleBusiness": { en: "Business", ur: "بزنس" },
+  "profile.roleAdmin": { en: "Admin", ur: "ایڈمن" },
+  "profile.changePhoto": { en: "Change photo", ur: "تصویر تبدیل کریں" },
+  "profile.addPhoto": { en: "Add a photo", ur: "تصویر شامل کریں" },
+  "profile.uploading": { en: "Uploading…", ur: "اپ لوڈ ہو رہی ہے…" },
+  "profile.remove": { en: "Remove", ur: "ہٹائیں" },
+  "profile.yourRatingCustomer": { en: "Your rating as a customer", ur: "بطور کسٹمر آپ کی ریٹنگ" },
+  "profile.ratingsReceived": { en: "Ratings received", ur: "موصول شدہ ریٹنگز" },
+  "profile.ratingsHint": {
+    en: "Left by the pros who did your jobs. Pros see this before accepting.",
+    ur: "ان پروفیشنلز کی طرف سے جنہوں نے آپ کے کام کیے۔ پرو قبول کرنے سے پہلے یہ دیکھتے ہیں۔",
+  },
+  "profile.rating": { en: "Rating", ur: "ریٹنگ" },
+  "profile.jobsCompleted": { en: "Jobs completed", ur: "مکمل شدہ کام" },
+  "profile.fullName": { en: "Full name", ur: "پورا نام" },
+  "profile.phone": { en: "Phone", ur: "فون" },
+  "profile.email": { en: "Email", ur: "ای میل" },
+  "profile.emailHint": { en: "Email can't be changed here.", ur: "ای میل یہاں تبدیل نہیں ہو سکتی۔" },
+  "profile.saveChanges": { en: "Save changes", ur: "تبدیلیاں محفوظ کریں" },
+  "profile.saving": { en: "Saving…", ur: "محفوظ ہو رہا ہے…" },
+  "profile.saved": { en: "Saved", ur: "محفوظ ہو گیا" },
+  "profile.teamCount": { en: "Technicians on your team", ur: "آپ کی ٹیم کے ٹیکنیشن" },
+  "profile.jobsDispatched": { en: "Jobs dispatched", ur: "بھیجے گئے کام" },
+  "profile.savedAddress": { en: "Saved address", ur: "محفوظ شدہ پتہ" },
+  "profile.addAddressHint": {
+    en: "Add the address we should send pros to",
+    ur: "وہ پتہ شامل کریں جہاں ہم پرو بھیجیں",
+  },
+  "profile.savedAddressHint": {
+    en: "Where we send pros by default. You can still change it per booking.",
+    ur: "جہاں ہم بطورِ ڈیفالٹ پرو بھیجتے ہیں۔ آپ ہر بکنگ پر اسے تبدیل کر سکتے ہیں۔",
+  },
+  "profile.area": { en: "Area", ur: "علاقہ" },
+  "profile.addressLine": { en: "House / flat, street, landmark", ur: "مکان / فلیٹ، گلی، نشانی" },
+  "profile.dropPin": { en: "Drop a pin", ur: "پن لگائیں" },
+  "profile.dropPinHint": {
+    en: "Optional, but it gets the pro to your door instead of your street.",
+    ur: "اختیاری ہے، لیکن اس سے پرو آپ کے دروازے تک پہنچتا ہے، گلی تک نہیں۔",
+  },
+  "profile.saveAddress": { en: "Save address", ur: "پتہ محفوظ کریں" },
+  "profile.yourTeam": { en: "Your team", ur: "آپ کی ٹیم" },
+  "profile.earningsCommission": { en: "Earnings & commission", ur: "آمدنی اور کمیشن" },
+  "profile.manageServices": { en: "Manage my services & areas", ur: "میری سروسز اور علاقے منظم کریں" },
+  "profile.viewVerification": { en: "View my verification details", ur: "میری تصدیق کی تفصیل دیکھیں" },
+  "profile.allReviews": { en: "All reviews", ur: "تمام جائزے" },
+  "profile.myRatings": { en: "My ratings", ur: "میری ریٹنگز" },
+  "profile.saveDetailsError": { en: "Couldn't save your details — ", ur: "تفصیل محفوظ نہیں ہو سکی — " },
+  "profile.saveAddressError": { en: "Couldn't save your address — ", ur: "پتہ محفوظ نہیں ہو سکا — " },
+  "profile.savePictureError": { en: "Couldn't save your picture — ", ur: "تصویر محفوظ نہیں ہو سکی — " },
+  "profile.removePictureError": { en: "Couldn't remove your picture — ", ur: "تصویر ہٹائی نہیں جا سکی — " },
+  "profile.pictureUpdated": { en: "Profile picture updated.", ur: "پروفائل تصویر اپ ڈیٹ ہو گئی۔" },
+  "profile.pictureRemoved": { en: "Profile picture removed.", ur: "پروفائل تصویر ہٹا دی گئی۔" },
+  "profile.addressSaved": { en: "Address saved.", ur: "پتہ محفوظ ہو گیا۔" },
+  "profile.profileUpdated": { en: "Profile updated", ur: "پروفائل اپ ڈیٹ ہو گئی" },
+  "profile.saveError": { en: "Couldn't save — ", ur: "محفوظ نہیں ہو سکا — " },
+  "profile.memberSince": { en: "member since", ur: "سے رکن" },
+  "profile.onTheTeam": { en: "On the team", ur: "ٹیم میں" },
+  "profile.dispatched": { en: "Dispatched", ur: "بھیجے گئے" },
+  "profile.dispatcher": { en: "Dispatcher", ur: "ڈسپیچر" },
+  "profile.jobsDone": { en: "Jobs done", ur: "مکمل کام" },
+  "profile.proRating": { en: "Pro rating", ur: "پرو ریٹنگ" },
+  "profile.new": { en: "New", ur: "نیا" },
+  "profile.asTechnician": { en: "As a technician", ur: "بطور ٹیکنیشن" },
+  "profile.bookings": { en: "Bookings", ur: "بکنگز" },
+  "profile.completed": { en: "Completed", ur: "مکمل" },
+  "profile.yourRating": { en: "Your rating", ur: "آپ کی ریٹنگ" },
+  "profile.notRatedYet": { en: "Not rated yet", ur: "ابھی ریٹنگ نہیں ملی" },
+  "profile.forTechnicians": { en: "For technicians", ur: "ٹیکنیشنز کے لیے" },
+  "profile.openProDashboard": { en: "Open your pro dashboard", ur: "اپنا پرو ڈیش بورڈ کھولیں" },
+  "profile.earnWith": { en: "Earn with KARIGHAR", ur: "KARIGHAR کے ساتھ کمائیں" },
+  "profile.proDashboardHint": {
+    en: "Jobs near you, your earnings and what you owe in commission.",
+    ur: "آپ کے قریب کام، آپ کی آمدنی اور کمیشن میں کیا واجب ہے۔",
+  },
+  "profile.earnHint": {
+    en: "Get matched to jobs near you and keep 80–85% of every job. CNIC and a selfie to verify, approval in 1–2 days.",
+    ur: "اپنے قریب کے کاموں سے جڑیں اور ہر کام کا 80–85% رکھیں۔ تصدیق کے لیے CNIC اور سیلفی، منظوری 1–2 دن میں۔",
+  },
+  "profile.account": { en: "Account", ur: "اکاؤنٹ" },
+  "profile.services": { en: "Services", ur: "سروسز" },
+  "profile.servicesHint": { en: "Trades and areas your team covers", ur: "وہ پیشے اور علاقے جنہیں آپ کی ٹیم کور کرتی ہے" },
+  "profile.teamHint": { en: "Invite and manage technicians", ur: "ٹیکنیشنز کو مدعو کریں اور منظم کریں" },
+  "profile.earningsHint": {
+    en: "What your team owes you, and what you owe us",
+    ur: "آپ کی ٹیم آپ کی کیا مقروض ہے، اور آپ ہمارے کیا مقروض ہیں",
+  },
+  "profile.pastJobsEarnings": { en: "Past jobs & earnings", ur: "پچھلے کام اور آمدنی" },
+  "profile.pastJobsHint": {
+    en: "Completed and paid jobs, and what you owe",
+    ur: "مکمل اور ادا شدہ کام، اور آپ کا کیا واجب ہے",
+  },
+  "profile.servicesCoverHint": { en: "Trades and areas you cover", ur: "وہ پیشے اور علاقے جنہیں آپ کور کرتے ہیں" },
+  "profile.verificationHint": { en: "Your application and documents", ur: "آپ کی درخواست اور دستاویزات" },
+  "profile.bookingsReceipts": { en: "Bookings & receipts", ur: "بکنگز اور رسیدیں" },
+  "profile.yourHistory": { en: "Your history", ur: "آپ کی تاریخ" },
+  "profile.allReviewsHint": { en: "Every review on the platform", ur: "پلیٹ فارم پر ہر جائزہ" },
+  "profile.myRatingsHint": { en: "Who rated you, and who you rated", ur: "کس نے آپ کو ریٹ کیا، اور آپ نے کس کو ریٹ کیا" },
+  "profile.paymentMethods": { en: "Payment methods", ur: "ادائیگی کے طریقے" },
+  "profile.paymentHint": {
+    en: "Cash on completion · wallets coming soon",
+    ur: "کام مکمل ہونے پر نقد · والیٹ جلد آ رہے ہیں",
+  },
+  "profile.cash": { en: "Cash", ur: "نقد" },
+  "profile.language": { en: "Language", ur: "زبان" },
+  "profile.darkTheme": { en: "Dark theme", ur: "ڈارک تھیم" },
+  "profile.darkThemeHint": {
+    en: "Follows your device unless you choose here",
+    ur: "جب تک آپ یہاں منتخب نہ کریں، آپ کے ڈیوائس کی پیروی کرتا ہے",
+  },
+  "profile.support": { en: "Support", ur: "مدد" },
+  "profile.helpSupport": { en: "Help & support", ur: "مدد اور سپورٹ" },
+  "profile.helpHint": {
+    en: "9 am – 9 pm, every day · WhatsApp or call",
+    ur: "صبح 9 – رات 9، ہر روز · واٹس ایپ یا کال",
+  },
+  "profile.notifications": { en: "Notifications", ur: "اطلاعات" },
+  "profile.notificationsHint": { en: "Job updates and messages", ur: "کام کی اپ ڈیٹس اور پیغامات" },
+  "profile.termsPrivacy": { en: "Terms & privacy", ur: "شرائط اور پرائیویسی" },
+  "profile.yourDetails": { en: "Your details", ur: "آپ کی تفصیل" },
+  "profile.detailsHint": {
+    en: "This is what your pro sees when a job is assigned.",
+    ur: "جب کام تفویض ہوتا ہے تو آپ کا پرو یہی دیکھتا ہے۔",
+  },
+  "profile.changePicture": { en: "Change profile picture", ur: "پروفائل تصویر تبدیل کریں" },
+  "profile.addPicture": { en: "Add a profile picture", ur: "پروفائل تصویر شامل کریں" },
+  "profile.editProfile": { en: "Edit profile", ur: "پروفائل میں ترمیم کریں" },
 };
 
 function lookup(lang: Lang, key: string): string {
@@ -333,6 +476,8 @@ export type LanguageApi = {
   tNav: (label: string) => string;
   /** Translate a job status (JOB_STATUS_LABEL meanings). */
   tStatus: (status: JobStatus) => string;
+  /** Translate a provider application status (approved/pending/suspended/rejected). */
+  tProviderStatus: (status: string) => string;
   /** Translate a proEntry() card (Settings, Profile). */
   tPro: (entry: ProEntry | null, providerStatus?: string | null) => ProEntry | null;
 };
@@ -343,6 +488,8 @@ const LanguageContext = createContext<LanguageApi>({
   t: (key) => lookup("en", key),
   tNav: (label) => lookup("en", `nav:${label}`),
   tStatus: (status) => lookup("en", `status:${status}`),
+  tProviderStatus: (status) =>
+    STRINGS[`status.${status}`] ? lookup("en", `status.${status}`) : status,
   tPro: (entry, providerStatus) => translateProEntry("en", entry, providerStatus),
 });
 
@@ -366,6 +513,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     t: useCallback((key: string) => lookup(lang, key), [lang]),
     tNav: useCallback((label: string) => lookup(lang, `nav:${label}`), [lang]),
     tStatus: useCallback((status: JobStatus) => lookup(lang, `status:${status}`), [lang]),
+    // Unknown statuses fall through to the raw value — lookup() returns
+    // the key itself when there is no entry, and `status.${status}` has
+    // no entry for anything outside the four known ones.
+    tProviderStatus: useCallback(
+      (status: string) => {
+        const key = `status.${status}`;
+        return STRINGS[key] ? lookup(lang, key) : status;
+      },
+      [lang]
+    ),
     tPro: useCallback(
       (entry: ProEntry | null, providerStatus?: string | null) =>
         translateProEntry(lang, entry, providerStatus),

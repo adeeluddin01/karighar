@@ -118,7 +118,7 @@ export default function NearbyProsPage() {
                     className="mt-4 w-full"
                   >
                     View company
-                    <Icon name="chevron" size="sm" />
+                    <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
                   </LinkButton>
                 </Card>
               </div>
@@ -184,7 +184,7 @@ export default function NearbyProsPage() {
                 className="mt-4 w-full"
               >
                 View profile
-                <Icon name="chevron" size="sm" />
+                <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
               </LinkButton>
             </Card>
           ))}

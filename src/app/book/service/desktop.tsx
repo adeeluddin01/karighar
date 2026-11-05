@@ -276,7 +276,7 @@ function BookServiceContent() {
       {/* Wizard chrome */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" round onClick={back} aria-label="Back">
-          <Icon name="back" />
+          <Icon name="back" className="rtl:-scale-x-100" />
         </Button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold text-muted-foreground">

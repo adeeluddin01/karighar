@@ -179,7 +179,7 @@ export default function ProviderHistoryPage() {
                   {new Date(job.updated_at).toLocaleDateString("en-PK")} · {job.address}
                 </p>
               </div>
-              <div className="whitespace-nowrap text-right">
+              <div className="whitespace-nowrap text-end">
                 <Pill tone={job.status === "cancelled" ? "bad" : "ok"}>
                   {JOB_STATUS_LABEL[job.status]}
                 </Pill>

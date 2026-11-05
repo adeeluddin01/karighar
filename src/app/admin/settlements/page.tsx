@@ -134,7 +134,7 @@ export default function AdminSettlements() {
                     <p className="font-bold">
                       {r.name}
                       {r.role && r.role !== "provider" && (
-                        <span className="ml-2 text-xs font-semibold text-muted-foreground">
+                        <span className="ms-2 text-xs font-semibold text-muted-foreground">
                           · {r.role}
                         </span>
                       )}
@@ -155,7 +155,7 @@ export default function AdminSettlements() {
                 </div>
 
                 <div className="flex items-end gap-2">
-                  <div className="text-right">
+                  <div className="text-end">
                     <p className="text-xs text-muted-foreground">Owed</p>
                     <p className="text-lg font-extrabold text-warning-foreground">
                       {formatPKR(r.summary.commissionOwed)}

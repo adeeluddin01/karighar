@@ -47,7 +47,7 @@ export function AppHeader() {
               <div className="relative">
                 <button
                   onClick={() => setMenuOpen((o) => !o)}
-                  className="flex items-center gap-1 rounded-full border border-border py-1 pl-1 pr-2"
+                  className="flex items-center gap-1 rounded-full border border-border py-1 ps-1 pe-2"
                   aria-label="Account"
                 >
                   <Avatar name={profile?.full_name || user.email} src={profile?.avatar_url} size="sm" />
@@ -60,7 +60,7 @@ export function AppHeader() {
                       onClick={() => setMenuOpen(false)}
                       aria-hidden
                     />
-                    <div className="surface absolute right-0 z-20 mt-2 w-52 overflow-hidden py-1">
+                    <div className="surface absolute end-0 z-20 mt-2 w-52 overflow-hidden py-1">
                       <div className="border-b border-border px-4 py-2">
                         <p className="truncate text-sm font-semibold">
                           {profile?.full_name ?? "Account"}
@@ -94,7 +94,7 @@ export function AppHeader() {
                       )}
                       <button
                         onClick={signOut}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-semibold text-destructive hover:bg-destructive-light"
+                        className="flex w-full items-center gap-2 px-4 py-2 text-start text-sm font-semibold text-destructive hover:bg-destructive-light"
                       >
                         <Icon name="logout" size="sm" /> {t("common.signOut")}
                       </button>

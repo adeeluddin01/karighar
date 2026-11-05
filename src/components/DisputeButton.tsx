@@ -44,7 +44,7 @@ export function DisputeButton({ jobId, userId }: { jobId: string; userId: string
   return (
     <div className="text-center">
       {open ? (
-        <div className="space-y-3 text-left">
+        <div className="space-y-3 text-start">
           <Textarea
             rows={3}
             value={reason}

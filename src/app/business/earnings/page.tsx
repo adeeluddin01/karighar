@@ -230,7 +230,7 @@ export default function BusinessEarnings() {
                   {job.tech_share !== null && ` · tech kept ${Math.round(job.tech_share * 100)}%`}
                 </p>
               </div>
-              <div className="whitespace-nowrap text-right">
+              <div className="whitespace-nowrap text-end">
                 <Pill tone={job.status === "cancelled" ? "bad" : "ok"}>
                   {JOB_STATUS_LABEL[job.status]}
                 </Pill>

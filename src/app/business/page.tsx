@@ -300,7 +300,7 @@ export default function BusinessDispatch() {
                       </span>
                     </p>
                   </div>
-                  <p className="whitespace-nowrap text-right font-bold text-primary">
+                  <p className="whitespace-nowrap text-end font-bold text-primary">
                     {formatPKR(job.price)}
                   </p>
                 </div>

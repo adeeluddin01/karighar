@@ -61,7 +61,7 @@ export function Sidebar() {
             {/* Desktop had no bell anywhere — <AppHeader> carries one but is
                 md:hidden — so the unread count rides on the Alerts row. */}
             {l.href === "/notifications" && unread > 0 && (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-destructive-foreground">
+              <span className="ms-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[11px] font-bold text-destructive-foreground">
                 {unread > 9 ? "9+" : unread}
               </span>
             )}
