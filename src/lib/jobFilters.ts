@@ -4,11 +4,11 @@ import type { Job, JobStatus, JobType } from "@/lib/types";
 // map (same two lists as dots), and the customer bookings list — one module,
 // so the three surfaces can't drift apart on what "filter" means.
 
-export type JobTypeFilter = "all" | JobType;
 export type JobSort = "newest" | "priceAsc" | "priceDesc" | "soonest";
 
 export type JobFilters = {
-  type: JobTypeFilter;
+  /** Empty means all types — the picker is multi-select. */
+  types: JobType[];
   /** "all" | a service id | "custom" (jobs with no service — custom requests). */
   serviceId: string;
   sort: JobSort;
@@ -18,7 +18,7 @@ export type JobFilters = {
 export const SERVICE_CUSTOM = "custom";
 
 export const DEFAULT_JOB_FILTERS: JobFilters = {
-  type: "all",
+  types: [],
   serviceId: "all",
   sort: "newest",
   status: "all",
@@ -26,7 +26,7 @@ export const DEFAULT_JOB_FILTERS: JobFilters = {
 
 export function isDefaultFilters(f: JobFilters): boolean {
   return (
-    f.type === "all" && f.serviceId === "all" && f.sort === "newest" && f.status === "all"
+    f.types.length === 0 && f.serviceId === "all" && f.sort === "newest" && f.status === "all"
   );
 }
 
@@ -110,7 +110,7 @@ function compareSoonest(a: Job, b: Job): number {
  */
 export function filterJobs<T extends Job>(jobs: T[], filters: JobFilters): T[] {
   const filtered = jobs.filter((job) => {
-    if (filters.type !== "all" && job.type !== filters.type) return false;
+    if (filters.types.length > 0 && !filters.types.includes(job.type)) return false;
     if (filters.serviceId !== "all") {
       if (filters.serviceId === SERVICE_CUSTOM) {
         if (job.service_id !== null) return false;
