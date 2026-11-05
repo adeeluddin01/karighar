@@ -289,7 +289,11 @@ export default function ProviderMapPage() {
       ) : (
         <>
 
-      {(mine.length > 0 || open.length > 0) && (
+      {/* Gated on the FULL lists, not the pinned ones: a pro whose jobs
+          have no pin would otherwise never see the filter bar here, even
+          though the filters (and the List area) work off all their jobs.
+          The dots themselves stay pinned-only. */}
+      {(mineAll.length > 0 || openAll.length > 0) && (
         <div className="mb-4">
           <JobFiltersBar
             services={svc.options}
