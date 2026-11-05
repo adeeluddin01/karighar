@@ -1782,7 +1782,7 @@
     background: none;
     border-inline: 0;
     border-bottom: 0;
-    text-align: left;
+    text-align: start;
     font: inherit;
     width: 100%;
   }
@@ -2038,4 +2038,13 @@
   html[dir="rtl"] .kg .i-chev-l,
   html[dir="rtl"] .kg .i-arrow {
     transform: scaleX(-1);
+  }
+
+  /* Urdu: hint text and headings carry sentences at tight fixed leading
+     (1.35 / 1.15) that clips Nastaliq's tall glyphs. */
+  html[lang="ur"] .kg small {
+    line-height: 1.7;
+  }
+  html[lang="ur"] .kg h4 {
+    line-height: 1.5;
   }
