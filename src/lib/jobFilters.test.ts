@@ -137,10 +137,16 @@ describe("filterJobs", () => {
 });
 
 describe("serviceOptions", () => {
-  it("offers only services present in the jobs, plus the custom bucket", () => {
+  it("offers every service, even one with no jobs yet, plus the custom bucket", () => {
     const { options, hasCustom } = serviceOptions(JOBS, SERVICES);
-    expect(options.map((o) => o.id)).toEqual(["svc-ac", "svc-plumb"]);
+    expect(options.map((o) => o.id)).toEqual(["svc-ac", "svc-plumb", "svc-unused"]);
     expect(hasCustom).toBe(true);
+  });
+
+  it("offers every service when the list is empty", () => {
+    const { options, hasCustom } = serviceOptions([], SERVICES);
+    expect(options.map((o) => o.id)).toEqual(["svc-ac", "svc-plumb", "svc-unused"]);
+    expect(hasCustom).toBe(false);
   });
 
   it("has no custom bucket when every job has a service", () => {

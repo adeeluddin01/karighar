@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useLanguage } from "@/lib/i18n";
 import {
   DEFAULT_JOB_FILTERS,
@@ -11,17 +12,19 @@ import {
 } from "@/lib/jobFilters";
 import type { JobStatus, JobType } from "@/lib/types";
 import { FilterDropdown } from "@/components/FilterDropdown";
+import { Icon } from "@/components/Icon";
 
 // One filter bar for every jobs list. The controls are the same everywhere:
 // type (multi-select), service, sort, and (where it applies) status — so a
 // pro sees the same filters on the dashboard list and the map, and a
 // customer sees them on bookings.
 //
-// Every control is the same FilterDropdown: a button that opens a panel —
-// a bottom sheet on phones, an anchored popover on desktop — so the bar
-// works with touch and never relies on the native select popup. The
-// `variant="kg"` layout is the phone bookings screen; the default is the
-// legacy <AppShell> layout. Same state, same options, same labels either way.
+// The controls hide behind a Filter button and open on tap: the bar stays
+// one compact row when closed, with a badge counting the active filters, so
+// the page keeps its space for the jobs and the map. `layout="stack"` lays
+// the controls out one per row, full width — that is the list views
+// (dashboard, map List area); the map view and the phone bookings screen
+// use the wrapped row. Same state, same options, same labels either way.
 export function JobFilters({
   services,
   hasCustom,
@@ -29,6 +32,7 @@ export function JobFilters({
   onChange,
   statusOptions,
   variant = "legacy",
+  layout = "row",
 }: {
   services: ServiceOption[];
   hasCustom: boolean;
@@ -37,9 +41,17 @@ export function JobFilters({
   /** Statuses present in the list. Omit where a status filter makes no sense. */
   statusOptions?: JobStatus[];
   variant?: "legacy" | "kg";
+  /** "row": wrapped columns. "stack": one control per row, full width. */
+  layout?: "row" | "stack";
 }) {
   const { t, tStatus } = useLanguage();
+  const [open, setOpen] = useState(false);
   const showClear = !isDefaultFilters(value);
+  const activeCount =
+    value.types.length +
+    (value.serviceId !== "all" ? 1 : 0) +
+    (value.sort !== "newest" ? 1 : 0) +
+    (value.status !== "all" ? 1 : 0);
 
   const typeControl = (
     <FilterDropdown
@@ -107,54 +119,109 @@ export function JobFilters({
     />
   ) : null;
 
+  const toggleButton = (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={() => setOpen((o) => !o)}
+      className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-sm"
+    >
+      <Icon name="filter" size="sm" />
+      {t("filters.button")}
+      {activeCount > 0 && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold text-primary-foreground">
+          {activeCount}
+        </span>
+      )}
+      <Icon
+        name="chevron"
+        size="sm"
+        className={`text-muted-foreground transition-transform ${open ? "-rotate-90" : "rotate-90"}`}
+      />
+    </button>
+  );
+
+  const clearButton = showClear ? (
+    <button
+      type="button"
+      className="btn-ghost btn-sm"
+      onClick={() => onChange(DEFAULT_JOB_FILTERS)}
+    >
+      {t("filters.clear")}
+    </button>
+  ) : null;
+
   if (variant === "kg") {
     return (
-      <div className="flex flex-wrap gap-2">
-        <div style={{ flex: "1 1 140px" }}>{typeControl}</div>
-        <div style={{ flex: "1 1 140px" }}>{serviceControl}</div>
-        <div style={{ flex: "1 1 140px" }}>{sortControl}</div>
-        {showClear && (
-          <button
-            type="button"
-            className="btn sm ghost"
-            onClick={() => onChange(DEFAULT_JOB_FILTERS)}
-          >
-            {t("filters.clear")}
-          </button>
+      <div className="flex flex-col gap-2">
+        <div>{toggleButton}</div>
+        {open && (
+          <div className="flex flex-col gap-2">
+            {typeControl}
+            {serviceControl}
+            {sortControl}
+            {clearButton}
+          </div>
         )}
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-wrap items-end gap-2">
-      <div className="min-w-36 flex-1">
-        <label className="lbl mb-1 block">{t("filters.type")}</label>
-        {typeControl}
-      </div>
-      <div className="min-w-44 flex-1">
-        <label className="lbl mb-1 block">{t("filters.service")}</label>
-        {serviceControl}
-      </div>
-      <div className="min-w-44 flex-1">
-        <label className="lbl mb-1 block">{t("filters.sort")}</label>
-        {sortControl}
-      </div>
-      {statusControl && (
-        <div className="min-w-36 flex-1">
-          <label className="lbl mb-1 block">{t("filters.status")}</label>
-          {statusControl}
+  if (!open) {
+    return <div>{toggleButton}</div>;
+  }
+
+  if (layout === "stack") {
+    return (
+      <div className="flex flex-col gap-2">
+        <div>{toggleButton}</div>
+        <div>
+          <label className="lbl mb-1 block">{t("filters.type")}</label>
+          {typeControl}
         </div>
-      )}
-      {showClear && (
-        <button
-          type="button"
-          className="btn-ghost btn-sm"
-          onClick={() => onChange(DEFAULT_JOB_FILTERS)}
-        >
-          {t("filters.clear")}
-        </button>
-      )}
+        <div>
+          <label className="lbl mb-1 block">{t("filters.service")}</label>
+          {serviceControl}
+        </div>
+        <div>
+          <label className="lbl mb-1 block">{t("filters.sort")}</label>
+          {sortControl}
+        </div>
+        {statusControl && (
+          <div>
+            <label className="lbl mb-1 block">{t("filters.status")}</label>
+            {statusControl}
+          </div>
+        )}
+        {clearButton}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div>{toggleButton}</div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-36 flex-1">
+          <label className="lbl mb-1 block">{t("filters.type")}</label>
+          {typeControl}
+        </div>
+        <div className="min-w-44 flex-1">
+          <label className="lbl mb-1 block">{t("filters.service")}</label>
+          {serviceControl}
+        </div>
+        <div className="min-w-44 flex-1">
+          <label className="lbl mb-1 block">{t("filters.sort")}</label>
+          {sortControl}
+        </div>
+        {statusControl && (
+          <div className="min-w-36 flex-1">
+            <label className="lbl mb-1 block">{t("filters.status")}</label>
+            {statusControl}
+          </div>
+        )}
+        {clearButton}
+      </div>
     </div>
   );
 }
