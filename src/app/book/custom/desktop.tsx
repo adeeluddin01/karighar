@@ -187,7 +187,7 @@ export default function CustomJobPage() {
     <AppShell width="narrow">
       <div className="mb-6 flex items-center gap-4">
         <Button variant="ghost" round onClick={() => router.back()} aria-label="Back">
-          <Icon name="back" />
+          <Icon name="back" className="rtl:-scale-x-100" />
         </Button>
         <PageHeader
           className="mb-0 flex-1"

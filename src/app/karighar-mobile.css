@@ -286,7 +286,7 @@
   .kg .ic .ndot {
     position: absolute;
     top: 10px;
-    right: 11px;
+    inset-inline-end: 11px;
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -441,7 +441,7 @@
   }
   .kg .ava-cam {
     position: absolute;
-    right: -2px;
+    inset-inline-end: -2px;
     bottom: -2px;
     width: 26px;
     height: 26px;
@@ -468,7 +468,7 @@
   }
   .kg .vbadge {
     position: absolute;
-    right: -2px;
+    inset-inline-end: -2px;
     bottom: -2px;
     width: 24px;
     height: 24px;
@@ -685,7 +685,7 @@
     border-radius: var(--r-sm);
     padding: 12px 14px;
     cursor: pointer;
-    text-align: left;
+    text-align: start;
     width: 100%;
     color: inherit;
     font: inherit;
@@ -864,7 +864,7 @@
     white-space: nowrap;
   }
   .kg .loc {
-    text-align: right;
+    text-align: end;
     flex: none;
     background: none;
     border: 0;
@@ -933,7 +933,7 @@
   }
   .kg .hero-ic {
     position: absolute;
-    right: -18px;
+    inset-inline-end: -18px;
     top: 36px;
     width: 150px;
     height: 150px;
@@ -2031,3 +2031,11 @@
      critical path of the one engine where scrolling is reported broken.
      Removed: no measured benefit, non-zero risk. */
 }
+
+  /* RTL: forward-pointing icons (chevron, arrow) mirror, so "next" still
+     points the way the text reads. Down chevrons stay down. */
+  html[dir="rtl"] .kg .i-chev-r,
+  html[dir="rtl"] .kg .i-chev-l,
+  html[dir="rtl"] .kg .i-arrow {
+    transform: scaleX(-1);
+  }

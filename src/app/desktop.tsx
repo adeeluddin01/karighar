@@ -142,7 +142,7 @@ export default function Home() {
             </div>
             <LinkButton href="/book" variant="ghost" size="sm" className="mt-4 w-full">
               Book {cat.name}
-              <Icon name="chevron" size="sm" />
+              <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
             </LinkButton>
           </Card>
         ))}

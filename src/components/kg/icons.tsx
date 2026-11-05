@@ -142,7 +142,7 @@ export function KIcon({
 }) {
   return (
     <svg
-      className={["i", xs && "xs", className].filter(Boolean).join(" ")}
+      className={["i", `i-${name}`, xs && "xs", className].filter(Boolean).join(" ")}
       aria-hidden="true"
       focusable="false"
     >

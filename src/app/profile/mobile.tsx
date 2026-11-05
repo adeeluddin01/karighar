@@ -18,12 +18,14 @@ import type { LatLng } from "@/lib/maps";
 import { KARACHI_AREAS, type Customer, type Provider } from "@/lib/types";
 import { AVATAR_ACCEPT, uploadAvatar } from "@/lib/avatar";
 import { BRAND } from "@/lib/config";
+import { useLanguage } from "@/lib/i18n";
 
 export default function ProfileScreen() {
   const { user, profile, providerStatus, loading } = useRequireAuth("/profile");
   const unreadAlerts = useUnreadCount(user?.id);
   const router = useRouter();
   const toast = useToast();
+  const { t, tProviderStatus, lang } = useLanguage();
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [address, setAddress] = useState<string | null>(null);
@@ -159,7 +161,7 @@ export default function ProfileScreen() {
       .single();
     setAvatarBusy(false);
     if (error) {
-      toast("Couldn't save your picture — " + error.message, "error");
+      toast(t("profile.savePictureError") + error.message, "error");
       return;
     }
     setAvatarEdit(up.url);
@@ -179,8 +181,8 @@ export default function ProfileScreen() {
     <Screen>
       <Scroll>
         <header className="hh">
-          <h1>Profile</h1>
-          <Link className="ic" href="/settings" aria-label="Settings">
+          <h1>{t("common.profile")}</h1>
+          <Link className="ic" href="/settings" aria-label={t("common.settings")}>
             <KIcon name="sliders" />
           </Link>
         </header>
@@ -193,7 +195,7 @@ export default function ProfileScreen() {
             className="ava-pick"
             disabled={avatarBusy}
             onClick={() => fileRef.current?.click()}
-            aria-label={avatarSrc ? "Change profile picture" : "Add a profile picture"}
+            aria-label={avatarSrc ? t("profile.changePicture") : t("profile.addPicture")}
           >
             <Ava name={name ?? user.email} src={avatarSrc} size="xl" />
             <i className="ava-cam" aria-hidden="true">
@@ -212,11 +214,11 @@ export default function ProfileScreen() {
             }}
           />
           <div>
-            <b>{name ?? "Your profile"}</b>
+            <b>{name ?? t("profile.title")}</b>
             <small>{profile?.phone ?? user.email}</small>
             <small>
               {area ? `${area}, ${BRAND.city}` : BRAND.city}
-              {memberSince ? ` · member since ${memberSince}` : ""}
+              {memberSince ? (lang === "ur" ? ` · ${memberSince} ${t("profile.memberSince")}` : ` · ${t("profile.memberSince")} ${memberSince}`) : ""}
             </small>
             {provider && (
               <Pill
@@ -224,7 +226,7 @@ export default function ProfileScreen() {
                 icon={provider.status === "approved" ? "shield" : undefined}
                 className="kg-mt-6"
               >
-                Pro · {provider.status}
+                {t("profile.roleProvider")} · {tProviderStatus(provider.status)}
               </Pill>
             )}
           </div>
@@ -232,7 +234,7 @@ export default function ProfileScreen() {
             type="button"
             className="ic sm"
             onClick={() => setEditMe(true)}
-            aria-label="Edit profile"
+            aria-label={t("profile.editProfile")}
           >
             <KIcon name="edit" />
           </button>
@@ -242,45 +244,45 @@ export default function ProfileScreen() {
           <div className="stats3 cardless">
             <div>
               <b>{biz?.team ?? "—"}</b>
-              <small>On the team</small>
+              <small>{t("profile.onTheTeam")}</small>
             </div>
             <div>
               <b>{biz?.jobs ?? "—"}</b>
-              <small>Dispatched</small>
+              <small>{t("profile.dispatched")}</small>
             </div>
             <div>
               <b>—</b>
-              <small>Dispatcher</small>
+              <small>{t("profile.dispatcher")}</small>
             </div>
           </div>
         ) : isProvider ? (
           <div className="stats3 cardless">
             <div>
               <b>{provider?.jobs_completed ?? "—"}</b>
-              <small>Jobs done</small>
+              <small>{t("profile.jobsDone")}</small>
             </div>
             <div>
-              <b>{provider?.rating_avg ? provider.rating_avg.toFixed(1) : "New"}</b>
-              <small>Pro rating</small>
+              <b>{provider?.rating_avg ? provider.rating_avg.toFixed(1) : t("profile.new")}</b>
+              <small>{t("profile.proRating")}</small>
             </div>
             <div>
-              <b>Pro</b>
-              <small>As a technician</small>
+              <b>{t("profile.roleProvider")}</b>
+              <small>{t("profile.asTechnician")}</small>
             </div>
           </div>
         ) : (
           <div className="stats3 cardless">
             <div>
               <b>{counts?.jobs ?? "—"}</b>
-              <small>Bookings</small>
+              <small>{t("profile.bookings")}</small>
             </div>
             <div>
               <b>{counts?.done ?? "—"}</b>
-              <small>Completed</small>
+              <small>{t("profile.completed")}</small>
             </div>
             <div>
               <b>{counts && counts.jobsRated > 0 ? counts.ratingAvg.toFixed(1) : "—"}</b>
-              <small>{counts && counts.jobsRated > 0 ? "Your rating" : "Not rated yet"}</small>
+              <small>{counts && counts.jobsRated > 0 ? t("profile.yourRating") : t("profile.notRatedYet")}</small>
             </div>
           </div>
         )}
@@ -288,16 +290,16 @@ export default function ProfileScreen() {
         {pro && (
           <Link className="promo" href={pro.href}>
             <div>
-              <span className="eyebrow">For technicians</span>
+              <span className="eyebrow">{t("profile.forTechnicians")}</span>
               <b>
                 {provider?.status === "approved"
-                  ? "Open your pro dashboard"
-                  : `Earn with ${BRAND.name}`}
+                  ? t("profile.openProDashboard")
+                  : t("profile.earnWith")}
               </b>
               <p>
                 {provider?.status === "approved"
-                  ? "Jobs near you, your earnings and what you owe in commission."
-                  : "Get matched to jobs near you and keep 80–85% of every job. CNIC and a selfie to verify, approval in 1–2 days."}
+                  ? t("profile.proDashboardHint")
+                  : t("profile.earnHint")}
               </p>
             </div>
             <span className="ic">
@@ -306,7 +308,7 @@ export default function ProfileScreen() {
           </Link>
         )}
 
-        <h3 className="lbl">Account</h3>
+        <h3 className="lbl">{t("profile.account")}</h3>
         <div className="menu card">
           {/* A dispatcher has no saved address (nobody is sent to them) and
               no bookings of their own — the equivalents are their team and
@@ -316,11 +318,13 @@ export default function ProfileScreen() {
               <Link href="/business/team">
                 <Well icon="users" size="sm" />
                 <div>
-                  <b>Your team</b>
+                  <b>{t("profile.yourTeam")}</b>
                   <small>
                     {biz
-                      ? `${biz.team} technician${biz.team === 1 ? "" : "s"}`
-                      : "Invite and manage technicians"}
+                      ? lang === "ur"
+                        ? `${biz.team} ٹیکنیشن`
+                        : `${biz.team} technician${biz.team === 1 ? "" : "s"}`
+                      : t("profile.teamHint")}
                   </small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
@@ -328,19 +332,21 @@ export default function ProfileScreen() {
               <Link href="/business/services">
                 <Well icon="wrench" size="sm" />
                 <div>
-                  <b>Services</b>
-                  <small>Trades and areas your team covers</small>
+                  <b>{t("profile.services")}</b>
+                  <small>{t("profile.servicesHint")}</small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
               </Link>
               <Link href="/business/earnings">
                 <Well icon="receipt" size="sm" />
                 <div>
-                  <b>Earnings &amp; commission</b>
+                  <b>{t("profile.earningsCommission")}</b>
                   <small>
                     {biz
-                      ? `${biz.jobs} job${biz.jobs === 1 ? "" : "s"} dispatched`
-                      : "What your team owes you, and what you owe us"}
+                      ? lang === "ur"
+                        ? `${biz.jobs} کام بھیجے گئے`
+                        : `${biz.jobs} job${biz.jobs === 1 ? "" : "s"} dispatched`
+                      : t("profile.earningsHint")}
                   </small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
@@ -356,8 +362,8 @@ export default function ProfileScreen() {
               <Link href="/pro/history">
                 <Well icon="history" size="sm" />
                 <div>
-                  <b>Past jobs &amp; earnings</b>
-                  <small>Completed and paid jobs, and what you owe</small>
+                  <b>{t("profile.pastJobsEarnings")}</b>
+                  <small>{t("profile.pastJobsHint")}</small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
               </Link>
@@ -365,8 +371,8 @@ export default function ProfileScreen() {
                 <Link href="/pro/services">
                   <Well icon="wrench" size="sm" />
                   <div>
-                    <b>Manage my services &amp; areas</b>
-                    <small>Trades and areas you cover</small>
+                    <b>{t("profile.manageServices")}</b>
+                    <small>{t("profile.servicesCoverHint")}</small>
                   </div>
                   <KIcon name="chev-r" className="chev" />
                 </Link>
@@ -374,8 +380,8 @@ export default function ProfileScreen() {
                 <Link href="/pro/onboarding">
                   <Well icon="shield" size="sm" />
                   <div>
-                    <b>View my verification details</b>
-                    <small>Your application and documents</small>
+                    <b>{t("profile.viewVerification")}</b>
+                    <small>{t("profile.verificationHint")}</small>
                   </div>
                   <KIcon name="chev-r" className="chev" />
                 </Link>
@@ -386,19 +392,21 @@ export default function ProfileScreen() {
               <button type="button" onClick={() => setEditAddr(true)}>
                 <Well icon="pin" size="sm" />
                 <div>
-                  <b>Saved address</b>
-                  <small>{address ?? "Add the address we should send pros to"}</small>
+                  <b>{t("profile.savedAddress")}</b>
+                  <small>{address ?? t("profile.addAddressHint")}</small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
               </button>
               <Link href="/bookings">
                 <Well icon="receipt" size="sm" />
                 <div>
-                  <b>Bookings &amp; receipts</b>
+                  <b>{t("profile.bookingsReceipts")}</b>
                   <small>
                     {counts
-                      ? `${counts.jobs} booking${counts.jobs === 1 ? "" : "s"}`
-                      : "Your history"}
+                      ? lang === "ur"
+                        ? `${counts.jobs} بکنگ`
+                        : `${counts.jobs} booking${counts.jobs === 1 ? "" : "s"}`
+                      : t("profile.yourHistory")}
                   </small>
                 </div>
                 <KIcon name="chev-r" className="chev" />
@@ -408,11 +416,11 @@ export default function ProfileScreen() {
           <Link href="/profile/ratings">
             <Well icon="star" size="sm" />
             <div>
-              <b>{profile?.role === "admin" ? "All reviews" : "My ratings"}</b>
+              <b>{profile?.role === "admin" ? t("profile.allReviews") : t("profile.myRatings")}</b>
               <small>
                 {profile?.role === "admin"
-                  ? "Every review on the platform"
-                  : "Who rated you, and who you rated"}
+                  ? t("profile.allReviewsHint")
+                  : t("profile.myRatingsHint")}
               </small>
             </div>
             <KIcon name="chev-r" className="chev" />
@@ -420,24 +428,24 @@ export default function ProfileScreen() {
           <Link href="/settings">
             <Well icon="wallet" size="sm" />
             <div>
-              <b>Payment methods</b>
-              <small>Cash on completion · wallets coming soon</small>
+              <b>{t("profile.paymentMethods")}</b>
+              <small>{t("profile.paymentHint")}</small>
             </div>
-            <Pill tone="soon">Cash</Pill>
+            <Pill tone="soon">{t("profile.cash")}</Pill>
           </Link>
           <Link href="/settings">
             <Well icon="globe" size="sm" />
             <div>
-              <b>Language</b>
-              <small>English · اردو coming soon</small>
+              <b>{t("profile.language")}</b>
+              <small>{lang === "ur" ? "اردو · English" : "English · اردو"}</small>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
           <label htmlFor="kg-theme-sw">
             <Well icon="moon" size="sm" />
             <div>
-              <b>Dark theme</b>
-              <small>Follows your device unless you choose here</small>
+              <b>{t("profile.darkTheme")}</b>
+              <small>{t("profile.darkThemeHint")}</small>
             </div>
             <input
               className="sw-in"
@@ -449,24 +457,26 @@ export default function ProfileScreen() {
           </label>
         </div>
 
-        <h3 className="lbl">Support</h3>
+        <h3 className="lbl">{t("profile.support")}</h3>
         <div className="menu card">
           <Link href="/support">
             <Well icon="headset" size="sm" />
             <div>
-              <b>Help &amp; support</b>
-              <small>9 am – 9 pm, every day · WhatsApp or call</small>
+              <b>{t("profile.helpSupport")}</b>
+              <small>{t("profile.helpHint")}</small>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
           <Link href="/notifications/">
             <Well icon="bell" size="sm" />
             <div>
-              <b>Notifications</b>
+              <b>{t("profile.notifications")}</b>
               <small>
                 {unreadAlerts > 0
-                  ? `${unreadAlerts} unread`
-                  : "Job updates and messages"}
+                  ? lang === "ur"
+                    ? `${unreadAlerts} ناپڑھی`
+                    : `${unreadAlerts} unread`
+                  : t("profile.notificationsHint")}
               </small>
             </div>
             <KIcon name="chev-r" className="chev" />
@@ -474,14 +484,14 @@ export default function ProfileScreen() {
           <Link href="/terms">
             <Well icon="doc" size="sm" />
             <div>
-              <b>Terms &amp; privacy</b>
+              <b>{t("profile.termsPrivacy")}</b>
             </div>
             <KIcon name="chev-r" className="chev" />
           </Link>
           <button type="button" className="bad" onClick={signOut}>
             <Well icon="logout" size="sm" />
             <div>
-              <b>Log out</b>
+              <b>{t("settings.logOut")}</b>
             </div>
           </button>
         </div>
@@ -500,7 +510,7 @@ export default function ProfileScreen() {
           onClose={() => setEditMe(false)}
           onSaved={() => {
             setEditMe(false);
-            toast("Profile updated", "success");
+            toast(t("profile.profileUpdated"), "success");
             router.refresh();
           }}
         />
@@ -516,7 +526,7 @@ export default function ProfileScreen() {
             setAddress(next);
             setPin(nextPin);
             setEditAddr(false);
-            toast("Address saved", "success");
+            toast(t("profile.addressSaved"), "success");
           }}
         />
       )}
@@ -540,6 +550,7 @@ function EditProfileSheet({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [fullName, setFullName] = useState(name);
   const [tel, setTel] = useState(phone);
   const [busy, setBusy] = useState(false);
@@ -554,22 +565,22 @@ function EditProfileSheet({
       .single();
     setBusy(false);
     if (error) {
-      toast("Couldn't save — " + error.message, "error");
+      toast(t("profile.saveError") + error.message, "error");
       return;
     }
     onSaved();
   }
 
   return (
-    <Sheet title="Your details" hint="This is what your pro sees when a job is assigned." onClose={onClose}>
+    <Sheet title={t("profile.yourDetails")} hint={t("profile.detailsHint")} onClose={onClose}>
       <label className="in flat">
         <KIcon name="user" />
         <input
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-          placeholder="Full name"
+          placeholder={t("profile.fullName")}
           autoComplete="name"
-          aria-label="Full name"
+          aria-label={t("profile.fullName")}
         />
       </label>
       <label className="in flat">
@@ -580,11 +591,11 @@ function EditProfileSheet({
           placeholder="+92 300 1234567"
           inputMode="tel"
           autoComplete="tel"
-          aria-label="Phone"
+          aria-label={t("profile.phone")}
         />
       </label>
       <button type="button" className="btn wide" disabled={busy} onClick={save}>
-        {busy ? "Saving…" : "Save changes"}
+        {busy ? t("profile.saving") : t("profile.saveChanges")}
       </button>
     </Sheet>
   );
@@ -604,6 +615,7 @@ function EditAddressSheet({
   onSaved: (next: string, pin: LatLng | null) => void;
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [pin, setPin] = useState<LatLng | null>(currentPin);
   // MapPicker centres itself on Karachi when it opens with no pin, and that
   // fires onChange straight away. Without this the map would silently
@@ -636,7 +648,7 @@ function EditAddressSheet({
       .single();
     setBusy(false);
     if (error) {
-      toast("Couldn't save — " + error.message, "error");
+      toast(t("profile.saveError") + error.message, "error");
       return;
     }
     onSaved(next, pin);
@@ -644,8 +656,8 @@ function EditAddressSheet({
 
   return (
     <Sheet
-      title="Saved address"
-      hint="Where we send pros by default. You can still change it per booking."
+      title={t("profile.savedAddress")}
+      hint={t("profile.savedAddressHint")}
       onClose={onClose}
     >
       <label className="in flat">
@@ -662,7 +674,7 @@ function EditAddressSheet({
         <input
           value={line}
           onChange={(e) => setLine(e.target.value)}
-          placeholder="House / flat, street, landmark"
+          placeholder={t("profile.addressLine")}
           autoComplete="street-address"
           aria-label="Address"
         />
@@ -691,7 +703,7 @@ function EditAddressSheet({
         disabled={busy || line.trim().length < 3}
         onClick={save}
       >
-        {busy ? "Saving…" : "Save address"}
+        {busy ? t("profile.saving") : t("profile.saveAddress")}
       </button>
     </Sheet>
   );
@@ -708,6 +720,7 @@ function Sheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <div
       className="over"
@@ -722,7 +735,7 @@ function Sheet({
             <h2 style={{ fontSize: 19 }}>{title}</h2>
             {hint && <small>{hint}</small>}
           </div>
-          <button type="button" className="ic sm" onClick={onClose} aria-label="Close">
+          <button type="button" className="ic sm" onClick={onClose} aria-label={t("common.close")}>
             <KIcon name="x" />
           </button>
         </div>

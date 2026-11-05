@@ -164,7 +164,7 @@ export default function BookingsPage() {
                   </span>
                   <span className="mt-1 block text-sm text-muted-foreground">{job.address}</span>
                 </span>
-                <span className="whitespace-nowrap text-right">
+                <span className="whitespace-nowrap text-end">
                   <Pill tone={OPEN.has(job.status) ? "info" : "gray"}>
                     {tStatus(job.status)}
                   </Pill>

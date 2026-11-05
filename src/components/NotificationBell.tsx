@@ -42,7 +42,7 @@ export function NotificationBell({ userId }: { userId: string }) {
       >
         <Icon name="bell" />
         {unread > 0 && (
-          <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+          <span className="absolute end-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -55,7 +55,7 @@ export function NotificationBell({ userId }: { userId: string }) {
             onClick={() => setOpen(false)}
             aria-hidden
           />
-          <div className="surface absolute right-0 z-20 mt-2 w-80 max-w-[90vw] overflow-hidden">
+          <div className="surface absolute end-0 z-20 mt-2 w-80 max-w-[90vw] overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-4 py-2">
               <span className="text-sm font-bold">Notifications</span>
               {unread > 0 && (
@@ -77,7 +77,7 @@ export function NotificationBell({ userId }: { userId: string }) {
                     key={n.id}
                     onClick={() => openItem(n)}
                     className={clsx(
-                      "block w-full border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-secondary",
+                      "block w-full border-b border-border px-4 py-3 text-start last:border-b-0 hover:bg-secondary",
                       !n.read && "bg-primary-light/50"
                     )}
                   >

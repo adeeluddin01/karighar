@@ -341,7 +341,7 @@ function BookingDetailContent() {
           <h1 className="text-3xl font-extrabold tracking-tight">{job.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
         </div>
-        <div className="text-right">
+        <div className="text-end">
           {job.type === "custom" && <Pill tone="warn">Custom</Pill>}
           <p className="mt-2 text-xl font-extrabold">{formatPKR(job.price)}</p>
           <p className="text-xs text-muted-foreground">Cash on completion</p>
@@ -406,7 +406,7 @@ function BookingDetailContent() {
                         </p>
                         {b.note && <p className="mt-1 text-sm text-muted-foreground">{b.note}</p>}
                       </div>
-                      <div className="text-right">
+                      <div className="text-end">
                         <p className="font-bold text-primary">{formatPKR(b.amount)}</p>
                         <Button size="sm" className="mt-1" disabled={busy} onClick={() => acceptBid(b)}>
                           Accept

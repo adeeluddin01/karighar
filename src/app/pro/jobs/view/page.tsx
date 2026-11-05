@@ -263,7 +263,7 @@ function ProJobDetailContent() {
           >
             Retry
           </Button>
-          <LinkButton href="/pro/dashboard" variant="ghost" size="sm" className="mt-4 ml-2">
+          <LinkButton href="/pro/dashboard" variant="ghost" size="sm" className="mt-4 ms-2">
             Back to dashboard
           </LinkButton>
         </Card>
@@ -297,13 +297,13 @@ function ProJobDetailContent() {
       {/* Header */}
       <div className="mb-6 flex items-center gap-4">
         <Button variant="ghost" round onClick={() => router.back()} aria-label="Back">
-          <Icon name="back" />
+          <Icon name="back" className="rtl:-scale-x-100" />
         </Button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-extrabold tracking-tight">{job.title}</h1>
           <p className="text-sm text-muted-foreground">{job.address}</p>
         </div>
-        <div className="whitespace-nowrap text-right">
+        <div className="whitespace-nowrap text-end">
           <Pill tone={job.status === "paid" ? "ok" : "info"}>{JOB_STATUS_LABEL[job.status]}</Pill>
           <p className="mt-2 text-lg font-extrabold">{formatPKR(job.price)}</p>
         </div>

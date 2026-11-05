@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
@@ -16,7 +16,9 @@ import {
 } from "@/lib/jobFilters";
 import { JobFilters as JobFiltersBar } from "@/components/JobFilters";
 import { AppShell } from "@/components/AppShell";
-import { Button, Card, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import { ProJobsList } from "@/components/ProJobsList";
+import { Button, Card, LinkButton, PageHeader, Pill, Spinner, formatPKR } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { ProViewToggle } from "@/components/ProViewToggle";
 import { MapGate } from "@/components/maps/MapGate";
@@ -24,7 +26,7 @@ import { MapController } from "@/components/maps/MapController";
 import { Directions, FitToJobs } from "@/components/maps/JobsMapParts";
 import { useRouteToJob } from "@/components/maps/useRouteToJob";
 import { BARE_MAP_STYLE, GOOGLE_MAPS_KEY, KARACHI_CENTER, googleDirectionsUrl, type LatLng } from "@/lib/maps";
-import type { Job } from "@/lib/types";
+import type { BusinessMember, Job, Profile, Provider, PublicCustomerRating } from "@/lib/types";
 
 type Pinned = Job & { lat: number; lng: number };
 
@@ -50,6 +52,7 @@ export default function ProviderMapPage() {
   const { user, profile, loading } = useRequireAuth("/pro/map");
   const { t } = useLanguage();
   const router = useRouter();
+  const toast = useToast();
 
   // Pro-area page: a signed-in non-provider opening the URL directly gets
   // their own home, not an empty map. Customers have their own /map;
@@ -61,8 +64,26 @@ export default function ProviderMapPage() {
       );
     }
   }, [loading, profile, router]);
+  // The view switch — List and Map are two views of this tab, never a
+  // navigation. (List used to link to /pro/dashboard, which read as a
+  // redirect; the dashboard IS the list view.)
+  const [view, setView] = useState<"list" | "map">("map");
   const [mine, setMine] = useState<Pinned[]>([]);
   const [open, setOpen] = useState<Pinned[]>([]);
+  // The list area needs the FULL lists, not just pinned jobs, plus the
+  // provider row (open pool only for approved pros), the team (attached
+  // techs get no open pool) and the customer ratings — the same data the
+  // dashboard loads. The map dots are derived from these by `pinned()`.
+  const [provider, setProvider] = useState<Provider | null>(null);
+  const [team, setTeam] = useState<{ name: string | null } | null>(null);
+  const [mineAll, setMineAll] = useState<Job[]>([]);
+  const [openAll, setOpenAll] = useState<Job[]>([]);
+  // `Map` here is the Google Maps component, not the JS one — hence
+  // `globalThis.Map` for the ratings lookup.
+  const [custRatings, setCustRatings] = useState<Map<string, PublicCustomerRating>>(
+    new globalThis.Map()
+  );
+  const [claiming, setClaiming] = useState(false);
   // Same filters as the dashboard list — the map plots the same two lists,
   // so it filters them the same way rather than showing unfiltered dots.
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -81,26 +102,112 @@ export default function ProviderMapPage() {
   // once the filtered lists exist. With several active jobs there is no
   // single answer, so fall back to tapping a dot.
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
-    (async () => {
-      const [{ data: m }, { data: o }, { data: svcRows }] = await Promise.all([
-        supabase
-          .from("jobs")
-          .select("*")
-          .eq("provider_id", user.id)
-          .in("status", ["assigned", "en_route", "arrived", "in_progress"]),
-        supabase.from("jobs").select("*").is("provider_id", null).in("status", ["created", "bidding"]),
-        supabase.from("services").select("id,name").eq("is_active", true).order("name"),
-      ]);
-      const pinned = (rows: Job[] | null) =>
-        ((rows as Job[]) ?? []).filter((j): j is Pinned => j.lat != null && j.lng != null);
-      setMine(pinned(m as Job[]));
-      setOpen(pinned(o as Job[]));
-      setServices((svcRows as ServiceOption[]) || []);
-    })();
+    const { data: prov } = await supabase
+      .from("providers")
+      .select("*")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+    setProvider(prov as Provider | null);
+
+    const { data: memberships } = await supabase
+      .from("business_members")
+      .select("*")
+      .eq("provider_id", user.id)
+      .eq("status", "active");
+    const activeRow = ((memberships as BusinessMember[]) || [])[0] ?? null;
+    if (activeRow) {
+      const { data: biz } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", activeRow.business_id)
+        .maybeSingle();
+      setTeam({ name: (biz as Profile | null)?.full_name ?? null });
+    } else {
+      setTeam(null);
+    }
+
+    const approved = (prov as Provider | null)?.status === "approved";
+    const [{ data: o }, { data: a }, { data: svcRows }] = await Promise.all([
+      approved
+        ? supabase
+            .from("jobs")
+            .select("*")
+            .is("provider_id", null)
+            .in("status", ["created", "bidding"])
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] }),
+      // Paid jobs are NOT here: they live in History, same as the dashboard.
+      supabase
+        .from("jobs")
+        .select("*")
+        .eq("provider_id", user.id)
+        .not("status", "in", "(rated,cancelled,paid)")
+        .order("created_at", { ascending: false }),
+      supabase.from("services").select("id,name").eq("is_active", true).order("name"),
+    ]);
+    const openJobs = (o as Job[]) || [];
+    const myJobs = (a as Job[]) || [];
+    setOpenAll(openJobs);
+    setMineAll(myJobs);
+    const pinned = (rows: Job[]) =>
+      rows.filter((j): j is Pinned => j.lat != null && j.lng != null);
+    // Dots are the in-flight jobs only — a completed job isn't driven to.
+    setMine(pinned(myJobs.filter((j) => ["assigned", "en_route", "arrived", "in_progress"].includes(j.status))));
+    setOpen(pinned(openJobs));
+    setServices((svcRows as ServiceOption[]) || []);
+
+    const ids = [...new Set([...openJobs, ...myJobs].map((j) => j.customer_id))];
+    if (ids.length) {
+      const { data: ratings } = await supabase
+        .from("public_customer_ratings")
+        .select("*")
+        .in("id", ids);
+      setCustRatings(
+        new globalThis.Map(((ratings as PublicCustomerRating[]) ?? []).map((r) => [r.id, r]))
+      );
+    }
   }, [user]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Same mutations as the dashboard list — the list area calls these, and
+  // the map dot's card claims a fixed job through the same path.
+  async function acceptFixed(job: Job) {
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ provider_id: user!.id, status: "assigned" })
+      .eq("id", job.id);
+    if (error) {
+      toast("Couldn't accept that job — " + error.message, "error");
+      return;
+    }
+    await load();
+  }
+
+  async function submitBid(jobId: string, amount: number, note: string | null) {
+    await createClient().from("bids").insert({
+      job_id: jobId,
+      provider_id: user!.id,
+      amount,
+      note,
+    });
+    toast("Quote sent! The customer will be notified.", "success");
+    await load();
+  }
+
+  async function claimFromCard(job: Pinned) {
+    setClaiming(true);
+    try {
+      await acceptFixed(job);
+    } finally {
+      setClaiming(false);
+    }
+  }
 
   // Fullscreen is a CSS overlay rather than the Fullscreen API: iOS Safari
   // won't fullscreen a <div>, and this behaves the same everywhere.
@@ -120,8 +227,8 @@ export default function ProviderMapPage() {
   // bar below — unfiltered data never reaches the map. A filter change
   // also closes an open job card, so it can't show a job the filters hid.
   const svc = useMemo(
-    () => serviceOptions([...mine, ...open], services),
-    [mine, open, services]
+    () => serviceOptions([...mineAll, ...openAll], services),
+    [mineAll, openAll, services]
   );
   const visibleMine = useMemo(() => filterJobs(mine, filters), [mine, filters]);
   const visibleOpen = useMemo(() => filterJobs(open, filters), [open, filters]);
@@ -133,6 +240,13 @@ export default function ProviderMapPage() {
   );
 
   const soleActive = visibleMine.length === 1 ? visibleMine[0] : null;
+
+  const attached = !!team;
+  // Freelance cap (DB-enforced by patch v26): independent pros only.
+  const atCap =
+    !attached &&
+    mineAll.filter((j) => ["assigned", "en_route", "arrived", "in_progress"].includes(j.status))
+      .length >= 3;
 
   if (!loading && profile && profile.role !== "provider") return null;
 
@@ -150,8 +264,30 @@ export default function ProviderMapPage() {
     <AppShell>
       <PageHeader title={t("pro.jobsMap")} subtitle={t("pro.mapSubtitle")} />
       <div className="mb-4">
-        <ProViewToggle active="map" />
+        <ProViewToggle value={view} onChange={setView} />
       </div>
+
+      {view === "list" ? (
+        <ProJobsList
+          available={openAll}
+          mine={mineAll}
+          services={services}
+          custRatings={custRatings}
+          atCap={atCap}
+          attached={attached}
+          teamName={team?.name}
+          onAccept={acceptFixed}
+          onSubmitBid={submitBid}
+          filters={filters}
+          onFiltersChange={setFilters}
+          headerActions={
+            <LinkButton href="/pro/history" variant="ghost" size="sm" icon="history">
+              {t("pro.history")}
+            </LinkButton>
+          }
+        />
+      ) : (
+        <>
 
       {(mine.length > 0 || open.length > 0) && (
         <div className="mb-4">
@@ -254,7 +390,7 @@ export default function ProviderMapPage() {
                 type="button"
                 onClick={() => setFull((f) => !f)}
                 aria-label={full ? "Exit fullscreen" : "Fullscreen map"}
-                className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-xl bg-card shadow-soft"
+                className="absolute end-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-xl bg-card shadow-soft"
               >
                 <Icon name={full ? "shrink" : "expand"} size="sm" />
               </button>
@@ -268,13 +404,13 @@ export default function ProviderMapPage() {
                 disabled={route.locating}
                 aria-label="Show my location"
                 aria-busy={route.locating}
-                className="absolute right-3 top-[3.75rem] z-10 grid h-10 w-10 place-items-center rounded-xl bg-card shadow-soft disabled:opacity-60"
+                className="absolute end-3 top-[3.75rem] z-10 grid h-10 w-10 place-items-center rounded-xl bg-card shadow-soft disabled:opacity-60"
               >
                 <Icon name="locate" size="sm" />
               </button>
 
               {route.active && (
-                <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-xl bg-card px-3 py-2 shadow-soft">
+                <div className="absolute start-3 top-3 z-10 flex items-center gap-2 rounded-xl bg-card px-3 py-2 shadow-soft">
                   <span className="text-sm font-semibold">
                     {route.route ? `${route.route.distance} · ${route.route.duration}` : "Finding route…"}
                   </span>
@@ -295,6 +431,10 @@ export default function ProviderMapPage() {
                     mine={visibleMine.some((j) => j.id === selected.id)}
                     locating={route.locating}
                     inAppBroken={inAppBroken}
+                    claiming={claiming}
+                    atCap={atCap}
+                    onClaim={claimFromCard}
+                    onQuote={() => setView("list")}
                     onDirections={() => route.startDirections({ lat: selected.lat, lng: selected.lng })}
                     onClose={() => setSelected(null)}
                   />
@@ -341,6 +481,8 @@ export default function ProviderMapPage() {
           {mine.length + open.length === 0 ? t("pro.noPinned") : t("filters.noMatch")}
         </p>
       )}
+        </>
+      )}
     </AppShell>
   );
 }
@@ -350,6 +492,10 @@ function JobCard({
   mine,
   locating,
   inAppBroken,
+  claiming,
+  atCap,
+  onClaim,
+  onQuote,
   onDirections,
   onClose,
 }: {
@@ -358,6 +504,12 @@ function JobCard({
   locating: boolean;
   /** The Directions API has already refused once — stop offering it. */
   inAppBroken: boolean;
+  claiming: boolean;
+  atCap: boolean;
+  /** Claim a fixed job in place (no dashboard round-trip). */
+  onClaim: (job: Pinned) => void;
+  /** A custom job needs the quote form — switch to the List area. */
+  onQuote: () => void;
   onDirections: () => void;
   onClose: () => void;
 }) {
@@ -372,7 +524,7 @@ function JobCard({
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
         </div>
-        <div className="shrink-0 text-right">
+        <div className="shrink-0 text-end">
           <p className="font-bold">{formatPKR(job.price)}</p>
           <button
             type="button"
@@ -404,13 +556,25 @@ function JobCard({
             {locating ? "Locating…" : t("pro.showRoute")}
           </Button>
         )}
-        <Link
-          href={mine ? `/pro/jobs/view/?id=${job.id}` : "/pro/dashboard"}
-          className="btn-ghost btn-sm"
-        >
-          {mine ? t("pro.openJob") : t("pro.claimIt")}
-          <Icon name="chevron" size="sm" />
-        </Link>
+        {mine ? (
+          <Link href={`/pro/jobs/view/?id=${job.id}`} className="btn-ghost btn-sm">
+            {t("pro.openJob")}
+            <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
+          </Link>
+        ) : job.type === "fixed" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={claiming || atCap}
+            onClick={() => onClaim(job)}
+          >
+            {atCap ? t("pro.atCap") : t("pro.claimIt")}
+          </Button>
+        ) : (
+          <Button size="sm" variant="ghost" icon="chevron" onClick={onQuote}>
+            {t("pro.sendQuote")}
+          </Button>
+        )}
       </div>
     </Card>
   );
@@ -482,7 +646,7 @@ function ActiveJobBar({ job }: { job: Pinned }) {
           </a>
           <Link href={`/pro/jobs/view/?id=${job.id}`} className="btn-ghost btn-sm">
             {t("pro.openJob")}
-            <Icon name="chevron" size="sm" />
+            <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
           </Link>
         </div>
       </div>
