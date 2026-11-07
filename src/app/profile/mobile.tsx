@@ -19,6 +19,8 @@ import { KARACHI_AREAS, type Customer, type Provider } from "@/lib/types";
 import { AVATAR_ACCEPT, uploadAvatar } from "@/lib/avatar";
 import { BRAND } from "@/lib/config";
 import { useLanguage } from "@/lib/i18n";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, normalizePkPhone, validateName, validatePhone } from "@/lib/validate";
 
 export default function ProfileScreen() {
   const { user, profile, providerStatus, loading } = useRequireAuth("/profile");
@@ -161,7 +163,7 @@ export default function ProfileScreen() {
       .single();
     setAvatarBusy(false);
     if (error) {
-      toast(t("profile.savePictureError") + error.message, "error");
+      toast(t("profile.savePictureError") + dbErrorMessage(error), "error");
       return;
     }
     setAvatarEdit(up.url);
@@ -556,16 +558,30 @@ function EditProfileSheet({
   const [busy, setBusy] = useState(false);
 
   async function save() {
+    // Same optional-but-normalized rule as the desktop lane; see the comment
+    // there. Both lanes have to agree or the stored format depends on the
+    // width of the window the edit happened in.
+    const bad = firstError(
+      validateName(fullName),
+      tel.trim() ? validatePhone(tel) : null
+    );
+    if (bad) {
+      toast(bad, "error");
+      return;
+    }
     setBusy(true);
     const { error } = await createClient()
       .from("profiles")
-      .update({ full_name: fullName.trim() || null, phone: tel.trim() || null })
+      .update({
+        full_name: fullName.trim() || null,
+        phone: tel.trim() ? normalizePkPhone(tel) : null,
+      })
       .eq("id", userId)
       .select("id")
       .single();
     setBusy(false);
     if (error) {
-      toast(t("profile.saveError") + error.message, "error");
+      toast(t("profile.saveError") + dbErrorMessage(error), "error");
       return;
     }
     onSaved();
@@ -580,6 +596,7 @@ function EditProfileSheet({
           onChange={(e) => setFullName(e.target.value)}
           placeholder={t("profile.fullName")}
           autoComplete="name"
+          maxLength={LIMITS.fullName}
           aria-label={t("profile.fullName")}
         />
       </label>
@@ -590,6 +607,7 @@ function EditProfileSheet({
           onChange={(e) => setTel(e.target.value)}
           placeholder="+92 300 1234567"
           inputMode="tel"
+          maxLength={18}
           autoComplete="tel"
           aria-label={t("profile.phone")}
         />
@@ -648,7 +666,7 @@ function EditAddressSheet({
       .single();
     setBusy(false);
     if (error) {
-      toast(t("profile.saveError") + error.message, "error");
+      toast(t("profile.saveError") + dbErrorMessage(error), "error");
       return;
     }
     onSaved(next, pin);

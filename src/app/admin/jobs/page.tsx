@@ -6,6 +6,7 @@ import { AdminShell } from "@/components/AdminShell";
 import { useToast } from "@/components/Toast";
 import { Button, Card, DataTable, EmptyState, Pill, Select, Tabs, formatPKR } from "@/components/ui";
 import { JOB_STATUS_LABEL, type Job, type JobStatus } from "@/lib/types";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 const CLOSED = new Set<JobStatus>(["paid", "rated", "cancelled"]);
 
@@ -37,7 +38,7 @@ export default function AdminJobs() {
     });
     setBusy(false);
     if (error) {
-      toast("Couldn't move that job — " + error.message, "error");
+      toast("Couldn't move that job — " + dbErrorMessage(error), "error");
       return;
     }
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, status: to } : j)));

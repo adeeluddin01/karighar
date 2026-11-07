@@ -14,11 +14,13 @@ import {
 } from "@/lib/authActions";
 import { Button, Card, Field, Input } from "@/components/ui";
 import { Logo } from "@/components/Logo";
+import { safeNext } from "@/lib/siteUrl";
+import { LIMITS } from "@/lib/validate";
 
 export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/";
+  const next = safeNext(search.get("next"));
   const asProvider = search.get("role") === "provider";
 
   const [fullName, setFullName] = useState("");
@@ -129,6 +131,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
                 onChange={(e) => setFullName(e.target.value)}
                 required
                 autoComplete="name"
+                maxLength={LIMITS.fullName}
                 placeholder="Ahmed Khan"
               />
             </Field>
@@ -140,6 +143,7 @@ export function AuthForm({ mode }: { mode: "signin" | "signup" }) {
                 placeholder="03XX-XXXXXXX"
                 inputMode="tel"
                 autoComplete="tel"
+                maxLength={18}
               />
             </Field>
           </>

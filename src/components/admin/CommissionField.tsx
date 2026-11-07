@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { Button, Input, Pill } from "@/components/ui";
 import { fromPercent, toPercent, validatePercent } from "@/lib/commission";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 /**
  * One account's commission rate, on the Providers and Businesses tabs.
@@ -55,7 +56,7 @@ export function CommissionField({
     });
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setText(toPercent(next));

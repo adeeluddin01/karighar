@@ -17,6 +17,8 @@ import { joinAddress, splitAddress } from "@/lib/area";
 import type { LatLng } from "@/lib/maps";
 import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
 import { clsx } from "@/lib/clsx";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, scheduledAtIso, validateFreeText } from "@/lib/validate";
 
 // Visit windows, kept 24h so `new Date(`${date}T${time}`)` still does the
 // scheduling maths.
@@ -246,10 +248,21 @@ function BookServiceContent() {
     setError(null);
     const supabase = createClient();
 
-    const fullAddress = joinAddress(address, area);
+    const bad = firstError(
+      validateFreeText(address, { min: 3, max: LIMITS.addressLine, label: "address" }),
+      validateFreeText(notes, { max: LIMITS.jobDescription, label: "note" })
+    );
+    if (bad) {
+      setError(bad);
+      bookedRef.current = false;
+      setBusy(false);
+      return;
+    }
+
+    const fullAddress = joinAddress(address.trim(), area);
     const scheduledAt =
       schedule.date && schedule.time
-        ? new Date(`${schedule.date}T${schedule.time}`).toISOString()
+        ? scheduledAtIso(schedule.date, schedule.time)
         : null;
 
     // Ensure a customer profile row exists (FK target for jobs).
@@ -265,7 +278,7 @@ function BookServiceContent() {
         type: "fixed",
         service_id: service.id,
         title: service.name,
-        description: notes || null,
+        description: notes.trim() || null,
         status: "created",
         address: fullAddress,
         lat: pos?.lat ?? null,
@@ -279,7 +292,7 @@ function BookServiceContent() {
       .single();
 
     if (jobErr) {
-      setError(jobErr.message);
+      setError(dbErrorMessage(jobErr));
       bookedRef.current = false; // let them retry
       setBusy(false);
       return;
@@ -438,6 +451,7 @@ function BookServiceContent() {
             <label className="in flat">
               <KIcon name="home" />
               <input
+                maxLength={LIMITS.addressLine}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="House / flat, street, landmark"
@@ -535,6 +549,7 @@ function BookServiceContent() {
         <h3 className="lbl">Anything the pro should know?</h3>
         <textarea
           className="ta"
+          maxLength={LIMITS.jobDescription}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="e.g. Kitchen tap leaking from the base. 2nd floor, no lift."

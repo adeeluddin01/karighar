@@ -35,6 +35,8 @@ import {
   type Profile,
   type PublicCustomerRating,
 } from "@/lib/types";
+import { LIMITS, validateAmount } from "@/lib/validate";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 // What the provider can do next at each stage.
 const NEXT: Partial<Record<JobStatus, { to: JobStatus; label: string }>> = {
@@ -166,7 +168,7 @@ function ProJobDetailContent() {
       toast(
         error.code === "23505" || /duplicate|unique/i.test(error.message)
           ? "You've already rated this customer."
-          : `Couldn't save your rating — ${error.message}`,
+          : `Couldn't save your rating — ${dbErrorMessage(error)}`,
         "error"
       );
       return;
@@ -199,11 +201,15 @@ function ProJobDetailContent() {
   const canPrice = job ? ["arrived", "in_progress"].includes(job.status) : false;
 
   async function setPrice() {
-    const value = Number(priceInput);
-    if (!value || value <= 0) {
-      toast("Enter a valid amount", "error");
+    // An upper bound as well as a lower one: numeric(10,2) overflows above
+    // 10^8 and the old check only rejected zero and negatives, so a
+    // fat-fingered figure reached the database as a raw Postgres error.
+    const bad = validateAmount(priceInput, { label: "amount" });
+    if (bad) {
+      toast(bad, "error");
       return;
     }
+    const value = Number(priceInput);
     setBusy(true);
     // A proposal, not a price: the customer must accept it before it
     // becomes the job's price. The old code set the price unilaterally
@@ -214,7 +220,7 @@ function ProJobDetailContent() {
       .eq("id", jobId);
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setPriceInput("");
@@ -232,7 +238,7 @@ function ProJobDetailContent() {
       .single();
     setBusy(false);
     if (error) {
-      toast("Couldn't cancel the job — " + error.message, "error");
+      toast("Couldn't cancel the job — " + dbErrorMessage(error), "error");
       return;
     }
     setShowCancel(false);
@@ -533,6 +539,7 @@ function ProJobDetailContent() {
               </div>
               <Input
                 className="mt-3"
+                maxLength={LIMITS.reviewComment}
                 value={rateNote}
                 onChange={(e) => setRateNote(e.target.value)}
                 placeholder="Anything worth noting? (optional)"

@@ -6,7 +6,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { resolveSignInDest } from "@/lib/roleHome";
 import { authErrorMessage } from "@/lib/authActions";
-import { withSlash } from "@/lib/siteUrl";
+import { safeNext, withSlash } from "@/lib/siteUrl";
 import { AppShell } from "@/components/AppShell";
 import { Card, Spinner } from "@/components/ui";
 
@@ -41,7 +41,7 @@ export default function AuthCallbackPage() {
     const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
     const param = (k: string) => query.get(k) ?? hash.get(k);
 
-    const next = withSlash(param("next") || "/");
+    const next = withSlash(safeNext(param("next")));
     const supabase = createClient();
     let active = true;
 

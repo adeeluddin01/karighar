@@ -10,6 +10,7 @@ import {
 } from "@/lib/authActions";
 import { Modal } from "@/components/Modal";
 import { Button, Field, Input, Tabs } from "@/components/ui";
+import { LIMITS } from "@/lib/validate";
 
 type Mode = "signin" | "signup";
 
@@ -141,6 +142,7 @@ export function AuthGateModal({
                 onChange={(e) => setFullName(e.target.value)}
                 required
                 autoComplete="name"
+                maxLength={LIMITS.fullName}
                 placeholder="Ahmed Khan"
               />
             </Field>
@@ -152,6 +154,7 @@ export function AuthGateModal({
                 placeholder="03XX-XXXXXXX"
                 inputMode="tel"
                 autoComplete="tel"
+                maxLength={18}
               />
             </Field>
           </>

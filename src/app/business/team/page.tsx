@@ -16,6 +16,8 @@ import {
   Spinner,
 } from "@/components/ui";
 import type { BusinessMember, MembershipStatus, Profile } from "@/lib/types";
+import { normalizePkPhone, validatePhone } from "@/lib/validate";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 type Member = BusinessMember & { profile?: Profile };
 
@@ -73,16 +75,24 @@ export default function BusinessTeam() {
     sharePct.trim() !== "" && Number.isFinite(sharePctNum) && sharePctNum >= 0 && sharePctNum <= 100;
 
   async function invite() {
-    if (!phone.trim() || !shareValid) return;
+    if (!shareValid) return;
+    // The RPC only checks for >=10 digits, so "0300 1234 567 ext 4" reached
+    // it intact and was stored in a format no other screen writes. Normalize
+    // to +92… here, as sign-up does, so one technician is one row.
+    const normPhone = normalizePkPhone(phone);
+    if (!normPhone) {
+      toast(validatePhone(phone) ?? "Enter a valid mobile number.", "error");
+      return;
+    }
     const share = sharePctNum / 100;
     setBusy("invite");
     const { error } = await createClient().rpc("business_invite_technician", {
-      p_phone: phone.trim(),
+      p_phone: normPhone,
       p_share: share,
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setPhone("");
@@ -98,7 +108,7 @@ export default function BusinessTeam() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -109,7 +119,7 @@ export default function BusinessTeam() {
     const { error } = await createClient().rpc("business_remove_member", { p_member: m.id });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     await load();

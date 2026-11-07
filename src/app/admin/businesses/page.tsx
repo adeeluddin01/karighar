@@ -19,7 +19,7 @@ import type { Business, BusinessMember, BusinessStatus, Profile } from "@/lib/ty
 import { fetchEmails, matchesQuery } from "@/lib/adminSearch";
 import { Icon } from "@/components/Icon";
 import { MapPicker } from "@/components/maps/MapPicker";
-import { isValidCnic } from "@/lib/validate";
+import { LIMITS, isValidCnic } from "@/lib/validate";
 import { CommissionField } from "@/components/admin/CommissionField";
 import { DefaultCommissionCard } from "@/components/admin/DefaultCommissionCard";
 import {
@@ -33,6 +33,7 @@ import {
   type RatePair,
 } from "@/lib/commission";
 import type { LatLng } from "@/lib/maps";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 type Row = Business & {
   profile?: Profile;
@@ -183,7 +184,7 @@ export default function AdminBusinesses() {
     });
     if (error) {
       setBusy(null);
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
 
@@ -200,7 +201,7 @@ export default function AdminBusinesses() {
       if (rateErr) {
         setBusy(null);
         // The account exists either way, so say what did and didn't land.
-        toast(`Account saved, but the commission didn't: ${rateErr.message}`, "error");
+        toast(`Account saved, but the commission didn't: ${dbErrorMessage(rateErr)}`, "error");
         await load();
         return;
       }
@@ -236,7 +237,7 @@ export default function AdminBusinesses() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -312,6 +313,7 @@ export default function AdminBusinesses() {
           <div className="sm:col-span-2">
             <Field label="Premises address">
               <Input
+                maxLength={LIMITS.addressLine}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Shop 12, Block 4, Gulshan-e-Iqbal"

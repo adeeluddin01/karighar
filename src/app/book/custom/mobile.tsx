@@ -15,6 +15,8 @@ import { joinAddress, splitAddress } from "@/lib/area";
 import type { LatLng } from "@/lib/maps";
 import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
 import { clsx } from "@/lib/clsx";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, scheduledAtIso, validateFreeText } from "@/lib/validate";
 
 // Persists the in-progress job post across a sign-in/sign-up detour — either
 // the inline modal (same tab, no reload) or a Google OAuth redirect (which
@@ -182,8 +184,20 @@ export default function CustomJobScreen() {
     setError(null);
     const supabase = createClient();
 
-    const fullAddress = joinAddress(address, area);
-    const scheduledAt = date && time ? new Date(`${date}T${time}`).toISOString() : null;
+    const bad = firstError(
+      validateFreeText(title, { max: LIMITS.jobTitle, label: "job title" }),
+      validateFreeText(description, { min: 6, max: LIMITS.jobDescription, label: "description" }),
+      validateFreeText(address, { min: 3, max: LIMITS.addressLine, label: "address" })
+    );
+    if (bad) {
+      setError(bad);
+      postedRef.current = false;
+      setBusy(false);
+      return;
+    }
+
+    const fullAddress = joinAddress(address.trim(), area);
+    const scheduledAt = scheduledAtIso(date, time);
     const catName = cats.find((c) => c.id === categoryId)?.name ?? "Custom job";
 
     await supabase.from("customers").upsert(
@@ -197,8 +211,8 @@ export default function CustomJobScreen() {
         customer_id: userId,
         type: "custom",
         service_id: null,
-        title: title || catName,
-        description,
+        title: title.trim() || catName,
+        description: description.trim(),
         status: "bidding",
         address: fullAddress,
         lat: pos?.lat ?? null,
@@ -213,7 +227,7 @@ export default function CustomJobScreen() {
       .single();
 
     if (jobErr) {
-      setError(jobErr.message);
+      setError(dbErrorMessage(jobErr));
       postedRef.current = false; // let them retry
       setBusy(false);
       return;
@@ -278,6 +292,7 @@ export default function CustomJobScreen() {
         <label className="in flat">
           <KIcon name="wrench" />
           <input
+            maxLength={LIMITS.jobTitle}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Install 2 ceiling fans and fix wiring"
@@ -289,6 +304,7 @@ export default function CustomJobScreen() {
         <textarea
           className="ta"
           style={{ minHeight: 120 }}
+          maxLength={LIMITS.jobDescription}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="The more detail you give, the more accurate the quotes. Mention what's broken, how many items, which floor, and anything the pro should bring."
@@ -325,6 +341,7 @@ export default function CustomJobScreen() {
             <label className="in flat">
               <KIcon name="home" />
               <input
+                maxLength={LIMITS.addressLine}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="House / flat, street, landmark"

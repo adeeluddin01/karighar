@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { Button, Textarea } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { LIMITS, validateFreeText } from "@/lib/validate";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 // "Report a problem" — lets a customer or provider raise a dispute on a job.
 export function DisputeButton({ jobId, userId }: { jobId: string; userId: string }) {
@@ -15,7 +17,18 @@ export function DisputeButton({ jobId, userId }: { jobId: string; userId: string
   const [done, setDone] = useState(false);
 
   async function submit() {
-    if (!reason.trim()) return;
+    // min 3 mirrors the disputes_reason_len CHECK in patch_v27. Without it a
+    // one-word reason reached the database and came back as a constraint
+    // error, which is the exact round trip this validation exists to avoid.
+    const bad = validateFreeText(reason, {
+      min: 3,
+      max: LIMITS.disputeReason,
+      label: "what went wrong",
+    });
+    if (bad) {
+      toast(bad, "error");
+      return;
+    }
     setBusy(true);
     const { error } = await createClient().from("disputes").insert({
       job_id: jobId,
@@ -24,7 +37,7 @@ export function DisputeButton({ jobId, userId }: { jobId: string; userId: string
     });
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setDone(true);
@@ -47,6 +60,7 @@ export function DisputeButton({ jobId, userId }: { jobId: string; userId: string
         <div className="space-y-3 text-start">
           <Textarea
             rows={3}
+            maxLength={LIMITS.disputeReason}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Describe the problem…"

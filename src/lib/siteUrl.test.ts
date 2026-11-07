@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { authRedirect, siteUrl, withSlash } from "./siteUrl";
+import { authRedirect, safeNext, siteUrl, withSlash } from "./siteUrl";
 import { BRAND } from "./config";
 
 const ENV = "NEXT_PUBLIC_SITE_URL";
@@ -79,5 +79,47 @@ describe("authRedirect", () => {
     process.env[ENV] = "https://pinned.example";
     expect(authRedirect()).toBe("https://pinned.example/auth/callback/?next=%2F");
     expect(authRedirect("")).toBe("https://pinned.example/auth/callback/?next=%2F");
+  });
+});
+
+describe("safeNext", () => {
+  it("keeps an ordinary in-app destination", () => {
+    expect(safeNext("/jobs")).toBe("/jobs");
+    expect(safeNext("/bookings/view/?id=1")).toBe("/bookings/view/?id=1");
+    expect(safeNext("/pro/dashboard/")).toBe("/pro/dashboard/");
+  });
+
+  // The open redirect this exists to close. "//evil.com" is a
+  // protocol-relative URL: withSlash() passes it through untouched and the
+  // browser then navigates off-site.
+  it("rejects a protocol-relative URL", () => {
+    expect(safeNext("//evil.com")).toBe("/");
+    expect(safeNext("//evil.com/path?a=1")).toBe("/");
+  });
+
+  // Browsers normalize a backslash to a slash in the authority position, so
+  // "/\evil.com" is the same attack spelled differently.
+  it("rejects a backslash authority", () => {
+    expect(safeNext("/\\evil.com")).toBe("/");
+  });
+
+  it("rejects anything with a scheme or no root", () => {
+    expect(safeNext("https://evil.com")).toBe("/");
+    expect(safeNext("javascript:alert(1)")).toBe("/");
+    expect(safeNext("evil.com")).toBe("/");
+  });
+
+  it("falls back to / for absent or blank input", () => {
+    expect(safeNext(null)).toBe("/");
+    expect(safeNext(undefined)).toBe("/");
+    expect(safeNext("")).toBe("/");
+    expect(safeNext("   ")).toBe("/");
+  });
+
+  it("is applied by authRedirect, so an off-site next cannot be emailed", () => {
+    process.env[ENV] = "https://thekarighar.com";
+    expect(authRedirect("//evil.com")).toBe(
+      "https://thekarighar.com/auth/callback/?next=%2F"
+    );
   });
 });

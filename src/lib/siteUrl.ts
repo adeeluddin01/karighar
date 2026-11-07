@@ -44,6 +44,29 @@ export function siteUrl(): string {
 }
 
 /**
+ * Keep a `?next=` value usable as an in-app destination, or fall back to "/".
+ *
+ * `next` arrives from the query string on /signin, /signup and
+ * /auth/callback, and ends up in router.push()/replace(). `withSlash` below
+ * only normalizes the slash — it does not check the value is *relative*, and
+ * "//evil.com" passes straight through it, which the browser then reads as a
+ * protocol-relative URL and follows off-site. That is an open redirect on the
+ * three routes an attacker would most want it on, so the check belongs here,
+ * next to the function that was mistaken for it.
+ *
+ * Only a single-slash-rooted path is allowed. Rejected: "//host" and "/\host"
+ * (browsers treat a backslash as a slash in the authority position),
+ * anything with a scheme, and anything that isn't rooted at all.
+ */
+export function safeNext(raw: string | null | undefined): string {
+  const next = (raw ?? "").trim();
+  if (!next.startsWith("/")) return "/";
+  // Second character decides it: "//" and "/\" both open an authority.
+  if (next.length > 1 && (next[1] === "/" || next[1] === "\\")) return "/";
+  return next;
+}
+
+/**
  * Give an app path its trailing slash, keeping any query/hash after it:
  * `/pro/onboarding` -> `/pro/onboarding/`, `/b/view?id=1` -> `/b/view/?id=1`.
  */
@@ -60,5 +83,8 @@ export function withSlash(path: string): string {
  * `redirectTo`. `next` is where to land once the session exists.
  */
 export function authRedirect(next = "/"): string {
-  return `${siteUrl()}/auth/callback/?next=${encodeURIComponent(withSlash(next || "/"))}`;
+  // safeNext as well as at the read sites: this builds the URL the callback
+  // will later navigate to, so an off-site value should never survive long
+  // enough to be round-tripped through an email link.
+  return `${siteUrl()}/auth/callback/?next=${encodeURIComponent(withSlash(safeNext(next)))}`;
 }

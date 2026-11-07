@@ -27,6 +27,7 @@ import { Directions, FitToJobs } from "@/components/maps/JobsMapParts";
 import { useRouteToJob } from "@/components/maps/useRouteToJob";
 import { BARE_MAP_STYLE, GOOGLE_MAPS_KEY, KARACHI_CENTER, googleDirectionsUrl, type LatLng } from "@/lib/maps";
 import type { BusinessMember, Job, Profile, Provider, PublicCustomerRating } from "@/lib/types";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 type Pinned = Job & { lat: number; lng: number };
 
@@ -183,7 +184,7 @@ export default function ProviderMapPage() {
       .update({ provider_id: user!.id, status: "assigned" })
       .eq("id", job.id);
     if (error) {
-      toast("Couldn't accept that job — " + error.message, "error");
+      toast("Couldn't accept that job — " + dbErrorMessage(error), "error");
       return;
     }
     await load();

@@ -8,6 +8,7 @@ import { Avatar, Button, Card, EmptyState, Input, KV, Stat, formatPKR } from "@/
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import type { Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 type Row = {
   id: string;
@@ -86,7 +87,7 @@ export default function AdminSettlements() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast(`Recorded ${formatPKR(amount)} settlement`, "success");

@@ -24,6 +24,8 @@ import { KARACHI_AREAS, type Service } from "@/lib/types";
 import type { LatLng } from "@/lib/maps";
 import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
 import { Icon } from "@/components/Icon";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, scheduledAtIso, validateFreeText } from "@/lib/validate";
 
 const STEPS = ["Address", "Schedule", "Confirm"] as const;
 
@@ -177,8 +179,19 @@ function BookServiceContent() {
     setError(null);
     const supabase = createClient();
 
-    const fullAddress = `${address}, ${area}, Karachi`;
-    const scheduledAt = date && time ? new Date(`${date}T${time}`).toISOString() : null;
+    const bad = firstError(
+      validateFreeText(address, { min: 3, max: LIMITS.addressLine, label: "address" }),
+      validateFreeText(notes, { max: LIMITS.jobDescription, label: "note" })
+    );
+    if (bad) {
+      setError(bad);
+      bookedRef.current = false;
+      setBusy(false);
+      return;
+    }
+
+    const fullAddress = `${address.trim()}, ${area}, Karachi`;
+    const scheduledAt = scheduledAtIso(date, time);
 
     // Ensure a customer profile row exists (FK target for jobs).
     await supabase.from("customers").upsert(
@@ -196,7 +209,7 @@ function BookServiceContent() {
         type: "fixed",
         service_id: service.id,
         title: service.name,
-        description: notes || null,
+        description: notes.trim() || null,
         status: "created",
         address: fullAddress,
         lat: pos?.lat ?? null,
@@ -210,7 +223,7 @@ function BookServiceContent() {
       .single();
 
     if (jobErr) {
-      setError(jobErr.message);
+      setError(dbErrorMessage(jobErr));
       setBusy(false);
       bookedRef.current = false; // let them retry
       return;
@@ -318,6 +331,7 @@ function BookServiceContent() {
             </Field>
             <Field label="Address" hint="House / flat, street, landmark.">
               <Input
+                maxLength={LIMITS.addressLine}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 required
@@ -394,6 +408,7 @@ function BookServiceContent() {
             <Field label="Notes for the pro (optional)">
               <Textarea
                 rows={3}
+                maxLength={LIMITS.jobDescription}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Describe the problem, e.g. AC not cooling, water leaking under sink…"

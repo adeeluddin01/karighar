@@ -26,6 +26,8 @@ import { useLanguage } from "@/lib/i18n";
 import { AVATAR_ACCEPT, uploadAvatar } from "@/lib/avatar";
 import { areaOf, joinAddress, splitAddress } from "@/lib/area";
 import type { LatLng } from "@/lib/maps";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, normalizePkPhone, validateName, validatePhone } from "@/lib/validate";
 
 export default function ProfilePage() {
   const { user, profile, loading } = useRequireAuth("/profile");
@@ -112,6 +114,19 @@ export default function ProfilePage() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    // The phone is optional here, so it is only checked when present — but
+    // when it IS present it goes through the same normalizer as sign-up.
+    // Before this, signup stored "+923001234567" and a later profile edit
+    // stored whatever was typed, so the same person's number was in two
+    // formats depending on which screen last touched it.
+    const bad = firstError(
+      validateName(fullName),
+      phone.trim() ? validatePhone(phone) : null
+    );
+    if (bad) {
+      toast(bad, "error");
+      return;
+    }
     setBusy(true);
     setSaved(false);
     // .select().single() so a write blocked by RLS comes back as an error
@@ -119,13 +134,16 @@ export default function ProfilePage() {
     // entirely and report "Saved" either way.
     const { error } = await createClient()
       .from("profiles")
-      .update({ full_name: fullName.trim() || null, phone: phone.trim() || null })
+      .update({
+        full_name: fullName.trim() || null,
+        phone: phone.trim() ? normalizePkPhone(phone) : null,
+      })
       .eq("id", user.id)
       .select("id")
       .single();
     setBusy(false);
     if (error) {
-      toast(t("profile.saveDetailsError") + error.message, "error");
+      toast(t("profile.saveDetailsError") + dbErrorMessage(error), "error");
       return;
     }
     setSaved(true);
@@ -150,7 +168,7 @@ export default function ProfilePage() {
       .single();
     setAddrBusy(false);
     if (error) {
-      toast(t("profile.saveAddressError") + error.message, "error");
+      toast(t("profile.saveAddressError") + dbErrorMessage(error), "error");
       return;
     }
     setMe((c) => ({ ...c, default_address: joinAddress(addrLine, area) }));
@@ -177,7 +195,7 @@ export default function ProfilePage() {
       .single();
     setAvatarBusy(false);
     if (error) {
-      toast(t("profile.savePictureError") + error.message, "error");
+      toast(t("profile.savePictureError") + dbErrorMessage(error), "error");
       return;
     }
     setAvatarEdit(up.url);
@@ -198,7 +216,7 @@ export default function ProfilePage() {
       .single();
     setAvatarBusy(false);
     if (error) {
-      toast(t("profile.removePictureError") + error.message, "error");
+      toast(t("profile.removePictureError") + dbErrorMessage(error), "error");
       return;
     }
     setAvatarEdit("");

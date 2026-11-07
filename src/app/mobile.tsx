@@ -103,29 +103,6 @@ export default function HomeScreen() {
   const hero = useMemo(() => cats?.find((c) => c.is_active && c.services.length > 0), [cats]);
   const heroFrom = hero ? cheapest(hero.services) : null;
 
-  // The three figures on the hero. Before any pro is approved there's no
-  // rating or job count to show, so it falls back to facts about the catalog.
-  const heroStats = useMemo(() => {
-    if (!cats) return null;
-    const rated = pros.filter((p) => Number(p.rating_avg) > 0);
-    const jobs = pros.reduce((n, p) => n + p.jobs_completed, 0);
-    if (rated.length || jobs) {
-      const avg = rated.length
-        ? rated.reduce((n, p) => n + Number(p.rating_avg), 0) / rated.length
-        : 0;
-      return [
-        ["Rating", avg ? `${avg.toFixed(1)} ★` : "New"],
-        ["Jobs done", jobs.toLocaleString("en-PK")],
-        ["Verified pros", String(pros.length)],
-      ] as const;
-    }
-    return [
-      ["Services", String(hero?.services.length ?? 0)],
-      ["From", heroFrom ? formatPKR(heroFrom.base_price) : "On quote"],
-      ["You pay", "After the job"],
-    ] as const;
-  }, [cats, pros, hero, heroFrom]);
-
   return (
     <Screen>
       <Scroll>
@@ -225,16 +202,6 @@ export default function HomeScreen() {
                     .join(" · ")}
                   {heroFrom && ` · from ${formatPKR(heroFrom.base_price)}`}
                 </p>
-                {heroStats && (
-                  <div className="hero-stats">
-                    {heroStats.map(([label, value]) => (
-                      <div key={label}>
-                        <small>{label}</small>
-                        <b>{value}</b>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </Link>
           )

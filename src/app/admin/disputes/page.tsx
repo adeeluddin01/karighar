@@ -7,6 +7,8 @@ import { AdminShell } from "@/components/AdminShell";
 import { useToast } from "@/components/Toast";
 import { Button, Card, EmptyState, Input, Pill } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS } from "@/lib/validate";
 
 type Dispute = {
   id: string;
@@ -69,7 +71,7 @@ export default function AdminDisputes() {
     });
     setBusy(null);
     if (error) {
-      toast("Couldn't move that job — " + error.message, "error");
+      toast("Couldn't move that job — " + dbErrorMessage(error), "error");
       return;
     }
     toast("Job sent back to completed.", "success");
@@ -84,7 +86,7 @@ export default function AdminDisputes() {
       .eq("id", row.id);
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast("Dispute resolved", "success");
@@ -112,7 +114,7 @@ export default function AdminDisputes() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast("Charges reversed. The pro no longer owes commission on this job.", "success");
@@ -151,6 +153,7 @@ export default function AdminDisputes() {
                 <Input
                   className="flex-1"
                   placeholder="Resolution note…"
+                  maxLength={LIMITS.disputeReason}
                   value={notes[d.id] ?? ""}
                   onChange={(e) => setNotes((n) => ({ ...n, [d.id]: e.target.value }))}
                   aria-label="Resolution note"

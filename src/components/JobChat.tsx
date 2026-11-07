@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button, Input } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { clsx } from "@/lib/clsx";
+import { LIMITS } from "@/lib/validate";
 
 type Message = { id: string; job_id: string; sender_id: string; text: string; created_at: string };
 
@@ -69,6 +70,7 @@ export function JobChat({ jobId, userId }: { jobId: string; userId: string }) {
       <form onSubmit={send} className="mt-3 flex items-center gap-2">
         <Input
           className="flex-1"
+          maxLength={LIMITS.messageText}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Type a message…"

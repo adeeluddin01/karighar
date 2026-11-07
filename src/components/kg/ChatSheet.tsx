@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { KIcon } from "@/components/kg/icons";
 import { clsx } from "@/lib/clsx";
+import { LIMITS } from "@/lib/validate";
 
 type Message = { id: string; job_id: string; sender_id: string; text: string; created_at: string };
 
@@ -107,7 +108,8 @@ export function ChatSheet({
         <form onSubmit={send} className="composer">
           <label className="in flat">
             <input
-              value={text}
+              maxLength={LIMITS.messageText}
+          value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Type a message…"
               autoComplete="off"

@@ -11,6 +11,8 @@ import { Icon } from "@/components/Icon";
 import { KARACHI_AREAS, type ServiceCategory } from "@/lib/types";
 import type { LatLng } from "@/lib/maps";
 import { clearDraft, isRecord, readDraft, saveDraft, type Versioned } from "@/lib/bookingDraft";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, scheduledAtIso, validateFreeText } from "@/lib/validate";
 
 // Persists the in-progress job post across a sign-in/sign-up detour — either
 // the inline modal (same tab, no reload) or a Google OAuth redirect (which
@@ -125,8 +127,20 @@ export default function CustomJobPage() {
     setError(null);
     const supabase = createClient();
 
-    const fullAddress = `${address}, ${area}, Karachi`;
-    const scheduledAt = date && time ? new Date(`${date}T${time}`).toISOString() : null;
+    const bad = firstError(
+      validateFreeText(title, { max: LIMITS.jobTitle, label: "job title" }),
+      validateFreeText(description, { min: 6, max: LIMITS.jobDescription, label: "description" }),
+      validateFreeText(address, { min: 3, max: LIMITS.addressLine, label: "address" })
+    );
+    if (bad) {
+      setError(bad);
+      postedRef.current = false;
+      setBusy(false);
+      return;
+    }
+
+    const fullAddress = `${address.trim()}, ${area}, Karachi`;
+    const scheduledAt = scheduledAtIso(date, time);
     const catName = cats.find((c) => c.id === categoryId)?.name ?? "Custom job";
 
     await supabase.from("customers").upsert(
@@ -143,8 +157,8 @@ export default function CustomJobPage() {
         customer_id: userId,
         type: "custom",
         service_id: null,
-        title: title || catName,
-        description,
+        title: title.trim() || catName,
+        description: description.trim(),
         status: "bidding",
         address: fullAddress,
         lat: pos?.lat ?? null,
@@ -159,7 +173,7 @@ export default function CustomJobPage() {
       .single();
 
     if (jobErr) {
-      setError(jobErr.message);
+      setError(dbErrorMessage(jobErr));
       postedRef.current = false; // let them retry
       setBusy(false);
       return;
@@ -208,6 +222,7 @@ export default function CustomJobPage() {
         </Field>
         <Field label="Job title">
           <Input
+            maxLength={LIMITS.jobTitle}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
@@ -217,6 +232,7 @@ export default function CustomJobPage() {
         <Field label="Describe the job" hint="The more detail you give, the more accurate the quotes.">
           <Textarea
             rows={4}
+            maxLength={LIMITS.jobDescription}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             required
@@ -232,6 +248,7 @@ export default function CustomJobPage() {
         </Field>
         <Field label="Address">
           <Input
+            maxLength={LIMITS.addressLine}
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             required

@@ -19,6 +19,7 @@ import {
   formatPKR,
 } from "@/components/ui";
 import { splitDispatchedJob } from "@/lib/money";
+import { dbErrorMessage } from "@/lib/dbErrors";
 import {
   JOB_STATUS_LABEL,
   type BusinessMember,
@@ -153,7 +154,7 @@ export default function BusinessDispatch() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast("Assigned. Your technician and the customer have both been notified.", "success");
@@ -168,7 +169,7 @@ export default function BusinessDispatch() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -195,7 +196,7 @@ export default function BusinessDispatch() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setQuoteFor(null);

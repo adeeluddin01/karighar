@@ -2203,12 +2203,12 @@ create or replace view public_business_reviews as
   join businesses b on b.profile_id = j.business_id
   where b.status = 'active';
 
-do $
+do $$
 begin
   execute 'alter view public_business_reviews set (security_invoker = off)';
 exception when others then
   raise notice 'security_invoker unsupported here; owner rights are the default';
-end $;
+end $$;
 
 grant select on public_business_reviews to anon, authenticated;
 

@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizePkPhone } from "./validate";
+import {
+  firstError,
+  normalizePkPhone,
+  validateEmail,
+  validateName,
+  validatePassword,
+  validatePhone,
+} from "./validate";
 import { authRedirect } from "./siteUrl";
 
 /* ============================================================
@@ -45,6 +52,21 @@ export async function signUpWithEmail(
   input: SignUpInput,
   next = "/"
 ): Promise<SignUpResult> {
+  // All four fields are checked here rather than in the forms, because there
+  // are three near-identical sign-up forms (the desktop card, the phone lane
+  // and the in-booking gate) and they had already drifted apart once. The
+  // password rule in particular existed only as `minLength` on the input,
+  // which nothing but a real form submit honours.
+  const bad = firstError(
+    validateName(input.fullName),
+    validatePhone(input.phone),
+    validateEmail(input.email),
+    validatePassword(input.password)
+  );
+  if (bad) return { kind: "error", message: bad };
+
+  // Non-null by validatePhone above; `!` would be a lie the next reader has
+  // to verify, so re-derive it instead.
   const normPhone = normalizePkPhone(input.phone);
   if (!normPhone) {
     return {
@@ -55,11 +77,11 @@ export async function signUpWithEmail(
 
   const role = input.asProvider ? "provider" : "customer";
   const { data, error } = await supabase.auth.signUp({
-    email: input.email,
+    email: input.email.trim(),
     password: input.password,
     options: {
       emailRedirectTo: authRedirect(next),
-      data: { full_name: input.fullName, phone: normPhone, role },
+      data: { full_name: input.fullName.trim(), phone: normPhone, role },
     },
   });
 
@@ -74,7 +96,7 @@ export async function signUpWithEmail(
   // metadata round trip was skipped, so keep the explicit write.
   await supabase
     .from("profiles")
-    .update({ full_name: input.fullName, phone: normPhone, role })
+    .update({ full_name: input.fullName.trim(), phone: normPhone, role })
     .eq("id", data.session.user.id);
 
   return { kind: "session", userId: data.session.user.id };
@@ -85,7 +107,7 @@ export async function signInWithEmail(
   email: string,
   password: string
 ) {
-  return supabase.auth.signInWithPassword({ email, password });
+  return supabase.auth.signInWithPassword({ email: email.trim(), password });
 }
 
 /**

@@ -9,12 +9,13 @@ import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KAuthForm } from "@/components/kg/AuthForm";
 import { KIcon } from "@/components/kg/icons";
 import { BRAND } from "@/lib/config";
+import { safeNext } from "@/lib/siteUrl";
 
 /** The phone lane of /signin and /signup. */
 export function AuthScreen({ mode }: { mode: "signin" | "signup" }) {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/";
+  const next = safeNext(search.get("next"));
   const asProvider = search.get("role") === "provider";
   const dest = asProvider ? "/pro/onboarding" : next;
 

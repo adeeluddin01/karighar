@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { KIcon } from "@/components/kg/icons";
 import { clsx } from "@/lib/clsx";
+import { LIMITS, validateFreeText } from "@/lib/validate";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 const REASONS = [
   "Not fixed properly",
@@ -38,13 +40,19 @@ export function ReportSheet({
   async function submit() {
     if (!reason) return;
     setBusy(true);
+    const bad = validateFreeText(detail, { max: LIMITS.disputeReason, label: "detail" });
+    if (bad) {
+      toast(bad, "error");
+      setBusy(false);
+      return;
+    }
     const text = detail.trim() ? `${reason} — ${detail.trim()}` : reason;
     const { error } = await createClient()
       .from("disputes")
       .insert({ job_id: jobId, raised_by: userId, reason: text });
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast("Reported. Our team will follow up.", "success");
@@ -88,6 +96,7 @@ export function ReportSheet({
 
         <textarea
           className="ta"
+          maxLength={LIMITS.disputeReason}
           value={detail}
           onChange={(e) => setDetail(e.target.value)}
           placeholder="Anything else we should know?"

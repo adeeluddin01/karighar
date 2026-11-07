@@ -18,7 +18,14 @@ import {
   Textarea,
 } from "@/components/ui";
 import { KARACHI_AREAS, type ServiceCategory, type Provider } from "@/lib/types";
-import { isValidCnic, formatCnic } from "@/lib/validate";
+import { LIMITS, formatCnic, firstError, validateCnic, validateFreeText } from "@/lib/validate";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import {
+  VERIFICATION_ACCEPT,
+  uploadVerificationDoc,
+  validateVerificationDoc,
+  type DocKind,
+} from "@/lib/verificationDoc";
 
 export default function ProviderOnboardingPage() {
   const { user, loading } = useRequireAuth("/pro/onboarding");
@@ -55,20 +62,34 @@ export default function ProviderOnboardingPage() {
     })();
   }, [user]);
 
+  // Reject a bad file at pick time rather than at submit: the person is
+  // looking at the file picker right now, and a 20MB photo is worth saying
+  // something about before they fill in the rest of the form.
+  function pickDoc(file: File | null, set: (f: File | null) => void) {
+    if (!file) {
+      set(null);
+      return;
+    }
+    const bad = validateVerificationDoc(file);
+    if (bad) {
+      setError(bad);
+      set(null);
+      return;
+    }
+    setError(null);
+    set(file);
+  }
+
   function toggle(list: string[], set: (v: string[]) => void, value: string) {
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   }
 
-  async function tryUpload(file: File | null, name: string): Promise<string | null> {
+  async function tryUpload(file: File | null, kind: DocKind): Promise<string | null> {
     if (!file || !user) return null;
-    const supabase = createClient();
-    const path = `${user.id}/${name}-${file.name}`;
-    const { error } = await supabase.storage
-      .from("verification")
-      .upload(path, file, { upsert: true });
+    const { path, error } = await uploadVerificationDoc(createClient(), user.id, kind, file);
     if (error) {
       setWarn(
-        "Documents couldn't be uploaded (storage not set up yet) — you can add them later. Your profile was still submitted."
+        `Documents couldn't be uploaded (${error}) — you can add them later. Your profile was still submitted.`
       );
       return null;
     }
@@ -82,8 +103,16 @@ export default function ProviderOnboardingPage() {
       setError("Pick at least one service you offer.");
       return;
     }
-    if (!isValidCnic(cnic)) {
-      setError("Enter a valid 13-digit CNIC, e.g. 42101-1234567-1");
+    // The file checks run here too, not just on pick: a file chosen before a
+    // re-render could otherwise reach the bucket unvalidated.
+    const bad = firstError(
+      validateCnic(cnic),
+      validateFreeText(bio, { max: LIMITS.bio, label: "bio" }),
+      cnicFront ? validateVerificationDoc(cnicFront) : null,
+      selfie ? validateVerificationDoc(selfie) : null
+    );
+    if (bad) {
+      setError(bad);
       return;
     }
     setBusy(true);
@@ -99,8 +128,8 @@ export default function ProviderOnboardingPage() {
     const { error: provErr } = await supabase.from("providers").upsert(
       {
         profile_id: user.id,
-        cnic_no: cnic,
-        bio,
+        cnic_no: cnic.trim(),
+        bio: bio.trim(),
         service_areas: areas,
         status: "pending",
         ...(frontPath ? { cnic_front_url: frontPath } : {}),
@@ -109,7 +138,7 @@ export default function ProviderOnboardingPage() {
       { onConflict: "profile_id" }
     );
     if (provErr) {
-      setError(provErr.message);
+      setError(dbErrorMessage(provErr));
       setBusy(false);
       return;
     }
@@ -163,6 +192,7 @@ export default function ProviderOnboardingPage() {
             rows={3}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
+            maxLength={LIMITS.bio}
             placeholder="e.g. 8 years of AC service & installation experience across Karachi."
           />
         </Field>
@@ -199,6 +229,7 @@ export default function ProviderOnboardingPage() {
             onChange={(e) => setCnic(formatCnic(e.target.value))}
             required
             inputMode="numeric"
+            maxLength={LIMITS.cnic}
             placeholder="42101-1234567-1"
           />
         </Field>
@@ -208,8 +239,8 @@ export default function ProviderOnboardingPage() {
             <div className="field">
               <input
                 type="file"
-                accept="image/*"
-                onChange={(e) => setCnicFront(e.target.files?.[0] ?? null)}
+                accept={VERIFICATION_ACCEPT}
+                onChange={(e) => pickDoc(e.target.files?.[0] ?? null, setCnicFront)}
                 className="text-sm"
               />
             </div>
@@ -218,8 +249,8 @@ export default function ProviderOnboardingPage() {
             <div className="field">
               <input
                 type="file"
-                accept="image/*"
-                onChange={(e) => setSelfie(e.target.files?.[0] ?? null)}
+                accept={VERIFICATION_ACCEPT}
+                onChange={(e) => pickDoc(e.target.files?.[0] ?? null, setSelfie)}
                 className="text-sm"
               />
             </div>

@@ -20,6 +20,7 @@ import {
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import { JOB_STATUS_LABEL, type BusinessMember, type Job, type Profile } from "@/lib/types";
 import { BRAND } from "@/lib/config";
+import { dbErrorMessage } from "@/lib/dbErrors";
 
 /** One technician's outstanding balance with this business. */
 type Owing = { id: string; name: string | null; balance: number };
@@ -109,7 +110,7 @@ export default function BusinessEarnings() {
     });
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     // Drop the typed-in amount so the box falls back to the new balance.

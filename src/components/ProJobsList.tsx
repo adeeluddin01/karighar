@@ -24,6 +24,7 @@ import {
   formatPKR,
 } from "@/components/ui";
 import type { Job, PublicCustomerRating } from "@/lib/types";
+import { LIMITS, firstError, validateAmount, validateFreeText } from "@/lib/validate";
 
 // The pro's jobs list, in one place. The dashboard (provider home) and the
 // map tab's List area show the SAME list — same tabs, same filters, same
@@ -77,6 +78,7 @@ export function ProJobsList({
   const [bidFor, setBidFor] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
+  const [bidError, setBidError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const effTab: Tab = attached ? "active" : tab;
@@ -108,11 +110,21 @@ export function ProJobsList({
   }
 
   async function submitBid(jobId: string) {
+    // A bare `if (!amount) return` used to swallow "", "0" and "abc"
+    // identically, so the button just appeared to do nothing.
+    const bad = firstError(
+      validateAmount(bidAmount, { label: "quote" }),
+      validateFreeText(bidNote, { max: LIMITS.bidNote, label: "note" })
+    );
+    if (bad) {
+      setBidError(bad);
+      return;
+    }
+    setBidError(null);
     const amount = Number(bidAmount);
-    if (!amount) return;
     setBusy(true);
     try {
-      await onSubmitBid(jobId, amount, bidNote || null);
+      await onSubmitBid(jobId, amount, bidNote.trim() || null);
       setBidFor(null);
       setBidAmount("");
       setBidNote("");
@@ -261,7 +273,9 @@ export function ProJobsList({
                         onChange={(e) => setBidNote(e.target.value)}
                         placeholder={t("pro.quoteNote")}
                         aria-label={t("pro.quoteNote")}
+                        maxLength={LIMITS.bidNote}
                       />
+                      {bidError && <p className="errtxt">{bidError}</p>}
                       <Button disabled={busy} className="w-full" onClick={() => submitBid(job.id)}>
                         {t("pro.submitQuote")}
                       </Button>

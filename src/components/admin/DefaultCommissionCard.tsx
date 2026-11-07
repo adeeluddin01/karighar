@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/Toast";
 import { Button, Card, Field, Input, Pill } from "@/components/ui";
+import { dbErrorMessage } from "@/lib/dbErrors";
 import {
   fromPercent,
   toPercent,
@@ -85,7 +86,7 @@ export function DefaultCommissionCard({
     });
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     onSaved({ fixed: parsedFixed, custom: parsedCustom });

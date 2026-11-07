@@ -10,6 +10,7 @@ import {
   startGoogleOAuth,
 } from "@/lib/authActions";
 import { KIcon } from "@/components/kg/icons";
+import { LIMITS } from "@/lib/validate";
 
 /**
  * The email/password + Google form, in the redesign's control vocabulary.
@@ -113,6 +114,7 @@ export function KAuthForm({
                 onChange={(e) => setFullName(e.target.value)}
                 required
                 autoComplete="name"
+                maxLength={LIMITS.fullName}
                 placeholder="Full name"
                 aria-label="Full name"
               />
@@ -126,6 +128,7 @@ export function KAuthForm({
                 placeholder="03XX-XXXXXXX"
                 inputMode="tel"
                 autoComplete="tel"
+                maxLength={18}
                 aria-label="Phone number"
               />
             </label>

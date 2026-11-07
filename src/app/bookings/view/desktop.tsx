@@ -36,6 +36,8 @@ import {
 import { fetchPublicPros } from "@/lib/providers";
 import { JOB_STATUS_LABEL, type Job, type Bid, type Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS } from "@/lib/validate";
 
 type BidWithPro = Bid & { pro?: Profile; rating?: number };
 
@@ -171,7 +173,7 @@ function BookingDetailContent() {
     });
     setBusy(false);
     if (error) {
-      toast("Couldn't accept that quote — " + error.message, "error");
+      toast("Couldn't accept that quote — " + dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -190,7 +192,7 @@ function BookingDetailContent() {
       .single();
     setBusy(false);
     if (error) {
-      toast("Couldn't cancel this booking — " + error.message, "error");
+      toast("Couldn't cancel this booking — " + dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -208,7 +210,7 @@ function BookingDetailContent() {
       .single();
     setBusy(false);
     if (error) {
-      toast("Couldn't record the payment — " + error.message, "error");
+      toast("Couldn't record the payment — " + dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -222,7 +224,7 @@ function BookingDetailContent() {
     });
     setBusy(false);
     if (error) {
-      toast("Couldn't remove the pro — " + error.message, "error");
+      toast("Couldn't remove the pro — " + dbErrorMessage(error), "error");
       return;
     }
     setShowUnassign(false);
@@ -239,7 +241,7 @@ function BookingDetailContent() {
       .eq("id", jobId);
     setBusy(false);
     if (error) {
-      toast("Couldn't accept the price — " + error.message, "error");
+      toast("Couldn't accept the price — " + dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -253,7 +255,7 @@ function BookingDetailContent() {
       .eq("id", jobId);
     setBusy(false);
     if (error) {
-      toast("Couldn't decline the price — " + error.message, "error");
+      toast("Couldn't decline the price — " + dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -279,7 +281,7 @@ function BookingDetailContent() {
     });
     if (error) {
       setBusy(false);
-      toast("Couldn't submit your review — " + error.message, "error");
+      toast("Couldn't submit your review — " + dbErrorMessage(error), "error");
       return;
     }
     // Only move to rated once the review actually saved. The old code
@@ -566,6 +568,7 @@ function BookingDetailContent() {
                 </div>
                 <Textarea
                   rows={2}
+                  maxLength={LIMITS.reviewComment}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder="How was the service? (optional)"

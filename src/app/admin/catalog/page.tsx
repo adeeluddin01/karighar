@@ -19,6 +19,8 @@ import {
 } from "@/components/ui";
 import { CATEGORY_ICON_CHOICES, CATEGORY_ICON_WEB } from "@/lib/catalogIcons";
 import type { Service, ServiceCategory } from "@/lib/types";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { LIMITS, firstError, validateAmount, validateFreeText } from "@/lib/validate";
 
 // services.unit is free text in the schema; these are the values the seed
 // catalog actually uses, and what the customer screens render after "per".
@@ -127,7 +129,7 @@ export default function AdminCatalog() {
       : await supabase.from("service_categories").insert(payload);
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setCatModal(null);
@@ -157,6 +159,28 @@ export default function AdminCatalog() {
     if (!svcModal) return;
     const name = svcForm.name.trim();
     if (!name) return;
+    // Blank base_price is meaningful — it means "quote on site" — so it is
+    // only validated when present. min 0 rather than 1: a genuinely free
+    // service is allowed, a negative price is not (and patch_v27 now
+    // enforces that, so without this the admin would see a raw constraint
+    // error instead of a sentence).
+    const bad = firstError(
+      validateFreeText(svcForm.name, { min: 1, max: LIMITS.serviceName, label: "name" }),
+      validateFreeText(svcForm.description, {
+        max: LIMITS.serviceDescription,
+        label: "description",
+      }),
+      svcForm.base_price.trim()
+        ? validateAmount(svcForm.base_price, { min: 0, label: "price" })
+        : null,
+      svcForm.visit_fee.trim()
+        ? validateAmount(svcForm.visit_fee, { min: 0, label: "visit fee" })
+        : null
+    );
+    if (bad) {
+      toast(bad, "error");
+      return;
+    }
     const payload = {
       category_id: svcModal.categoryId,
       name,
@@ -173,7 +197,7 @@ export default function AdminCatalog() {
       : await supabase.from("services").insert(payload);
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     setSvcModal(null);
@@ -189,7 +213,7 @@ export default function AdminCatalog() {
       .eq("id", svc.id);
     setBusy(null);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -357,6 +381,7 @@ export default function AdminCatalog() {
           <div className="flex flex-col gap-4">
             <Field label="Name">
               <Input
+                maxLength={LIMITS.serviceName}
                 value={catForm.name}
                 onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
                 placeholder="Electrician"
@@ -417,6 +442,7 @@ export default function AdminCatalog() {
           <div className="flex flex-col gap-4">
             <Field label="Name">
               <Input
+                maxLength={LIMITS.serviceName}
                 value={svcForm.name}
                 onChange={(e) => setSvcForm({ ...svcForm, name: e.target.value })}
                 placeholder="Fan installation"
@@ -426,6 +452,7 @@ export default function AdminCatalog() {
             <Field label="Description">
               <Textarea
                 rows={2}
+                maxLength={LIMITS.serviceDescription}
                 value={svcForm.description}
                 onChange={(e) => setSvcForm({ ...svcForm, description: e.target.value })}
                 placeholder="What's included"

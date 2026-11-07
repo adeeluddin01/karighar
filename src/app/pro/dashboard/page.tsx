@@ -24,6 +24,7 @@ import { ProJobsList } from "@/components/ProJobsList";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import { useLanguage } from "@/lib/i18n";
 import { type ServiceOption } from "@/lib/jobFilters";
+import { dbErrorMessage } from "@/lib/dbErrors";
 import {
   JOB_STATUS_LABEL,
   type BusinessMember,
@@ -173,7 +174,7 @@ export default function ProDashboard() {
       .update({ provider_id: user!.id, status: "assigned" })
       .eq("id", job.id);
     if (error) {
-      toast("Couldn't accept that job — " + error.message, "error");
+      toast("Couldn't accept that job — " + dbErrorMessage(error), "error");
       return;
     }
     await load();
@@ -188,7 +189,7 @@ export default function ProDashboard() {
     });
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast(
@@ -206,7 +207,7 @@ export default function ProDashboard() {
     const { error } = await createClient().rpc("business_remove_member", { p_member: team.id });
     setBusy(false);
     if (error) {
-      toast(error.message, "error");
+      toast(dbErrorMessage(error), "error");
       return;
     }
     toast("You've left the team. The open job pool is yours again.", "success");
