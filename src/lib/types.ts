@@ -58,11 +58,32 @@ export type Customer = {
 export type Provider = {
   profile_id: string;
   cnic_no: string | null;
+  /**
+   * Storage KEYS in the private `verification` bucket, not URLs — see
+   * ./verificationDoc. Declared here because the admin verification screen
+   * reads them; `Business` has carried its equivalents all along, and their
+   * absence meant any code touching a provider's documents failed to compile.
+   */
+  cnic_front_url: string | null;
+  cnic_back_url: string | null;
+  selfie_url: string | null;
   status: ProviderStatus;
   bio: string | null;
   rating_avg: number;
   jobs_completed: number;
   service_areas: string[];
+  /**
+   * Self-declared base location — where this pro works from.
+   *
+   * Deliberately NOT in `public_provider_profiles`: it is close to a home
+   * address, and patch_v22's position that "a technician is a person who
+   * travels" still holds for anything customer-facing. It is read only by
+   * caller_origin() inside the dispatch policies, for the caller's own row.
+   * Null until they drop a pin, in which case the ring centres on the mean
+   * of their service areas instead.
+   */
+  lat: number | null;
+  lng: number | null;
   verified_at: string | null;
   /**
    * Karighar's cut for this one pro, or null to follow the platform default.

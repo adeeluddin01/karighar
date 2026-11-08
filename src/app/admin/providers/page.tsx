@@ -13,11 +13,15 @@ import {
   type PlatformSettings,
   type RatePair,
 } from "@/lib/commission";
-import { Avatar, Button, Card, EmptyState, Input, Pill, Rating } from "@/components/ui";
+import { Avatar, Button, Card, EmptyState, Input, Pill, Rating, Spinner } from "@/components/ui";
+import { useToast } from "@/components/Toast";
+import { dbErrorMessage } from "@/lib/dbErrors";
+import { ProviderDetailModal } from "@/components/admin/ProviderDetailModal";
 import { fetchEmails, matchesQuery } from "@/lib/adminSearch";
 import type { Provider, ProviderStatus, Profile } from "@/lib/types";
 
-type Row = Provider & { profile?: Profile; email?: string };
+// Re-exported from the modal so the row shape has one definition.
+import type { ProviderRow as Row } from "@/components/admin/ProviderDetailModal";
 
 const TONE: Record<ProviderStatus, "warn" | "ok" | "bad" | "gray"> = {
   pending: "warn",
@@ -27,9 +31,14 @@ const TONE: Record<ProviderStatus, "warn" | "ok" | "bad" | "gray"> = {
 };
 
 export default function AdminProviders() {
+  const toast = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // "No providers yet" used to flash on every visit before the first load
+  // resolved, which reads as an empty database rather than a pending fetch.
+  const [fetching, setFetching] = useState(true);
+  const [detail, setDetail] = useState<Row | null>(null);
   // The platform rates a TECHNICIAN with no override of its own follows.
   // Companies have their own pair, edited on the Businesses tab — saving
   // here never touches theirs. Falls back to the built-in numbers on a
@@ -67,10 +76,15 @@ export default function AdminProviders() {
         email: emails.get(p.profile_id),
       }))
     );
+    setFetching(false);
   }, []);
 
   useEffect(() => {
-    load();
+    // Wrapped so nothing in load() runs synchronously in the effect body —
+    // every setState in it is behind an await. Same shape as /business/team.
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   // Patched in place rather than reloading: the rate is the only thing that
@@ -81,10 +95,28 @@ export default function AdminProviders() {
 
   async function setStatus(id: string, status: ProviderStatus) {
     setBusy(id);
-    await createClient()
+    // `.select().single()` and a checked error: this used to discard the
+    // result entirely, so a write the policy refused looked exactly like a
+    // successful approval — the row simply didn't move and nobody was told.
+    const { error } = await createClient()
       .from("providers")
       .update({ status, verified_at: status === "approved" ? new Date().toISOString() : null })
-      .eq("profile_id", id);
+      .eq("profile_id", id)
+      .select("profile_id")
+      .single();
+    if (error) {
+      toast(dbErrorMessage(error), "error");
+      setBusy(null);
+      return;
+    }
+    toast(
+      status === "approved"
+        ? "Approved — they can take jobs now."
+        : status === "rejected"
+          ? "Rejected."
+          : "Suspended.",
+      "success"
+    );
     await load();
     setBusy(null);
   }
@@ -119,7 +151,9 @@ export default function AdminProviders() {
         </p>
       )}
 
-      <section>
+      {fetching && <Spinner label="Loading providers…" />}
+
+      <section className={fetching ? "hidden" : undefined}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight">Awaiting verification</h2>
           <Pill tone={pending.length ? "warn" : "ok"}>{pending.length}</Pill>
@@ -136,13 +170,14 @@ export default function AdminProviders() {
                 onSet={setStatus}
                 defaults={defaults}
                 onRate={applyRate}
+                onOpen={() => setDetail(r)}
               />
             ))}
           </div>
         )}
       </section>
 
-      <section className="mt-10">
+      <section className={fetching ? "hidden" : "mt-10"}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight">All providers</h2>
           <span className="text-xs text-muted-foreground">{others.length} total</span>
@@ -163,11 +198,20 @@ export default function AdminProviders() {
                 onSet={setStatus}
                 defaults={defaults}
                 onRate={applyRate}
+                onOpen={() => setDetail(r)}
               />
             ))}
           </div>
         )}
       </section>
+
+      {detail && (
+        <ProviderDetailModal
+          row={detail}
+          onClose={() => setDetail(null)}
+          onSaved={load}
+        />
+      )}
     </AdminShell>
   );
 }
@@ -178,12 +222,14 @@ function ProviderCard({
   onSet,
   defaults,
   onRate,
+  onOpen,
 }: {
   r: Row;
   busy: boolean;
   onSet: (id: string, s: ProviderStatus) => void;
   defaults: { fixed: number; custom: number };
   onRate: (id: string, rate: number | null) => void;
+  onOpen: () => void;
 }) {
   return (
     <Card>
@@ -217,6 +263,11 @@ function ProviderCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* First: approving someone should start with reading what they
+              submitted, which until now was impossible from this screen. */}
+          <Button variant="ghost" size="sm" icon="file" onClick={onOpen}>
+            View application
+          </Button>
           {r.status !== "approved" && (
             <Button size="sm" disabled={busy} onClick={() => onSet(r.profile_id, "approved")}>
               Approve

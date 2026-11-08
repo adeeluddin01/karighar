@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  SIGNED_URL_TTL_SECONDS,
+  signedVerificationUrl,
   VERIFICATION_ACCEPT,
   VERIFICATION_BUCKET,
   VERIFICATION_MAX_BYTES,
@@ -78,5 +80,81 @@ describe("bucket choice", () => {
   // someone's CNIC.
   it("uses the private bucket", () => {
     expect(VERIFICATION_BUCKET).toBe("verification");
+  });
+});
+
+/* ---------- the read side: signed URLs ---------- */
+
+// A hand-rolled stand-in for the storage client, same idea as the Deps fake
+// in notificationsStore.test.ts — no network, and it records what it was
+// asked for so "didn't call storage at all" is assertable.
+function fakeStorage(result: {
+  data?: { signedUrl?: string } | null;
+  error?: { message: string } | null;
+  throws?: boolean;
+}) {
+  const calls: { path: string; expiresIn: number }[] = [];
+  const client = {
+    storage: {
+      from(bucket: string) {
+        return {
+          async createSignedUrl(path: string, expiresIn: number) {
+            calls.push({ path, expiresIn });
+            if (result.throws) throw new Error("network down");
+            return { data: result.data ?? null, error: result.error ?? null };
+          },
+          bucket,
+        };
+      },
+    },
+  };
+  // The helper only touches .storage; the cast keeps the test honest about
+  // that rather than constructing a whole SupabaseClient.
+  return { client: client as unknown as Parameters<typeof signedVerificationUrl>[0], calls };
+}
+
+describe("signedVerificationUrl", () => {
+  it("returns the signed URL on success", async () => {
+    const { client, calls } = fakeStorage({ data: { signedUrl: "https://x/signed?token=abc" } });
+    await expect(signedVerificationUrl(client, "u1/cnic-front.jpg")).resolves.toBe(
+      "https://x/signed?token=abc"
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].path).toBe("u1/cnic-front.jpg");
+  });
+
+  // An absent document is the ordinary case — both file inputs are optional
+  // at onboarding, and cnic_back_url has no writer at all.
+  it("returns null for an absent path without calling storage", async () => {
+    for (const path of [null, undefined, "", "   "]) {
+      const { client, calls } = fakeStorage({ data: { signedUrl: "nope" } });
+      await expect(signedVerificationUrl(client, path)).resolves.toBeNull();
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it("returns null when storage refuses, rather than throwing", async () => {
+    const { client } = fakeStorage({ data: null, error: { message: "Object not found" } });
+    await expect(signedVerificationUrl(client, "u1/selfie.jpg")).resolves.toBeNull();
+  });
+
+  it("returns null when the call throws outright", async () => {
+    const { client } = fakeStorage({ throws: true });
+    await expect(signedVerificationUrl(client, "u1/selfie.jpg")).resolves.toBeNull();
+  });
+
+  it("passes the TTL through, defaulting to the shared constant", async () => {
+    const { client, calls } = fakeStorage({ data: { signedUrl: "u" } });
+    await signedVerificationUrl(client, "u1/a.jpg");
+    await signedVerificationUrl(client, "u1/a.jpg", 30);
+    expect(calls.map((c) => c.expiresIn)).toEqual([SIGNED_URL_TTL_SECONDS, 30]);
+  });
+
+  // A signed URL is a bearer token for someone's identity documents and
+  // carries no further authorisation check once minted. Guards against this
+  // quietly becoming a week.
+  it("keeps the default TTL short", () => {
+    expect(SIGNED_URL_TTL_SECONDS).toBeGreaterThan(0);
+    expect(SIGNED_URL_TTL_SECONDS).toBeLessThanOrEqual(600);
   });
 });

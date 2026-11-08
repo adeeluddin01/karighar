@@ -13,6 +13,65 @@ import {
 import type { JobStatus, JobType } from "@/lib/types";
 import { FilterDropdown } from "@/components/FilterDropdown";
 import { Icon } from "@/components/Icon";
+import { clsx } from "@/lib/clsx";
+
+/** How many filters are active — the number in the Filter button's badge. */
+export function activeFilterCount(value: JobFilters): number {
+  return (
+    value.types.length +
+    (value.serviceId !== "all" ? 1 : 0) +
+    (value.sort !== "newest" ? 1 : 0) +
+    (value.status !== "all" ? 1 : 0)
+  );
+}
+
+/**
+ * The Filter toggle on its own, for sitting in a header row next to other
+ * buttons — the pro jobs list puts it beside History.
+ *
+ * Styled `btn-ghost btn-sm`, matching LinkButton, rather than reusing the
+ * standalone bar's chunkier button: next to a small ghost button the padded
+ * card-and-border treatment reads as a different kind of control.
+ *
+ * The panel is NOT rendered here. Whoever places this owns the open state and
+ * renders <JobFilters showTrigger={false}> full-width below, so expanding the
+ * controls cannot stretch the header row.
+ */
+export function JobFiltersButton({
+  value,
+  open,
+  onToggle,
+  className,
+}: {
+  value: JobFilters;
+  open: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  const { t } = useLanguage();
+  const count = activeFilterCount(value);
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onToggle}
+      className={clsx("btn-ghost btn-sm", className)}
+    >
+      <Icon name="filter" size="sm" />
+      {t("filters.button")}
+      {count > 0 && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold text-primary-foreground">
+          {count}
+        </span>
+      )}
+      <Icon
+        name="chevron"
+        size="sm"
+        className={`text-muted-foreground transition-transform ${open ? "-rotate-90" : "rotate-90"}`}
+      />
+    </button>
+  );
+}
 
 // One filter bar for every jobs list. The controls are the same everywhere:
 // type (multi-select), service, sort, and (where it applies) status — so a
@@ -33,6 +92,9 @@ export function JobFilters({
   statusOptions,
   variant = "legacy",
   layout = "row",
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
 }: {
   services: ServiceOption[];
   hasCustom: boolean;
@@ -43,15 +105,22 @@ export function JobFilters({
   variant?: "legacy" | "kg";
   /** "row": wrapped columns. "stack": one control per row, full width. */
   layout?: "row" | "stack";
+  /** Lift the open state out when the trigger lives elsewhere (see below). */
+  open?: boolean;
+  onOpenChange?: (next: boolean) => void;
+  /**
+   * False when the caller renders its own <JobFiltersButton> — the pro jobs
+   * list, which puts the trigger up in the header row next to History and
+   * keeps only the panel here.
+   */
+  showTrigger?: boolean;
 }) {
   const { t, tStatus } = useLanguage();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const showClear = !isDefaultFilters(value);
-  const activeCount =
-    value.types.length +
-    (value.serviceId !== "all" ? 1 : 0) +
-    (value.sort !== "newest" ? 1 : 0) +
-    (value.status !== "all" ? 1 : 0);
+  const activeCount = activeFilterCount(value);
 
   const typeControl = (
     <FilterDropdown
@@ -119,11 +188,13 @@ export function JobFilters({
     />
   ) : null;
 
-  const toggleButton = (
+  // `setOpen(!open)` rather than the updater form: `onOpenChange` is a plain
+  // (next: boolean) => void, so a function argument would be stored as state.
+  const toggleButton = showTrigger ? (
     <button
       type="button"
       aria-expanded={open}
-      onClick={() => setOpen((o) => !o)}
+      onClick={() => setOpen(!open)}
       className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-sm"
     >
       <Icon name="filter" size="sm" />
@@ -139,7 +210,7 @@ export function JobFilters({
         className={`text-muted-foreground transition-transform ${open ? "-rotate-90" : "rotate-90"}`}
       />
     </button>
-  );
+  ) : null;
 
   const clearButton = showClear ? (
     <button
@@ -154,7 +225,7 @@ export function JobFilters({
   if (variant === "kg") {
     return (
       <div className="flex flex-col gap-2">
-        <div>{toggleButton}</div>
+        {toggleButton && <div>{toggleButton}</div>}
         {open && (
           <div className="flex flex-col gap-2">
             {typeControl}
@@ -167,14 +238,15 @@ export function JobFilters({
     );
   }
 
+  // Closed: just the trigger — or nothing at all when the caller owns it.
   if (!open) {
-    return <div>{toggleButton}</div>;
+    return toggleButton ? <div>{toggleButton}</div> : null;
   }
 
   if (layout === "stack") {
     return (
       <div className="flex flex-col gap-2">
-        <div>{toggleButton}</div>
+        {toggleButton && <div>{toggleButton}</div>}
         <div>
           <label className="lbl mb-1 block">{t("filters.type")}</label>
           {typeControl}

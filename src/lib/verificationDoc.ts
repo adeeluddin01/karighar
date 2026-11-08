@@ -97,10 +97,51 @@ export async function uploadVerificationDoc(
     return {
       path: null,
       error: missing
-        ? "Document storage isn't set up yet. Run supabase/patch_v11_lock_provider_pii.sql."
+        ? "Document storage isn't set up yet. Run supabase/schema.sql (it creates the bucket)."
         : error.message,
     };
   }
 
   return { path, error: null };
+}
+
+/**
+ * How long an admin's view of an ID document stays valid.
+ *
+ * Long enough to read a CNIC off the screen, short enough that a URL which
+ * leaks via a screenshot, a chat paste or a browser history is worthless by
+ * the time anyone else tries it. Reopening the record simply re-signs.
+ */
+export const SIGNED_URL_TTL_SECONDS = 300;
+
+/**
+ * A short-lived URL for one private verification object, or null.
+ *
+ * The bucket is private, so a stored path is not fetchable on its own — this
+ * is the read half that `uploadVerificationDoc` above always assumed existed.
+ * Authorisation is the storage policy's job, not ours: `verif_read` admits
+ * the owner and `is_admin()`, so a non-admin asking for someone else's
+ * document simply gets null back.
+ *
+ * Never throws. A missing path, a deleted object and a refused request all
+ * collapse to null so the caller renders "not uploaded" rather than breaking
+ * the page over a document that was always optional.
+ */
+export async function signedVerificationUrl(
+  supabase: SupabaseClient,
+  path: string | null | undefined,
+  expiresIn: number = SIGNED_URL_TTL_SECONDS
+): Promise<string | null> {
+  if (!path || !path.trim()) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from(VERIFICATION_BUCKET)
+      .createSignedUrl(path, expiresIn);
+    if (error) return null;
+    return data?.signedUrl ?? null;
+  } catch {
+    // Network failure, SDK shape change — the document is a nice-to-have on
+    // this screen, never a reason to take the screen down.
+    return null;
+  }
 }

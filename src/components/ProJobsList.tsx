@@ -11,7 +11,7 @@ import {
   type JobFilters,
   type ServiceOption,
 } from "@/lib/jobFilters";
-import { JobFilters as JobFiltersBar } from "@/components/JobFilters";
+import { JobFilters as JobFiltersBar, JobFiltersButton } from "@/components/JobFilters";
 import { Icon } from "@/components/Icon";
 import {
   Button,
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui";
 import type { Job, PublicCustomerRating } from "@/lib/types";
 import { LIMITS, firstError, validateAmount, validateFreeText } from "@/lib/validate";
+import { dispatchNote } from "@/lib/dispatch";
 
 // The pro's jobs list, in one place. The dashboard (provider home) and the
 // map tab's List area show the SAME list — same tabs, same filters, same
@@ -75,6 +76,9 @@ export function ProJobsList({
   const [internalFilters, setInternalFilters] = useState<JobFilters>(DEFAULT_JOB_FILTERS);
   const filters = controlledFilters ?? internalFilters;
   const setFilters = onFiltersChange ?? setInternalFilters;
+  // Owned here, not inside the filter bar: the trigger sits in the header row
+  // next to History while the panel renders full-width below it.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [bidFor, setBidFor] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState("");
   const [bidNote, setBidNote] = useState("");
@@ -151,22 +155,38 @@ export function ProJobsList({
             ]}
           />
         )}
-        {headerActions}
+        {/* Filter sits with History rather than on its own row below: both
+            are controls for this list, and the old layout spent a whole row
+            on a single button. */}
+        <div className="flex items-center gap-2">
+          <JobFiltersButton
+            value={filters}
+            open={filtersOpen}
+            onToggle={() => setFiltersOpen(!filtersOpen)}
+          />
+          {headerActions}
+        </div>
       </div>
 
-      {/* Filters — same bar on both tabs and on the map, so a pro filters
-          the same way wherever they browse jobs. Unconditional: hiding it
-          when the list is empty made the feature look missing. */}
-      <div className="mb-4">
-        <JobFiltersBar
-          services={svc.options}
-          hasCustom={svc.hasCustom}
-          value={filters}
-          onChange={setFilters}
-          statusOptions={effTab === "active" ? activeStatuses : undefined}
-          layout="stack"
-        />
-      </div>
+      {/* The panel only — its trigger is in the header row above. Full width
+          here so opening it cannot stretch that row. Still unconditional in
+          the sense that matters: the button is always there, on both tabs and
+          on the map, so a pro filters the same way wherever they browse. */}
+      {filtersOpen && (
+        <div className="mb-4">
+          <JobFiltersBar
+            services={svc.options}
+            hasCustom={svc.hasCustom}
+            value={filters}
+            onChange={setFilters}
+            statusOptions={effTab === "active" ? activeStatuses : undefined}
+            layout="stack"
+            open
+            onOpenChange={setFiltersOpen}
+            showTrigger={false}
+          />
+        </div>
+      )}
 
       {list.length === 0 ? (
         <EmptyState
@@ -232,6 +252,14 @@ export function ProJobsList({
                         </span>
                         <CustomerRating rating={custRatings.get(job.customer_id)} />
                       </p>
+                      {/* Why this job is here and others aren't. The ring is
+                          enforced by RLS (patch_v29) — this only explains it,
+                          so a pro doesn't read a short list as a dead city. */}
+                      {dispatchNote(job.created_at) && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {dispatchNote(job.created_at)}
+                        </p>
+                      )}
                     </div>
                     <div className="whitespace-nowrap text-end">
                       <p className="font-bold text-primary">{formatPKR(job.price)}</p>

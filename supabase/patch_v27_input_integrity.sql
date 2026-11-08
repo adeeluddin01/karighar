@@ -79,6 +79,30 @@ begin
   select count(*) into n from jobs where commission_rate < 0 or commission_rate > 1;
   if n > 0 then problems := problems || format('  jobs.commission_rate outside 0..1: %s row(s)%s', n, chr(10)); end if;
 
+  select count(*) into n from jobs where proposed_price is not null and proposed_price < 0;
+  if n > 0 then problems := problems || format('  jobs.proposed_price negative: %s row(s)%s', n, chr(10)); end if;
+
+  select count(*) into n from bids where note is not null and length(note) > 300;
+  if n > 0 then problems := problems || format('  bids.note > 300: %s row(s)%s', n, chr(10)); end if;
+
+  select count(*) into n from reviews where comment is not null and length(comment) > 1200;
+  if n > 0 then problems := problems || format('  reviews.comment > 1200: %s row(s)%s', n, chr(10)); end if;
+
+  select count(*) into n from customer_reviews where comment is not null and length(comment) > 1200;
+  if n > 0 then problems := problems || format('  customer_reviews.comment > 1200: %s row(s)%s', n, chr(10)); end if;
+
+  select count(*) into n from services
+   where (base_price is not null and base_price < 0) or visit_fee < 0;
+  if n > 0 then problems := problems || format('  services.base_price/visit_fee negative: %s row(s)%s', n, chr(10)); end if;
+
+  -- provider_payout, not provider_earning. Getting this name wrong is what
+  -- made an earlier run of this patch fail on its very last statement —
+  -- which is the failure mode this whole pre-flight block exists to prevent,
+  -- so every constraint below now has a check up here.
+  select count(*) into n from payments
+   where amount < 0 or commission < 0 or provider_payout < 0;
+  if n > 0 then problems := problems || format('  payments amounts negative: %s row(s)%s', n, chr(10)); end if;
+
   if problems <> '' then
     raise exception 'patch_v27 would reject existing rows. Fix these first: %', chr(10) || problems;
   end if;
@@ -530,9 +554,11 @@ alter table services drop constraint if exists services_visit_fee_non_negative;
 alter table services add constraint services_visit_fee_non_negative
   check (visit_fee >= 0);
 
+-- `provider_payout` — what the person who did the work ends up with. Not
+-- `provider_earning`; there is no such column.
 alter table payments drop constraint if exists payments_amounts_non_negative;
 alter table payments add constraint payments_amounts_non_negative
-  check (amount >= 0 and commission >= 0 and provider_earning >= 0);
+  check (amount >= 0 and commission >= 0 and provider_payout >= 0);
 
 
 -- ------------------------------------------------------------
