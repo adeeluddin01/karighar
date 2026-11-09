@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { PHONE_NAV, NAV, ROLE_HOME, ROLE_MAP, isActive, roleOf, samePath, type Role } from "./nav";
+import {
+  PHONE_NAV,
+  NAV,
+  ROLE_HOME,
+  ROLE_MAP,
+  isActive,
+  proEntry,
+  roleOf,
+  samePath,
+  type Role,
+} from "./nav";
 
 // Derived from the table itself rather than written out, so a role added to
 // `Role` is covered by every loop below without anyone remembering to.
@@ -141,4 +151,48 @@ describe("phone tab bar", () => {
       }
     });
   }
+});
+
+describe("proEntry", () => {
+  // The bug this guards: an admin opening their own Settings was offered a
+  // "Become a pro" card. The role check was right; the UNKNOWN case was not,
+  // and an unresolved or failed profile read falls into it.
+  it("offers nothing while the role is unknown", () => {
+    expect(proEntry(undefined, null)).toBeNull();
+    expect(proEntry(null, null)).toBeNull();
+    expect(proEntry("", null)).toBeNull();
+  });
+
+  it("never recruits an admin or a business", () => {
+    expect(proEntry("admin", null)).toBeNull();
+    expect(proEntry("business", null)).toBeNull();
+  });
+
+  it("recruits a customer", () => {
+    expect(proEntry("customer", null)?.href).toBe("/pro");
+  });
+
+  it("sends an approved provider to their dashboard", () => {
+    expect(proEntry("provider", "approved")?.href).toBe("/pro/dashboard");
+  });
+
+  it("sends an unapproved provider back to finish verification", () => {
+    for (const status of ["pending", "rejected", "suspended", null]) {
+      expect(proEntry("provider", status)?.href).toBe("/pro/onboarding");
+    }
+  });
+});
+
+describe("admin sidebar", () => {
+  it("carries the platform-wide reviews view", () => {
+    const entry = NAV.admin.find((n) => n.href === "/profile/ratings");
+    expect(entry?.label).toBe("All Ratings");
+  });
+
+  // Both live in the admin sidebar and samePath is an exact match, so the
+  // more specific one must not be swallowed by /profile.
+  it("keeps it distinct from the Profile entry", () => {
+    expect(samePath("/profile/ratings", "/profile")).toBe(false);
+    expect(samePath("/profile/ratings", "/profile/ratings")).toBe(true);
+  });
 });

@@ -46,6 +46,10 @@ export const NAV: Record<Role, NavLink[]> = {
     { href: "/admin/settlements", label: "Settlements", icon: "wallet" },
     { href: "/admin/disputes", label: "Disputes", icon: "alert" },
     { href: "/admin/catalog", label: "Catalog", icon: "wrench" },
+    // /profile/ratings already renders "All reviews" with the moderation
+    // subtitle when the viewer is an admin — it was only ever reachable
+    // from a button on the Overview page.
+    { href: "/profile/ratings", label: "All Ratings", icon: "star" },
     { href: "/notifications", label: "Alerts", icon: "bell" },
     { href: "/profile", label: "Profile", icon: "user" },
   ],
@@ -153,6 +157,12 @@ export function proEntry(role?: string | null, providerStatus?: string | null) {
   // business — it dispatches work rather than doing it, and
   // grant_business_account() refuses an account that is already a pro.
   if (role === "admin" || role === "business") return null;
+  // An UNKNOWN role is not a customer. This is reached while a profile is
+  // still in flight, and on any screen where the read failed — and falling
+  // through to "Become a pro" there offered an admin a recruitment card on
+  // their own settings page. Silence is the right default: the entry
+  // reappears by itself once the role is known.
+  if (!role) return null;
   if (role === "provider" && providerStatus === "approved") {
     return {
       href: "/pro/dashboard",

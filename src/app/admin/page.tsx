@@ -77,9 +77,6 @@ export default function AdminOverview() {
           <LinkButton href="/admin/catalog" variant="ghost" size="sm" icon="wrench">
             Catalog
           </LinkButton>
-          <LinkButton href="/profile/ratings" variant="ghost" size="sm" icon="star">
-            All reviews
-          </LinkButton>
         </div>
       </div>
     </AdminShell>

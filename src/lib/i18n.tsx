@@ -50,6 +50,7 @@ const STRINGS: Record<string, Entry> = {
   "nav:Settlements": { en: "Settlements", ur: "حسابات" },
   "nav:Disputes": { en: "Disputes", ur: "تنازعات" },
   "nav:Catalog": { en: "Catalog", ur: "کیٹلاگ" },
+  "nav:All Ratings": { en: "All Ratings", ur: "تمام ریٹنگز" },
   "nav:Become a Pro": { en: "Become a Pro", ur: "پرو بنیں" },
   "nav:Support": { en: "Support", ur: "مدد" },
 
