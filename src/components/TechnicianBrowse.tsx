@@ -5,6 +5,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, Card, Chip, EmptyState, Input, Pill, Rating, Spinner } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { KIcon } from "@/components/kg/icons";
+import { Ava, EmptyK, Rate, Skel } from "@/components/kg/parts";
+import { clsx } from "@/lib/clsx";
 import { InfoTip } from "@/components/InfoTip";
 import { proName } from "@/lib/providers";
 import {
@@ -72,7 +75,17 @@ export function TechnicianBrowse({
     return categories.filter((c) => have.has(c.id));
   }, [list, categories]);
 
-  if (list === null) return <Spinner label="Finding technicians…" />;
+  if (list === null) {
+    return compact ? (
+      <>
+        <Skel h={64} />
+        <Skel h={64} />
+        <Skel h={64} />
+      </>
+    ) : (
+      <Spinner label="Finding technicians…" />
+    );
+  }
 
   if (error) {
     return (
@@ -83,27 +96,68 @@ export function TechnicianBrowse({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <Input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by name or trade"
-        aria-label="Search technicians"
-        prefix={<Icon name="search" size="sm" />}
-      />
-
-      {offered.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Chip active={cat === "all"} onClick={() => setCat("all")}>
-            All trades
-          </Chip>
-          {offered.map((c) => (
-            <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>
-              {c.name}
-            </Chip>
-          ))}
-        </div>
+    <div className={compact ? undefined : "flex flex-col gap-4"}>
+      {/* The phone lane has its own input, chip and row styles. Rendering
+          the web primitives inside the phone Screen is what made this search
+          bar sit out of line with every other field on the tab. */}
+      {compact ? (
+        <label className="in">
+          <KIcon name="search" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name or trade"
+            aria-label="Search technicians"
+          />
+        </label>
+      ) : (
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name or trade"
+          aria-label="Search technicians"
+          prefix={<Icon name="search" size="sm" />}
+        />
       )}
+
+      {offered.length > 0 &&
+        (compact ? (
+          <div className="chips wrap" role="tablist" aria-label="Trades">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={cat === "all"}
+              className={clsx("chip", cat === "all" && "sel")}
+              onClick={() => setCat("all")}
+            >
+              All trades
+            </button>
+            {offered.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={cat === c.id}
+                className={clsx("chip", cat === c.id && "sel")}
+                onClick={() => setCat(c.id)}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <Chip active={cat === "all"} onClick={() => setCat("all")}>
+              All trades
+            </Chip>
+            {offered.map((c) => (
+              <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>
+                {c.name}
+              </Chip>
+            ))}
+          </div>
+        ))}
 
       {tradesUnavailable && (
         <p className="text-xs text-muted-foreground">
@@ -113,15 +167,48 @@ export function TechnicianBrowse({
       )}
 
       {shown.length === 0 ? (
-        <EmptyState
-          icon="users"
-          title="No technicians match"
-          hint={
-            query.trim() || cat !== "all"
-              ? "Try a different trade, or clear the search."
-              : "Verified technicians appear here as they join."
-          }
-        />
+        compact ? (
+          <EmptyK
+            icon="users"
+            title="No technicians match"
+            hint={
+              query.trim() || cat !== "all"
+                ? "Try a different trade, or clear the search."
+                : "Verified technicians appear here as they join."
+            }
+          />
+        ) : (
+          <EmptyState
+            icon="users"
+            title="No technicians match"
+            hint={
+              query.trim() || cat !== "all"
+                ? "Try a different trade, or clear the search."
+                : "Verified technicians appear here as they join."
+            }
+          />
+        )
+      ) : compact ? (
+        <div className="list">
+          {shown.map((t) => (
+            <Link key={t.id} className="pro-row card" href={`/providers/view/?id=${t.id}`}>
+              <Ava name={proName(t)} src={t.avatar_url} verified />
+              <div>
+                <b>{proName(t)}</b>
+                <small>
+                  {t.categoryNames.length
+                    ? t.categoryNames.slice(0, 3).join(" · ")
+                    : (t.service_areas?.slice(0, 2).join(" · ") ?? "Karachi")}
+                </small>
+                <Rate
+                  value={Number(t.rating_avg)}
+                  suffix={`${t.jobs_completed.toLocaleString("en-PK")} jobs`}
+                />
+              </div>
+              <KIcon name="chev-r" className="chev" />
+            </Link>
+          ))}
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
           {shown.map((t) => (
@@ -131,7 +218,7 @@ export function TechnicianBrowse({
               className="rounded-2xl border border-border bg-card p-3 transition-colors hover:border-primary"
             >
               <div className="flex items-start gap-3">
-                <Avatar name={proName(t)} src={t.avatar_url} size={compact ? undefined : "lg"} />
+                <Avatar name={proName(t)} src={t.avatar_url} size="lg" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold">{proName(t)}</span>
@@ -149,11 +236,15 @@ export function TechnicianBrowse({
                       {t.categoryNames.slice(0, 4).join(" · ")}
                     </p>
                   )}
-                  {!compact && t.bio && (
+                  {t.bio && (
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{t.bio}</p>
                   )}
                 </div>
-                <Icon name="chevron" size="sm" className="mt-1 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+                <Icon
+                  name="chevron"
+                  size="sm"
+                  className="mt-1 shrink-0 text-muted-foreground rtl:-scale-x-100"
+                />
               </div>
             </Link>
           ))}

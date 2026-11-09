@@ -18,6 +18,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { CATEGORY_ICON_CHOICES, CATEGORY_ICON_WEB } from "@/lib/catalogIcons";
+import { clsx } from "@/lib/clsx";
 import type { Service, ServiceCategory } from "@/lib/types";
 import { dbErrorMessage } from "@/lib/dbErrors";
 import { LIMITS, firstError, validateAmount, validateFreeText } from "@/lib/validate";
@@ -392,9 +393,36 @@ export default function AdminCatalog() {
               label="Icon"
               hint="Only icons that render on both the web and phone layouts are listed."
             >
+              {/* A dropdown of names told the admin nothing about what the
+                  category would actually look like — "Masonry & renovation"
+                  and "Tiles & flooring" are indistinguishable until it ships.
+                  The grid is the picker; the select stays underneath it for
+                  keyboard and screen-reader use. */}
+              <div className="mb-3 grid max-h-64 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-6">
+                {CATEGORY_ICON_CHOICES.map((c) => (
+                  <button
+                    key={c.slug}
+                    type="button"
+                    title={c.label}
+                    aria-label={c.label}
+                    aria-pressed={catForm.icon === c.slug}
+                    onClick={() => setCatForm({ ...catForm, icon: c.slug })}
+                    className={clsx(
+                      "flex flex-col items-center gap-1 rounded-lg border p-2 text-[10px] leading-tight transition-colors",
+                      catForm.icon === c.slug
+                        ? "border-primary bg-primary-light text-primary"
+                        : "border-transparent text-muted-foreground hover:bg-secondary"
+                    )}
+                  >
+                    <Icon name={(CATEGORY_ICON_WEB[c.slug] ?? "wrench") as IconName} />
+                    <span className="line-clamp-2 text-center">{c.label}</span>
+                  </button>
+                ))}
+              </div>
               <Select
                 value={catForm.icon}
                 onChange={(e) => setCatForm({ ...catForm, icon: e.target.value })}
+                aria-label="Category icon"
               >
                 {CATEGORY_ICON_CHOICES.map((c) => (
                   <option key={c.slug} value={c.slug}>

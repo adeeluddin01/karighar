@@ -27,6 +27,30 @@ function BookInner() {
   const [tab, setTab] = useState<"services" | "technicians">(
     search.get("tab") === "technicians" ? "technicians" : "services"
   );
+  // Booking a named technician. This has to travel with EVERY onward link —
+  // dropping it here is what made "Book Ahmed" quietly become "book anyone".
+  const pro = search.get("pro");
+  const withPro = (href: string) =>
+    pro ? `${href}${href.includes("?") ? "&" : "?"}pro=${pro}` : href;
+  const [proName, setProName] = useState<string | null>(null);
+  const [proServices, setProServices] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!pro) return;
+    const supabase = createClient();
+    void (async () => {
+      const [{ data: rows }, { data: profRow }] = await Promise.all([
+        supabase.from("public_provider_services").select("service_id").eq("provider_id", pro),
+        supabase.from("public_provider_profiles").select("full_name").eq("id", pro).maybeSingle(),
+      ]);
+      // A missing view (patch_v31 not run) leaves this null, which means
+      // "don't filter" below rather than "this pro offers nothing".
+      setProServices(
+        rows ? new Set((rows as { service_id: string }[]).map((r) => r.service_id)) : null
+      );
+      setProName((profRow as { full_name: string | null } | null)?.full_name ?? null);
+    })();
+  }, [pro]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -64,8 +88,13 @@ function BookInner() {
             )
           : c.services,
       }))
+      .map((c) => ({
+        ...c,
+        // Restricted to the named pro's trades when booking one by name.
+        services: proServices ? c.services.filter((s) => proServices.has(s.id)) : c.services,
+      }))
       .filter((c) => c.services.length > 0);
-  }, [cats, cat, query]);
+  }, [cats, cat, query, proServices]);
 
   const count = filtered.reduce((n, c) => n + c.services.length, 0);
 
@@ -101,6 +130,21 @@ function BookInner() {
             Book a technician
           </button>
         </div>
+
+        {/* Booking a named technician: say so, and give a way out. Without
+            this the restricted service list just looks like a half-empty
+            catalogue. */}
+        {pro && tab === "services" && (
+          <div className="note">
+            <KIcon name="user" />
+            <p>
+              <b>Booking {proName ?? "this technician"}.</b> Showing only what they offer.{" "}
+              <Link href="/book" className="link">
+                Browse everything instead
+              </Link>
+            </p>
+          </div>
+        )}
 
         {tab === "technicians" ? (
           <div className="mt-3">
@@ -174,7 +218,7 @@ function BookInner() {
                 : "No services are published yet."
             }
           >
-            <Link className="btn sm" href="/book/custom" style={{ marginTop: 10 }}>
+            <Link className="btn sm" href={withPro("/book/custom")} style={{ marginTop: 10 }}>
               Post a custom job
             </Link>
           </EmptyK>
@@ -190,7 +234,7 @@ function BookInner() {
             </div>
             <div className="opts">
               {c.services.map((s) => (
-                <Link key={s.id} className="opt" href={`/book/service/?id=${s.id}`}>
+                <Link key={s.id} className="opt" href={withPro(`/book/service/?id=${s.id}`)}>
                   <Well icon={categoryIcon(c.icon)} size="sm" />
                   <div>
                     <b>{s.name}</b>
@@ -212,7 +256,7 @@ function BookInner() {
         ))}
 
         {cats !== null && count > 0 && (
-          <Link className="live" href="/book/custom" style={{ marginTop: 4 }}>
+          <Link className="live" href={withPro("/book/custom")} style={{ marginTop: 4 }}>
             <Well icon="edit" size="sm" />
             <div>
               <b>Something else?</b>

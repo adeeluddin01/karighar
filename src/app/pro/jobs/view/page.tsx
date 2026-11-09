@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRequireAuth } from "@/lib/useUser";
@@ -470,7 +471,17 @@ function ProJobDetailContent() {
               <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
                 <Icon name="chat" size="sm" /> Messages
               </h2>
-              {!unclaimed && <JobChat jobId={jobId} userId={user.id} />}
+              {unclaimed ? (
+                // Not a bug to hide: `msg_insert` only accepts a message from
+                // a participant, so the box would refuse every send until
+                // this pro takes the job. Previously this card rendered empty.
+                <p className="text-sm text-muted-foreground">
+                  Chat opens once you take this job — the customer can only be
+                  messaged by the pro working for them.
+                </p>
+              ) : (
+                <JobChat jobId={jobId} userId={user.id} />
+              )}
             </Card>
           )}
         </div>
@@ -664,13 +675,37 @@ function ProJobDetailContent() {
           )}
 
           {/* Customer */}
+          {!customer && unclaimed && (
+            <Card>
+              <p className="text-xs text-muted-foreground">Customer</p>
+              <p className="mt-1 text-sm">
+                Their name and number are shared once you take the job. You can see the area and
+                the full description above to decide first.
+              </p>
+              <Link
+                href={`/customers/view/?id=${job.customer_id}`}
+                className="mt-3 inline-block text-sm font-semibold text-primary underline"
+              >
+                See their rating and reviews
+              </Link>
+            </Card>
+          )}
+
           {customer && (
             <Card>
               <div className="flex items-center gap-3">
                 <Avatar name={customer.full_name} size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-muted-foreground">Customer</p>
-                  <p className="truncate font-semibold">{customer.full_name ?? "Customer"}</p>
+                  {/* Clickable: what other pros said about them is the thing
+                      a pro actually wants before working in someone's home,
+                      and there was nowhere to read it. */}
+                  <Link
+                    href={`/customers/view/?id=${job.customer_id}`}
+                    className="block truncate font-semibold underline decoration-dotted underline-offset-2 hover:text-primary"
+                  >
+                    {customer.full_name ?? "Customer"}
+                  </Link>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {custRating && custRating.jobs_rated > 0 ? (
                       <>

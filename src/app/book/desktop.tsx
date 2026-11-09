@@ -39,6 +39,27 @@ function BookInner() {
   const [tab, setTab] = useState<"services" | "technicians">(
     search.get("tab") === "technicians" ? "technicians" : "services"
   );
+  // The named technician, carried onto every onward link. See the phone lane.
+  const pro = search.get("pro");
+  const withPro = (href: string) =>
+    pro ? `${href}${href.includes("?") ? "&" : "?"}pro=${pro}` : href;
+  const [proName, setProName] = useState<string | null>(null);
+  const [proServices, setProServices] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!pro) return;
+    const supabase = createClient();
+    void (async () => {
+      const [{ data: rows }, { data: profRow }] = await Promise.all([
+        supabase.from("public_provider_services").select("service_id").eq("provider_id", pro),
+        supabase.from("public_provider_profiles").select("full_name").eq("id", pro).maybeSingle(),
+      ]);
+      setProServices(
+        rows ? new Set((rows as { service_id: string }[]).map((r) => r.service_id)) : null
+      );
+      setProName((profRow as { full_name: string | null } | null)?.full_name ?? null);
+    })();
+  }, [pro]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -74,8 +95,12 @@ function BookInner() {
             c.name.toLowerCase().includes(q)
         ),
       }))
+      .map((c) => ({
+        ...c,
+        services: proServices ? c.services.filter((s) => proServices.has(s.id)) : c.services,
+      }))
       .filter((c) => c.services.length > 0);
-  }, [cats, query]);
+  }, [cats, query, proServices]);
 
   const count = filtered.reduce((n, c) => n + c.services.length, 0);
 
@@ -85,7 +110,7 @@ function BookInner() {
         title="What do you need help with?"
         subtitle="Pick a service in Karachi — prices are upfront."
         action={
-          <LinkButton href="/book/custom" variant="ghost" size="sm" icon="plus">
+          <LinkButton href={withPro("/book/custom")} variant="ghost" size="sm" icon="plus">
             Post a custom job
           </LinkButton>
         }
@@ -101,6 +126,18 @@ function BookInner() {
           ]}
         />
       </div>
+
+      {pro && tab === "services" && (
+        <Card className="mb-4 bg-primary-light">
+          <p className="text-sm">
+            <strong>Booking {proName ?? "this technician"}.</strong> Showing only the services they
+            offer.{" "}
+            <Link href="/book" className="font-semibold text-primary underline">
+              Browse everything instead
+            </Link>
+          </p>
+        </Card>
+      )}
 
       {tab === "technicians" ? (
         <TechnicianBrowse categories={cats} />
@@ -137,7 +174,7 @@ function BookInner() {
                 : "No services are published yet."
             }
           >
-            <LinkButton href="/book/custom" size="sm">
+            <LinkButton href={withPro("/book/custom")} size="sm">
               Post a custom job
             </LinkButton>
           </EmptyState>
@@ -162,7 +199,7 @@ function BookInner() {
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {cat.services.map((s) => (
-                    <Link key={s.id} href={`/book/service/?id=${s.id}`} className="opt">
+                    <Link key={s.id} href={withPro(`/book/service/?id=${s.id}`)} className="opt">
                       <span className="flex w-full items-start justify-between gap-3">
                         <span className="text-base font-bold">{s.name}</span>
                         <Pill tone={s.base_price === null ? "warn" : "info"}>

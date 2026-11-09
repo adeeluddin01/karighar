@@ -167,7 +167,7 @@ export default function CustomJobPage() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: null,
-        requested_provider_id: requestedPro,
+        ...(requestedPro ? { requested_provider_id: requestedPro } : {}),
         // No commission_rate: jobs_enforce_insert stamps it from
         // platform_settings and overwrites whatever the client sends, so a
         // literal here is dead weight that reads as if the client decided it.

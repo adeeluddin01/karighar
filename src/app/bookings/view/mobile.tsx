@@ -759,11 +759,16 @@ function BookingContent() {
           <h3 className="lbl">Booking details</h3>
           <Details job={job} />
 
+          {/* Was a `link mute` — muted grey text at the bottom of the
+              screen, which reads as a caption rather than the only way out
+              of a booking nobody has taken yet. */}
           <button
             type="button"
-            className="link mute kg-self-center"
+            className="btn ghost"
+            style={{ marginTop: 6 }}
             onClick={() => setCancelling(true)}
           >
+            <KIcon name="x" />
             Cancel booking
           </button>
         </Scroll>
