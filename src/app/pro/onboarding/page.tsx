@@ -21,11 +21,11 @@ import { KARACHI_AREAS, type ServiceCategory, type Provider } from "@/lib/types"
 import { LIMITS, formatCnic, firstError, validateCnic, validateFreeText } from "@/lib/validate";
 import { dbErrorMessage } from "@/lib/dbErrors";
 import {
-  VERIFICATION_ACCEPT,
   uploadVerificationDoc,
   validateVerificationDoc,
   type DocKind,
 } from "@/lib/verificationDoc";
+import { CameraCapture, CapturedDoc } from "@/components/CameraCapture";
 
 export default function ProviderOnboardingPage() {
   const { user, loading } = useRequireAuth("/pro/onboarding");
@@ -39,6 +39,8 @@ export default function ProviderOnboardingPage() {
   const [areas, setAreas] = useState<string[]>([]);
   const [cnicFront, setCnicFront] = useState<File | null>(null);
   const [selfie, setSelfie] = useState<File | null>(null);
+  /** Which slot the camera is open for, or null when it is closed. */
+  const [cameraFor, setCameraFor] = useState<DocKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warn, setWarn] = useState<string | null>(null);
@@ -234,28 +236,28 @@ export default function ProviderOnboardingPage() {
           />
         </Field>
 
+        {/* Taken live, never chosen from the gallery — a file picker lets
+            someone upload a CNIC that is not theirs and a face that is not
+            them, which is the whole thing this step is meant to establish.
+            There is no file input on this form any more. */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="CNIC photo" hint="Front side">
-            <div className="field">
-              <input
-                type="file"
-                accept={VERIFICATION_ACCEPT}
-                onChange={(e) => pickDoc(e.target.files?.[0] ?? null, setCnicFront)}
-                className="text-sm"
-              />
-            </div>
-          </Field>
-          <Field label="Selfie" hint="Clear face photo">
-            <div className="field">
-              <input
-                type="file"
-                accept={VERIFICATION_ACCEPT}
-                onChange={(e) => pickDoc(e.target.files?.[0] ?? null, setSelfie)}
-                className="text-sm"
-              />
-            </div>
-          </Field>
+          <CapturedDoc
+            label="CNIC photo (front)"
+            file={cnicFront}
+            onOpen={() => setCameraFor("cnic-front")}
+            onClear={() => setCnicFront(null)}
+          />
+          <CapturedDoc
+            label="Selfie"
+            file={selfie}
+            onOpen={() => setCameraFor("selfie")}
+            onClear={() => setSelfie(null)}
+          />
         </div>
+        <p className="-mt-1 text-xs text-muted-foreground">
+          Both photos are taken with your camera here. Hold the card steady and make sure the
+          number is readable.
+        </p>
 
         {warn && (
           <p className="rounded-xl bg-warning-light p-3 text-sm text-warning-foreground">{warn}</p>
@@ -266,6 +268,21 @@ export default function ProviderOnboardingPage() {
           {busy ? "Submitting…" : existing ? "Save changes" : "Submit for verification"}
         </Button>
       </form>
+
+      {cameraFor && (
+        <CameraCapture
+          kind={cameraFor}
+          facing={cameraFor === "selfie" ? "user" : "environment"}
+          title={cameraFor === "selfie" ? "Take your selfie" : "Photograph your CNIC"}
+          hint={
+            cameraFor === "selfie"
+              ? "Look straight at the camera in good light."
+              : "Front of the card, flat and in focus."
+          }
+          onCapture={(file) => pickDoc(file, cameraFor === "selfie" ? setSelfie : setCnicFront)}
+          onClose={() => setCameraFor(null)}
+        />
+      )}
     </AppShell>
   );
 }

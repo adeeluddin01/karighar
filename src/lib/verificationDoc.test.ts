@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   SIGNED_URL_TTL_SECONDS,
   signedVerificationUrl,
-  VERIFICATION_ACCEPT,
   VERIFICATION_BUCKET,
   VERIFICATION_MAX_BYTES,
   validateVerificationDoc,
@@ -42,8 +41,13 @@ describe("validateVerificationDoc", () => {
     );
   });
 
-  it("offers exactly the types it enforces", () => {
-    expect(VERIFICATION_ACCEPT).toBe("image/jpeg,image/png,image/webp");
+  // The allowlist used to be pinned through VERIFICATION_ACCEPT, which fed
+  // a file input's `accept`. There is no file input any more, so it is
+  // pinned through the check that actually enforces it.
+  it("rejects anything outside jpeg, png and webp", () => {
+    for (const type of ["image/gif", "image/svg+xml", "video/mp4", "text/plain"]) {
+      expect(validateVerificationDoc({ type, size: 1000 })).toBeTruthy();
+    }
   });
 });
 

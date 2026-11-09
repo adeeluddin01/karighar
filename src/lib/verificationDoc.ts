@@ -32,10 +32,16 @@ export const VERIFICATION_BUCKET = "verification";
  */
 export const VERIFICATION_MAX_BYTES = 5 * 1024 * 1024;
 
+/**
+ * What the bucket will take.
+ *
+ * Wider than what this app now produces: CameraCapture only ever encodes
+ * image/jpeg. The other two stay accepted so a document uploaded before the
+ * form moved to live capture, or one an admin places by hand, is still
+ * valid — the check below is about what the bucket can hold, not about
+ * which screen made the file.
+ */
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
-
-/** What the file input should offer, kept next to the check that enforces it. */
-export const VERIFICATION_ACCEPT = ALLOWED.join(",");
 
 /** Which document a file is — also the basename it gets in the bucket. */
 export type DocKind = "cnic-front" | "cnic-back" | "selfie";
