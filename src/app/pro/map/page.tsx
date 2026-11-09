@@ -559,25 +559,30 @@ function JobCard({
             {locating ? "Locating…" : t("pro.showRoute")}
           </Button>
         )}
-        {mine ? (
-          <Link href={`/pro/jobs/view/?id=${job.id}`} className="btn-ghost btn-sm">
-            {t("pro.openJob")}
-            <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
-          </Link>
-        ) : job.type === "fixed" ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={claiming || atCap}
-            onClick={() => onClaim(job)}
-          >
-            {atCap ? t("pro.atCap") : t("pro.claimIt")}
-          </Button>
-        ) : (
-          <Button size="sm" variant="ghost" icon="chevron" onClick={onQuote}>
-            {t("pro.sendQuote")}
-          </Button>
-        )}
+        {/* Open the job — now on EVERY dot, not just the pro's own. The
+            quote path in particular used to be `onQuote`, which only flipped
+            the view toggle without carrying the job id, so a pro tapping a
+            saffron dot landed in an unfiltered list and had to find the row
+            again. The detail page takes the claim and the bid directly. */}
+        <Link href={`/pro/jobs/view/?id=${job.id}`} className="btn-ghost btn-sm">
+          {t("pro.openJob")}
+          <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
+        </Link>
+        {!mine &&
+          (job.type === "fixed" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={claiming || atCap}
+              onClick={() => onClaim(job)}
+            >
+              {atCap ? t("pro.atCap") : t("pro.claimIt")}
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" icon="chevron" onClick={onQuote}>
+              {t("pro.sendQuote")}
+            </Button>
+          ))}
       </div>
     </Card>
   );

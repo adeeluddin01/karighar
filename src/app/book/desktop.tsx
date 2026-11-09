@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { TechnicianBrowse } from "@/components/TechnicianBrowse";
 import { AppShell } from "@/components/AppShell";
 import { Icon, type IconName } from "@/components/Icon";
 import { CATEGORY_ICON_WEB } from "@/lib/catalogIcons";
@@ -15,6 +16,7 @@ import {
   PageHeader,
   Pill,
   Spinner,
+  Tabs,
   formatPKR,
 } from "@/components/ui";
 import type { Service, ServiceCategory } from "@/lib/types";
@@ -26,11 +28,17 @@ type CatalogCat = ServiceCategory & { services: Service[] };
 const CATEGORY_ICON = CATEGORY_ICON_WEB as Record<string, IconName>;
 
 function BookInner() {
-  const initialQuery = useSearchParams().get("q") ?? "";
+  const search = useSearchParams();
+  const initialQuery = search.get("q") ?? "";
   const [cats, setCats] = useState<CatalogCat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(initialQuery);
+  // The web twin of the phone lane's toggle. Same ?tab=technicians param, so
+  // one link works whichever lane the visitor lands in.
+  const [tab, setTab] = useState<"services" | "technicians">(
+    search.get("tab") === "technicians" ? "technicians" : "services"
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -83,6 +91,21 @@ function BookInner() {
         }
       />
 
+      <div className="mb-4">
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: "services", label: "Book a service" },
+            { key: "technicians", label: "Book a technician" },
+          ]}
+        />
+      </div>
+
+      {tab === "technicians" ? (
+        <TechnicianBrowse categories={cats} />
+      ) : (
+      <>
       <Input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -158,6 +181,8 @@ function BookInner() {
             ))}
           </div>
         </>
+      )}
+      </>
       )}
     </AppShell>
   );

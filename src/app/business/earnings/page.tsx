@@ -21,6 +21,8 @@ import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/mon
 import { JOB_STATUS_LABEL, type BusinessMember, type Job, type Profile } from "@/lib/types";
 import { BRAND } from "@/lib/config";
 import { dbErrorMessage } from "@/lib/dbErrors";
+import { LedgerHistory } from "@/components/LedgerHistory";
+import { InfoTip } from "@/components/InfoTip";
 
 /** One technician's outstanding balance with this business. */
 type Owing = { id: string; name: string | null; balance: number };
@@ -142,11 +144,31 @@ export default function BusinessEarnings() {
             the business's side of a job is a receivable from them, not money
             it already holds. Labelling it "earnings" would misstate that.
             It nets down as settlements are recorded below. */}
-        <Stat icon="wallet" label="Due from your team" value={formatPKR(receivable)} />
+        <Stat
+          icon="wallet"
+          label={
+            <span className="flex items-center">
+              Due from your team
+              <InfoTip label="About what your team owes you">
+                Your share of cash your technicians collected on jobs you dispatched. They hold
+                the money until they hand it over, so this is a receivable, not cash you have.
+              </InfoTip>
+            </span>
+          }
+          value={formatPKR(receivable)}
+        />
         <Stat icon="check" label="Jobs paid" value={done} />
         <Stat
           icon="trend"
-          label={`Owed to ${BRAND.name}`}
+          label={
+            <span className="flex items-center">
+              {`Owed to ${BRAND.name}`}
+              <InfoTip label={`About what you owe ${BRAND.name}`}>
+                Commission on every job you dispatched, minus what you have settled. On dispatched
+                work {BRAND.name} bills the company, not the technician.
+              </InfoTip>
+            </span>
+          }
           value={formatPKR(owed)}
           className="col-span-2 sm:col-span-1"
         />
@@ -203,6 +225,20 @@ export default function BusinessEarnings() {
             ))}
           </div>
         </section>
+      )}
+
+      <h2 className="mt-8 mb-4 flex items-center gap-2 text-xl font-bold tracking-tight">
+        Your statement
+        <InfoTip label="About your statement">
+          Every line {BRAND.name} has recorded against your company, newest first: your share of
+          each dispatched job, the commission raised on it, and any cash you have settled.
+        </InfoTip>
+      </h2>
+
+      {user && (
+        <Card>
+          <LedgerHistory accountId={user.id} />
+        </Card>
       )}
 
       <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Dispatched jobs</h2>

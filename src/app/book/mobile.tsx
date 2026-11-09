@@ -11,6 +11,7 @@ import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
 import type { Service, ServiceCategory } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
+import { TechnicianBrowse } from "@/components/TechnicianBrowse";
 
 type Cat = ServiceCategory & { services: Service[] };
 
@@ -20,6 +21,12 @@ function BookInner() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(search.get("q") ?? "");
   const [cat, setCat] = useState(search.get("cat") ?? "all");
+  // "What do I need?" vs "who do I want?" — two ways into the same booking.
+  // ?tab=technicians so the home rail and a provider profile can link
+  // straight here rather than landing on services and making people hunt.
+  const [tab, setTab] = useState<"services" | "technicians">(
+    search.get("tab") === "technicians" ? "technicians" : "services"
+  );
 
   useEffect(() => {
     const supabase = createClient();
@@ -74,6 +81,33 @@ function BookInner() {
         }
       />
       <Scroll underTop>
+        <div className="chips" role="tablist" aria-label="Browse by">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "services"}
+            className={clsx("chip", tab === "services" && "sel")}
+            onClick={() => setTab("services")}
+          >
+            Book a service
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "technicians"}
+            className={clsx("chip", tab === "technicians" && "sel")}
+            onClick={() => setTab("technicians")}
+          >
+            Book a technician
+          </button>
+        </div>
+
+        {tab === "technicians" ? (
+          <div className="mt-3">
+            <TechnicianBrowse categories={cats ?? []} compact />
+          </div>
+        ) : (
+        <>
         <label className="in">
           <KIcon name="search" />
           <input
@@ -198,6 +232,8 @@ function BookInner() {
         <Pill tone="ok" icon="check" className="kg-self-center">
           {count} {count === 1 ? "service" : "services"} available in Karachi
         </Pill>
+        </>
+        )}
       </Scroll>
       <Tabs />
     </Screen>

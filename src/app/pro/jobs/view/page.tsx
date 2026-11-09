@@ -35,7 +35,7 @@ import {
   type Profile,
   type PublicCustomerRating,
 } from "@/lib/types";
-import { LIMITS, validateAmount } from "@/lib/validate";
+import { LIMITS, firstError, validateAmount, validateFreeText } from "@/lib/validate";
 import { dbErrorMessage } from "@/lib/dbErrors";
 
 // What the provider can do next at each stage.
@@ -62,6 +62,11 @@ function ProJobDetailContent() {
   const [busy, setBusy] = useState(false);
   const [priceInput, setPriceInput] = useState("");
   const [jobCommission, setJobCommission] = useState<number | null>(null);
+  // Claiming / quoting from this page. Until now the page rendered an
+  // unclaimed job — RLS allows it inside the dispatch ring — but offered no
+  // way to take it, so every route here from the open pool was a dead end.
+  const [bidAmount, setBidAmount] = useState("");
+  const [bidNote, setBidNote] = useState("");
   const [showCancel, setShowCancel] = useState(false);
   // Provider -> customer rating: whether this job already has one, and the
   // customer's running average.
@@ -199,6 +204,54 @@ function ProJobDetailContent() {
   // advance() already refuses to complete a job with no price, so the only
   // way to be there unpriced is an admin override.
   const canPrice = job ? ["arrived", "in_progress"].includes(job.status) : false;
+  /** Still in the open pool: nobody has taken it, and this pro could. */
+  const unclaimed = !!job && job.provider_id === null && ["created", "bidding"].includes(job.status);
+
+  async function claim() {
+    if (!job || !user) return;
+    setBusy(true);
+    // Exactly what the dashboard and map do. `jobs_claim` re-evaluates
+    // `provider_id is null`, so losing a race matches zero rows rather than
+    // erroring — hence the reload rather than a success toast.
+    const { error } = await createClient()
+      .from("jobs")
+      .update({ provider_id: user.id, status: "assigned" })
+      .eq("id", job.id);
+    setBusy(false);
+    if (error) {
+      toast("Couldn't accept that job — " + dbErrorMessage(error), "error");
+      return;
+    }
+    await load();
+  }
+
+  async function sendQuote() {
+    if (!job || !user) return;
+    const bad = firstError(
+      validateAmount(bidAmount, { label: "quote" }),
+      validateFreeText(bidNote, { max: LIMITS.bidNote, label: "note" })
+    );
+    if (bad) {
+      toast(bad, "error");
+      return;
+    }
+    setBusy(true);
+    const { error } = await createClient().from("bids").insert({
+      job_id: job.id,
+      provider_id: user.id,
+      amount: Number(bidAmount),
+      note: bidNote.trim() || null,
+    });
+    setBusy(false);
+    if (error) {
+      toast(dbErrorMessage(error), "error");
+      return;
+    }
+    setBidAmount("");
+    setBidNote("");
+    toast("Quote sent. The customer will be notified.", "success");
+    await load();
+  }
 
   async function setPrice() {
     // An upper bound as well as a lower one: numeric(10,2) overflows above
@@ -417,7 +470,7 @@ function ProJobDetailContent() {
               <h2 className="mb-2 flex items-center gap-2 text-base font-bold">
                 <Icon name="chat" size="sm" /> Messages
               </h2>
-              <JobChat jobId={jobId} userId={user.id} />
+              {!unclaimed && <JobChat jobId={jobId} userId={user.id} />}
             </Card>
           )}
         </div>
@@ -466,6 +519,50 @@ function ProJobDetailContent() {
                 </p>
               </Card>
             )
+          )}
+
+          {/* Open-pool job: this is the page's reason for existing now that
+              the list and the map both link here. A fixed job is claimed
+              outright; a quote job takes a bid, the same two fields the
+              dashboard shows inline. */}
+          {unclaimed && (
+            <Card>
+              <p className="text-sm font-semibold">
+                {job.type === "fixed" ? "Take this job" : "Send a quote"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {job.type === "fixed"
+                  ? "Nobody has taken this yet. Accepting assigns it to you straight away."
+                  : "The customer compares quotes and picks one. Yours is not binding until they accept it."}
+              </p>
+              {job.type === "fixed" ? (
+                <Button className="mt-3 w-full" disabled={busy} onClick={claim}>
+                  {busy ? "Accepting…" : `Accept for ${formatPKR(job.price)}`}
+                </Button>
+              ) : (
+                <div className="mt-3 flex flex-col gap-2">
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    prefix="Rs"
+                    placeholder="Your quote"
+                    aria-label="Your quote"
+                    value={bidAmount}
+                    onChange={(e) => setBidAmount(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Note (optional)"
+                    aria-label="Note"
+                    maxLength={LIMITS.bidNote}
+                    value={bidNote}
+                    onChange={(e) => setBidNote(e.target.value)}
+                  />
+                  <Button disabled={busy} onClick={sendQuote}>
+                    {busy ? "Sending…" : "Send quote"}
+                  </Button>
+                </div>
+              )}
+            </Card>
           )}
 
           {/* Next action */}
@@ -623,7 +720,7 @@ function ProJobDetailContent() {
             )}
           </Card>
 
-          {user && <DisputeButton jobId={jobId} userId={user.id} />}
+          {user && !unclaimed && <DisputeButton jobId={jobId} userId={user.id} />}
         </div>
       </div>
     </AppShell>

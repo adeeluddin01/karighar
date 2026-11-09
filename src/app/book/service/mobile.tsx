@@ -110,7 +110,12 @@ function loadDraft(serviceId: string): Draft | null {
 }
 
 function BookServiceContent() {
-  const serviceId = useSearchParams().get("id") ?? "";
+  const search = useSearchParams();
+  const serviceId = search.get("id") ?? "";
+  // The technician this customer picked from the Book tab, if any. A request
+  // rather than an assignment — patch_v31 holds the job for them for ten
+  // minutes, then releases it to the normal pool if they haven't taken it.
+  const requestedPro = search.get("pro");
   const router = useRouter();
 
   // A draft left behind by a Google OAuth round-trip (same-tab sign-in never
@@ -285,6 +290,7 @@ function BookServiceContent() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: service.base_price,
+        requested_provider_id: requestedPro,
         // No commission_rate: jobs_enforce_insert stamps it from
         // platform_settings and overwrites whatever the client sends.
       })

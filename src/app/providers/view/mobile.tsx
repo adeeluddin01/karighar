@@ -197,8 +197,11 @@ function ProviderProfileContent() {
           <small>Visits from</small>
           <b>{from === null ? "On quote" : formatPKR(from)}</b>
         </div>
-        <Link className="btn" href="/book">
-          Book a service
+        {/* Carries the pro's id. Without it this dropped the one thing the
+            customer came here to say — which pro they want — and sent them
+            to the generic pool. */}
+        <Link className="btn" href={`/book/?pro=${id}`}>
+          Book {proName(profile).split(" ")[0]}
           <KIcon name="arrow" />
         </Link>
       </Cta>

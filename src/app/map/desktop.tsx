@@ -6,19 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Icon, type IconName } from "@/components/Icon";
 import { clsx } from "@/lib/clsx";
-import { Avatar, Card, EmptyState, LinkButton, PageHeader, Pill, Rating, Spinner } from "@/components/ui";
+import { Avatar, Card, LinkButton, PageHeader, Pill, Rating } from "@/components/ui";
 import { BusinessesMap } from "@/components/maps/BusinessesMap";
 import { businessName, fetchBusinessPins, type BusinessPin } from "@/lib/businesses";
 import { CATEGORY_ICON_WEB, CATEGORY_ICON_FALLBACK } from "@/lib/catalogIcons";
 
-type PublicPro = {
-  id: string;
-  full_name: string | null;
-  bio: string | null;
-  rating_avg: number;
-  jobs_completed: number;
-  service_areas: string[];
-};
 
 const webIcon = (slug: string | null) =>
   (CATEGORY_ICON_WEB[slug ?? ""] ?? CATEGORY_ICON_FALLBACK) as IconName;
@@ -33,35 +25,34 @@ const webIcon = (slug: string | null) =>
  * do go on a map, carrying the icon of the trade they cover. A deployment
  * with no business accounts sees the page exactly as it was.
  */
-export default function NearbyProsPage() {
-  const [pros, setPros] = useState<PublicPro[] | null>(null);
+export default function NearbyCompaniesPage() {
   const [firms, setFirms] = useState<BusinessPin[]>([]);
   const [focus, setFocus] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     void (async () => {
-      const [{ data }, pins] = await Promise.all([
-        supabase
-          .from("public_provider_profiles")
-          .select("id,full_name,bio,rating_avg,jobs_completed,service_areas")
-          .order("rating_avg", { ascending: false })
-          .order("jobs_completed", { ascending: false }),
-        fetchBusinessPins(supabase),
-      ]);
-      setPros((data as PublicPro[]) ?? []);
+      // Companies only. Technicians are not fetched here any more — there
+      // is no coordinate of theirs to put on this map, and listing them
+      // beside one implied otherwise.
+      const pins = await fetchBusinessPins(supabase);
       setFirms(pins);
     })();
   }, []);
 
   return (
     <AppShell>
+      {/* Was "Verified pros near you", with the technician grid below it.
+          We hold no location for a technician to publish — only a company's
+          registered premises, and an assigned pro's live position while they
+          are on their way to you. Browsing people moved to Book > Book a
+          technician, where it is a list and implies no location. */}
       <PageHeader
-        title="Verified pros near you"
-        subtitle="Every pro below has passed CNIC and background checks."
+        title="Companies near you"
+        subtitle="Registered premises in Karachi. To browse individual technicians, use Book a technician."
         action={
-          <LinkButton href="/book" size="sm" icon="plus">
-            Book a service
+          <LinkButton href="/book/?tab=technicians" size="sm" icon="users">
+            Book a technician
           </LinkButton>
         }
       />
@@ -127,69 +118,15 @@ export default function NearbyProsPage() {
         </section>
       )}
 
-      {firms.length > 0 && (
-        <h2 className="mb-4 text-lg font-bold tracking-tight">Independent pros</h2>
-      )}
-
-      {pros === null ? (
-        <Spinner label="Loading pros…" />
-      ) : pros.length === 0 ? (
-        <EmptyState
-          icon="users"
-          title="No verified pros yet"
-          hint="Pros appear here once their verification is approved. You can still book — we'll match you as soon as one is available."
-        >
-          <LinkButton href="/book" size="sm">
-            Book a service
-          </LinkButton>
-        </EmptyState>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {pros.map((p) => (
-            <Card key={p.id} className="flex flex-col">
-              <div className="flex items-center gap-3">
-                <Avatar name={p.full_name} size="lg" />
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/providers/view/?id=${p.id}`}
-                    className="block truncate text-base font-bold hover:text-primary"
-                  >
-                    {p.full_name ?? "Pro"}
-                  </Link>
-                  <p className="text-xs text-muted-foreground">
-                    <Rating value={Number(p.rating_avg)} /> · {p.jobs_completed} jobs
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Pill tone="ok" icon="shield">
-                  CNIC verified
-                </Pill>
-                {p.service_areas?.slice(0, 2).map((a) => (
-                  <Pill key={a} tone="gray">
-                    {a}
-                  </Pill>
-                ))}
-              </div>
-
-              {p.bio && (
-                <p className="mt-3 line-clamp-3 flex-1 text-sm text-muted-foreground">{p.bio}</p>
-              )}
-
-              <LinkButton
-                href={`/providers/view/?id=${p.id}`}
-                variant="ghost"
-                size="sm"
-                className="mt-4 w-full"
-              >
-                View profile
-                <Icon name="chevron" size="sm" className="rtl:-scale-x-100" />
-              </LinkButton>
-            </Card>
-          ))}
-        </div>
-      )}
+      <Card className="text-center">
+        <p className="text-sm font-semibold">Looking for a specific technician?</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Browse every verified technician by trade and rating, and ask for one by name.
+        </p>
+        <LinkButton href="/book/?tab=technicians" size="sm" className="mt-4">
+          Book a technician
+        </LinkButton>
+      </Card>
     </AppShell>
   );
 }

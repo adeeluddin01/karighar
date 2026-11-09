@@ -102,7 +102,10 @@ function loadDraft(serviceId: string): Draft | null {
 }
 
 function BookServiceContent() {
-  const serviceId = useSearchParams().get("id") ?? "";
+  const search = useSearchParams();
+  const serviceId = search.get("id") ?? "";
+  /** See the phone lane: a request, not an assignment. */
+  const requestedPro = search.get("pro");
   const router = useRouter();
 
   // A draft left behind by a Google OAuth round-trip (same-tab sign-in never
@@ -216,6 +219,7 @@ function BookServiceContent() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: service.base_price,
+        requested_provider_id: requestedPro,
         // No commission_rate: jobs_enforce_insert stamps it from
         // platform_settings and overwrites whatever the client sends.
       })

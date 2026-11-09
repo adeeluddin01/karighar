@@ -189,6 +189,15 @@ export type Job = {
   /** Pro-proposed price on a job that has no agreed price yet; the customer
       accepts it (it becomes `price`) or declines it. Null otherwise. */
   proposed_price: number | null;
+  /**
+   * The technician this customer asked for by name, if any.
+   *
+   * A request, not an assignment — `provider_id` is still null until they
+   * claim it. They see it immediately however far away they are, and for
+   * the first ten minutes nobody else sees it at all; after that it joins
+   * the normal dispatch ring. Set once at booking (patch_v31).
+   */
+  requested_provider_id: string | null;
   cancel_reason: string | null;
   created_at: string;
   updated_at: string;

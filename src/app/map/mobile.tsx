@@ -7,9 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/lib/useUser";
 import { Screen, TabBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
-import { Ava, EmptyK, Pill, Rate, Skel } from "@/components/kg/parts";
+import { Rate } from "@/components/kg/parts";
 import { NearbyMap, type MapJob } from "@/components/kg/NearbyMap";
-import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
 import { businessName, fetchBusinessPins, type BusinessPin } from "@/lib/businesses";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
@@ -22,13 +21,10 @@ const OPEN: Job["status"][] = ["created", "bidding", "assigned", "en_route", "ar
 export default function MapScreen() {
   const { user } = useUser();
   const router = useRouter();
-  const [pros, setPros] = useState<PublicPro[] | null>(null);
   // Companies are the only thing on this screen with real coordinates, so
   // they are the only thing that can be pinned. Empty on an installation
   // with no business accounts, which leaves the map exactly as it was.
   const [firms, setFirms] = useState<BusinessPin[]>([]);
-  const [degraded, setDegraded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [from, setFrom] = useState<number | null>(null);
   const [home, setHome] = useState<LatLng | null>(null);
   const [area, setArea] = useState<string | null>(null);
@@ -39,8 +35,10 @@ export default function MapScreen() {
   const load = useCallback(async () => {
     const supabase = createClient();
     setBusy(true);
-    const [result, { data: services }, pins] = await Promise.all([
-      fetchPublicPros(supabase, { limit: 30 }),
+    // No provider fetch any more: this screen shows the customer's own map
+    // and the premises of registered companies. Technicians are browsed as a
+    // list under Book, because we have no location of theirs to publish.
+    const [{ data: services }, pins] = await Promise.all([
       supabase.from("services").select("base_price").eq("is_active", true),
       fetchBusinessPins(supabase),
     ]);
@@ -49,9 +47,6 @@ export default function MapScreen() {
       .filter((p): p is number => p !== null);
     setFrom(prices.length ? Math.min(...prices) : null);
     setFirms(pins);
-    setPros(result.pros);
-    setDegraded(result.degraded);
-    setError(result.error);
     setBusy(false);
   }, []);
 
@@ -128,63 +123,27 @@ export default function MapScreen() {
 
         <div className="sh-head">
           <div>
-            <h2>Verified pros</h2>
-            <small>
-              {pros === null
-                ? "Looking for pros near you…"
-                : `${pros.length} CNIC-verified ${pros.length === 1 ? "pro" : "pros"} in Karachi`}
-            </small>
+            <h2>Your map</h2>
+            <small>Your address and your active bookings.</small>
           </div>
           <Link className="ic sm" href="/book" aria-label="Book a service">
             <KIcon name="plus" />
           </Link>
         </div>
 
-        {error && (
-          <div className="note bad">
-            <KIcon name="alert" />
-            <p>
-              <b>Couldn&rsquo;t load pros.</b> {error}
-            </p>
+        {/* The technician list used to live here, under a map. It has moved
+            to Book > Book a technician, as a plain list: we do not hold a
+            technician's location to share, and showing people beside a map
+            implied that we did. The one exception is the pro already on
+            their way to you, whose live position appears on the booking
+            itself while they are en route. */}
+        <Link className="pro-row card" href="/book/?tab=technicians">
+          <div>
+            <b>Browse technicians</b>
+            <small>Pick someone by trade and rating, and ask for them by name.</small>
           </div>
-        )}
-
-        {pros === null ? (
-          <>
-            <Skel h={68} />
-            <Skel h={68} />
-            <Skel h={68} />
-          </>
-        ) : pros.length === 0 ? (
-          <EmptyK
-            icon="users"
-            title="No verified pros yet"
-            hint="Pros appear here once their CNIC verification is approved. You can still book — we'll match you as soon as one is available."
-          >
-            <Link className="btn sm" href="/book" style={{ marginTop: 10 }}>
-              Book a service
-            </Link>
-          </EmptyK>
-        ) : (
-          <div className="list">
-            {pros.map((p) => (
-              <Link key={p.id} className="pro-row card" href={`/providers/view/?id=${p.id}`}>
-                <Ava name={proName(p)} src={p.avatar_url} verified />
-                <div>
-                  <b>{proName(p)}</b>
-                  <small>
-                    {p.service_areas?.length ? p.service_areas.slice(0, 2).join(" · ") : "Karachi"}
-                  </small>
-                  <Rate
-                    value={p.rating_avg}
-                    suffix={`${p.jobs_completed.toLocaleString("en-PK")} jobs`}
-                  />
-                </div>
-                <KIcon name="chev-r" className="chev" />
-              </Link>
-            ))}
-          </div>
-        )}
+          <KIcon name="chev-r" className="chev" />
+        </Link>
 
         {/* Companies, below the pros. Nothing renders on an installation
             with no business accounts, which is every one of them today. */}
@@ -230,23 +189,15 @@ export default function MapScreen() {
           </>
         )}
 
-        {pros !== null && pros.length > 0 && (
-          <div className="sh-cta">
-            <div>
-              <small>Visits from</small>
-              <b>{from === null ? "On quote" : formatPKR(from)}</b>
-            </div>
-            <Link className="btn" href="/book">
-              Book a service
-            </Link>
+        <div className="sh-cta">
+          <div>
+            <small>Visits from</small>
+            <b>{from === null ? "On quote" : formatPKR(from)}</b>
           </div>
-        )}
-
-        {degraded && (
-          <Pill tone="warn" icon="info" className="kg-self-center">
-            Pro names unavailable
-          </Pill>
-        )}
+          <Link className="btn" href="/book">
+            Book a service
+          </Link>
+        </div>
       </div>
 
       <TabBar />

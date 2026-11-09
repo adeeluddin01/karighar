@@ -10,6 +10,7 @@ import type { Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 import { dbErrorMessage } from "@/lib/dbErrors";
 import { AccountLedgerModal } from "@/components/admin/AccountLedgerModal";
+import { InfoTip } from "@/components/InfoTip";
 
 type Row = {
   id: string;
@@ -116,10 +117,35 @@ export default function AdminSettlements() {
 
       {recon && <Reconciliation r={recon} />}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Stat icon="wallet" label="Commission outstanding" value={formatPKR(totalOwed)} />
+        <Stat
+          icon="wallet"
+          label={
+            <span className="flex items-center">
+              Commission outstanding
+              <InfoTip label="About commission outstanding">
+                What providers and businesses still owe: commission raised, minus cash settled and
+                anything reversed. This is the number that drops when you record a settlement.
+              </InfoTip>
+            </span>
+          }
+          value={formatPKR(totalOwed)}
+        />
         {/* `settled` used to count reversals as cash. Cash remitted and debt
             cancelled are now separate, so the admin can see both. */}
-        <Stat icon="check" label="Cash settled to date" value={formatPKR(totalCash)} />
+        <Stat
+          icon="check"
+          label={
+            <span className="flex items-center">
+              Cash settled to date
+              <InfoTip label="About cash settled">
+                Cash actually handed over and recorded. Deliberately separate from debt cancelled
+                by a reversal — that is not money received, and adding the two would overstate
+                collections.
+              </InfoTip>
+            </span>
+          }
+          value={formatPKR(totalCash)}
+        />
         {totalCancelled > 0 && (
           <Stat icon="check" label="Debt cancelled (reversals)" value={formatPKR(totalCancelled)} />
         )}
@@ -259,10 +285,60 @@ function Reconciliation({ r }: { r: Recon }) {
         </span>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KV label="In payments">{formatPKR(r.payments_commission)}</KV>
-        <KV label="In ledger">{formatPKR(r.ledger_commission)}</KV>
-        <KV label="Paid, no payment row">{r.paid_without_payment}</KV>
-        <KV label="Duplicate payments">{r.duplicate_payments}</KV>
+        <KV
+          label={
+            <span className="flex items-center">
+              In payments
+              <InfoTip label="About the payments figure">
+                Total commission across every <code>payments</code> row, refunds excluded. This is
+                what was BILLED in all time — settling cash does not reduce it. For what is still
+                outstanding, see Commission outstanding below.
+              </InfoTip>
+            </span>
+          }
+        >
+          {formatPKR(r.payments_commission)}
+        </KV>
+        <KV
+          label={
+            <span className="flex items-center">
+              In ledger
+              <InfoTip label="About the ledger figure">
+                The same total, counted from <code>provider_ledger</code> instead: commission
+                raised, net of reversals. The two are independent records of one number, so a gap
+                between them means a bookkeeping fault, not money owed.
+              </InfoTip>
+            </span>
+          }
+        >
+          {formatPKR(r.ledger_commission)}
+        </KV>
+        <KV
+          label={
+            <span className="flex items-center">
+              Paid, no payment row
+              <InfoTip label="About jobs with no payment row">
+                Jobs marked paid or rated that never produced a payment record. Each one is
+                commission that was never billed.
+              </InfoTip>
+            </span>
+          }
+        >
+          {r.paid_without_payment}
+        </KV>
+        <KV
+          label={
+            <span className="flex items-center">
+              Duplicate payments
+              <InfoTip label="About duplicate payments">
+                Jobs with more than one payment row. Impossible since the one-per-job constraint,
+                but counted in case an old row predates it.
+              </InfoTip>
+            </span>
+          }
+        >
+          {r.duplicate_payments}
+        </KV>
       </div>
 
       {/* The check that was missing when this banner reported Rs -400 with

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Screen, Scroll, TopBar, Cta } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
@@ -84,6 +84,8 @@ function loadDraft(): Draft | null {
 
 export default function CustomJobScreen() {
   const router = useRouter();
+  // A technician asked for by name; see the service lane.
+  const requestedPro = useSearchParams().get("pro");
 
   // A draft left behind by a Google OAuth round-trip (same-tab sign-in never
   // needs this — the form is already sitting in React state).
@@ -219,6 +221,7 @@ export default function CustomJobScreen() {
         lng: pos?.lng ?? null,
         scheduled_at: scheduledAt,
         price: null,
+        requested_provider_id: requestedPro,
         // No commission_rate: jobs_enforce_insert stamps it from
         // platform_settings and overwrites whatever the client sends, so a
         // literal here is dead weight that reads as if the client decided it.

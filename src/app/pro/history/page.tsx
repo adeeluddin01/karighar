@@ -18,6 +18,8 @@ import {
   formatPKR,
 } from "@/components/ui";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
+import { LedgerHistory } from "@/components/LedgerHistory";
+import { InfoTip } from "@/components/InfoTip";
 import { JOB_STATUS_LABEL, type Job } from "@/lib/types";
 import { BRAND } from "@/lib/config";
 
@@ -96,7 +98,19 @@ export default function ProviderHistoryPage() {
       <PageHeader title="Earnings & history" subtitle="Your wallet and completed jobs." />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Stat icon="wallet" label="Net earnings" value={formatPKR(wallet?.netEarnings ?? 0)} />
+        <Stat
+          icon="wallet"
+          label={
+            <span className="flex items-center">
+              Net earnings
+              <InfoTip label="About net earnings">
+                Your share of the cash collected across every paid job, before anything is settled
+                with {BRAND.name}.
+              </InfoTip>
+            </span>
+          }
+          value={formatPKR(wallet?.netEarnings ?? 0)}
+        />
         <Stat icon="check" label="Jobs completed" value={done} />
         {/* Two different debts, deliberately never added together: Karighar's
             commission on your own jobs, and your business's share of the cash
@@ -107,11 +121,33 @@ export default function ProviderHistoryPage() {
             (on different jobs), and the old slot hid one of them. */}
         <Stat
           icon="trend"
-          label={`Owed to ${BRAND.name}`}
+          label={
+            <span className="flex items-center">
+              {`Owed to ${BRAND.name}`}
+              <InfoTip label={`About what you owe ${BRAND.name}`}>
+                Commission on jobs you took yourself and collected cash for, minus what you have
+                already settled. It does not include work your business sent you — {BRAND.name}
+                bills them for that.
+              </InfoTip>
+            </span>
+          }
           value={walletError ? "—" : formatPKR(owed)}
         />
         {dueToBusiness > 0 && (
-          <Stat icon="users" label="Due to your business" value={formatPKR(dueToBusiness)} />
+          <Stat
+            icon="users"
+            label={
+              <span className="flex items-center">
+                Due to your business
+                <InfoTip label="About what you owe your business">
+                  Their share of cash you collected on jobs they dispatched. Separate from the
+                  {" "}{BRAND.name} figure, and never added to it — the two are owed to different
+                  people.
+                </InfoTip>
+              </span>
+            }
+            value={formatPKR(dueToBusiness)}
+          />
         )}
       </div>
 
@@ -140,6 +176,24 @@ export default function ProviderHistoryPage() {
             not you — you owe us nothing on that work. This figure drops as they record what
             you hand over.
           </p>
+        </Card>
+      )}
+
+      {/* The line-by-line statement. The totals above answer "how much?";
+          this answers "from which jobs?", which is the question a pro
+          actually asks when a figure looks wrong — and until now only an
+          admin could see it. */}
+      <h2 className="mt-8 mb-4 flex items-center gap-2 text-xl font-bold tracking-tight">
+        Your statement
+        <InfoTip label="About your statement">
+          Every line {BRAND.name} has recorded against your account, newest first: what you earned
+          on each job, the commission raised on it, and any cash you have settled.
+        </InfoTip>
+      </h2>
+
+      {user && (
+        <Card>
+          <LedgerHistory accountId={user.id} />
         </Card>
       )}
 

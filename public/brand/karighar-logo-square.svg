@@ -6,18 +6,18 @@
   <defs>
     <!-- ================= velvet ================= -->
     <linearGradient id="tileBase" x1="0.1" y1="0" x2="0.85" y2="1">
-      <stop offset="0"    stop-color="#103420"/>
-      <stop offset="0.42" stop-color="#0d2a1b"/>
-      <stop offset="1"    stop-color="#112f1f"/>
+      <stop offset="0"    stop-color="#246248"/>
+      <stop offset="0.42" stop-color="#1b4e39"/>
+      <stop offset="1"    stop-color="#205741"/>
     </linearGradient>
     <radialGradient id="tileSheen" cx="0.36" cy="0.26" r="0.78">
       <stop offset="0"    stop-color="#569270" stop-opacity="0.13"/>
       <stop offset="0.55" stop-color="#2b6246" stop-opacity="0.08"/>
-      <stop offset="1"    stop-color="#000000" stop-opacity="0.30"/>
+      <stop offset="1"    stop-color="#000000" stop-opacity="0.12"/>
     </radialGradient>
     <radialGradient id="vignette" cx="0.38" cy="0.32" r="0.92">
       <stop offset="0.3"  stop-color="#000000" stop-opacity="0"/>
-      <stop offset="0.72" stop-color="#000000" stop-opacity="0.07"/>
+      <stop offset="0.72" stop-color="#000000" stop-opacity="0.05"/>
       <stop offset="1"    stop-color="#000000" stop-opacity="0.18"/>
     </radialGradient>
     <!-- Pile. Two layers, because velvet is two things at once: broad

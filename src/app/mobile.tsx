@@ -249,8 +249,12 @@ export default function HomeScreen() {
 
         {pros.length > 0 && (
           <>
-            <Sec title="Top-rated near you">
-              <Link href="/map">Open map</Link>
+            {/* Was "Open map". A technician's location is not ours to
+                publish — only an assigned pro's, and only once they are on
+                their way — so browsing people now happens in the Book tab,
+                as a list, with no map implied. */}
+            <Sec title="Top-rated technicians">
+              <Link href="/book/?tab=technicians">See all</Link>
             </Sec>
             <div className="hrow">
               {pros.slice(0, 6).map((p) => (

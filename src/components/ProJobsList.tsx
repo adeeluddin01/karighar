@@ -238,8 +238,27 @@ export function ProJobsList({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-bold">{job.title}</h3>
+                        {/* The open tab used to be the one list with no way
+                            into a job: the row was a bare Card, so a pro
+                            could accept or quote but never read the full
+                            description, the schedule or the customer's
+                            rating first. The title is the link, not the
+                            whole row, because the row carries buttons. */}
+                        <Link
+                          href={`/pro/jobs/view/?id=${job.id}`}
+                          className="text-base font-bold underline decoration-dotted underline-offset-2 hover:text-primary"
+                        >
+                          {job.title}
+                        </Link>
                         {job.type === "custom" && <Pill tone="warn">{t("pro.customQuote")}</Pill>}
+                        {/* Asked for by name. Worth the loudest tone on the
+                            card: it is held exclusively for this pro for ten
+                            minutes, so acting on it now actually matters. */}
+                        {job.requested_provider_id && (
+                          <Pill tone="ok" icon="star">
+                            Requested for you
+                          </Pill>
+                        )}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
                       {job.description && <p className="mt-1 text-sm">{job.description}</p>}

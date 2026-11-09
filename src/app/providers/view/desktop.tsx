@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AppShell } from "@/components/AppShell";
-import { Avatar, Card, EmptyState, Pill, Spinner } from "@/components/ui";
+import { Avatar, Card, EmptyState, LinkButton, Pill, Spinner } from "@/components/ui";
 import type { Review as FullReview } from "@/lib/types";
 
 type PublicProfile = {
@@ -90,6 +90,13 @@ function ProviderProfileContent() {
               Verified
             </Pill>
           </div>
+          {/* The web lane had NO booking control at all — a customer could
+              read a pro's profile and reviews and then had nowhere to go.
+              `?pro=` asks for them by name; patch_v31 holds the job for them
+              for ten minutes before it opens to anyone else. */}
+          <LinkButton href={`/book/?pro=${id}`} className="ms-auto shrink-0">
+            Book this pro
+          </LinkButton>
         </div>
 
         {profile.bio && (

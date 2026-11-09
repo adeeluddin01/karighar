@@ -57,6 +57,34 @@ import {
   Sun,
   Camera,
   WashingMachine,
+
+  // Service-catalogue glyphs. The picker in /admin/catalog offers one
+  // row per slug in lib/catalogIcons.ts; every name here needs a match in
+  // the phone sprite too, which catalogIcons.test.ts proves.
+  Sparkles,
+  Bug,
+  Refrigerator,
+  Droplets,
+  Flame,
+  Key,
+  Truck,
+  Sprout,
+  Wifi,
+  Tv,
+  Grid3x3,
+  Fan,
+  ShowerHead,
+  Lightbulb,
+  Sofa,
+  Construction,
+  Shirt,
+  Car,
+  Cpu,
+  Ruler,
+  Dog,
+  Utensils,
+  Stethoscope,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -121,6 +149,32 @@ const ICONS = {
   sun: Sun,
   camera: Camera,
   washingmachine: WashingMachine,
+
+  // ---- service categories (see lib/catalogIcons.ts) ----
+  sparkles: Sparkles,
+  bug: Bug,
+  refrigerator: Refrigerator,
+  droplets: Droplets,
+  flame: Flame,
+  key: Key,
+  truck: Truck,
+  sprout: Sprout,
+  wifi: Wifi,
+  tv: Tv,
+  grid: Grid3x3,
+  fan: Fan,
+  shower: ShowerHead,
+  bulb: Lightbulb,
+  sofa: Sofa,
+  construction: Construction,
+  shirt: Shirt,
+  car: Car,
+  cpu: Cpu,
+  ruler: Ruler,
+  dog: Dog,
+  utensils: Utensils,
+  stethoscope: Stethoscope,
+  graduation: GraduationCap,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

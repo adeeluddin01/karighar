@@ -19,6 +19,32 @@ export const CATEGORY_ICON_CHOICES: { slug: string; label: string }[] = [
   { slug: "solar", label: "Solar / cleaning" },
   { slug: "camera", label: "Cameras & security" },
   { slug: "washer", label: "Appliances" },
+
+  // ---- added for a broader catalogue ----
+  { slug: "cleaning", label: "Cleaning & housekeeping" },
+  { slug: "pest", label: "Pest control" },
+  { slug: "fridge", label: "Fridge & freezer" },
+  { slug: "water", label: "Water tank & supply" },
+  { slug: "geyser", label: "Geyser & gas" },
+  { slug: "locksmith", label: "Locks & keys" },
+  { slug: "movers", label: "Movers & packers" },
+  { slug: "garden", label: "Gardening & landscaping" },
+  { slug: "internet", label: "Internet & networking" },
+  { slug: "tv", label: "TV & dish mounting" },
+  { slug: "tiles", label: "Tiles & flooring" },
+  { slug: "fan", label: "Fans & ventilation" },
+  { slug: "bath", label: "Bathroom fitting" },
+  { slug: "light", label: "Lighting" },
+  { slug: "furniture", label: "Furniture & upholstery" },
+  { slug: "masonry", label: "Masonry & renovation" },
+  { slug: "laundry", label: "Laundry & dry cleaning" },
+  { slug: "auto", label: "Car wash & auto care" },
+  { slug: "smart", label: "Smart home automation" },
+  { slug: "interior", label: "Interior design" },
+  { slug: "pet", label: "Pet grooming" },
+  { slug: "chef", label: "Cooking & catering" },
+  { slug: "health", label: "Home healthcare" },
+  { slug: "tutor", label: "Home tutoring" },
 ];
 
 /** Web lane: slug -> Lucide icon name (see components/Icon.tsx). */
@@ -31,6 +57,31 @@ export const CATEGORY_ICON_WEB: Record<string, string> = {
   solar: "sun",
   camera: "camera",
   washer: "washingmachine",
+
+  cleaning: "sparkles",
+  pest: "bug",
+  fridge: "refrigerator",
+  water: "droplets",
+  geyser: "flame",
+  locksmith: "key",
+  movers: "truck",
+  garden: "sprout",
+  internet: "wifi",
+  tv: "tv",
+  tiles: "grid",
+  fan: "fan",
+  bath: "shower",
+  light: "bulb",
+  furniture: "sofa",
+  masonry: "construction",
+  laundry: "shirt",
+  auto: "car",
+  smart: "cpu",
+  interior: "ruler",
+  pet: "dog",
+  chef: "utensils",
+  health: "stethoscope",
+  tutor: "graduation",
 };
 
 /**
@@ -54,6 +105,34 @@ export const CATEGORY_ICON_PHONE: Record<string, string> = {
   solar: "spark",
   camera: "camera",
   washer: "gear",
+
+  // Several reuse an existing sprite where one already reads right:
+  // `cleaning` is already aliased to `spark` above, and geyser borrows
+  // `flame`. Drawing a near-duplicate would add a glyph to maintain for no
+  // visible difference.
+  pest: "bug",
+  fridge: "fridge",
+  water: "droplets",
+  geyser: "flame",
+  locksmith: "key",
+  movers: "truck",
+  garden: "sprout",
+  internet: "wifi",
+  tv: "tv",
+  tiles: "tiles",
+  fan: "fan",
+  bath: "shower",
+  light: "bulb",
+  furniture: "sofa",
+  masonry: "brick",
+  laundry: "shirt",
+  auto: "car",
+  smart: "cpu",
+  interior: "ruler",
+  pet: "dog",
+  chef: "utensils",
+  health: "stethoscope",
+  tutor: "graduation",
 };
 
 /** The fallback both lanes use for an unrecognised slug. */
