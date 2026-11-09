@@ -106,6 +106,14 @@ export function dbErrorMessage(error: DbError | null | undefined): string {
       case "PGRST116":
         text = "That item couldn't be found.";
         break;
+      // A column in the payload does not exist on the table — almost always
+      // a migration that has not been applied, not anything the user did.
+      // It hid as "something went wrong" when `jobs.cancel_reason` was
+      // missing and every cancellation failed with no clue why.
+      case "PGRST204":
+        text =
+          "This app is ahead of the database — a field it tried to save doesn't exist yet. Tell support.";
+        break;
       default:
         text = "Something went wrong. Please try again.";
     }

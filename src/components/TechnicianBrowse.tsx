@@ -17,6 +17,7 @@ import {
   type Technician,
 } from "@/lib/technicians";
 import type { ServiceCategory } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n";
 
 /* ============================================================
    Browse technicians instead of services.
@@ -43,6 +44,7 @@ export function TechnicianBrowse({
   categories: ServiceCategory[];
   compact?: boolean;
 }) {
+  const { t } = useLanguage();
   const [list, setList] = useState<Technician[] | null>(null);
   const [tradesUnavailable, setTradesUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +98,10 @@ export function TechnicianBrowse({
   }
 
   return (
-    <div className={compact ? undefined : "flex flex-col gap-4"}>
+    // The phone lane needs its own spacing: dropping the web `gap-4` left
+    // the search field, the trade chips and the first row stacked flush
+    // against one another.
+    <div className={compact ? "flex flex-col gap-3" : "flex flex-col gap-4"}>
       {/* The phone lane has its own input, chip and row styles. Rendering
           the web primitives inside the phone Screen is what made this search
           bar sit out of line with every other field on the tab. */}
@@ -107,16 +112,16 @@ export function TechnicianBrowse({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or trade"
-            aria-label="Search technicians"
+            placeholder={t("book.searchTechnicians")}
+            aria-label={t("book.searchTechnicians")}
           />
         </label>
       ) : (
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by name or trade"
-          aria-label="Search technicians"
+          placeholder={t("book.searchTechnicians")}
+          aria-label={t("book.searchTechnicians")}
           prefix={<Icon name="search" size="sm" />}
         />
       )}
@@ -131,7 +136,7 @@ export function TechnicianBrowse({
               className={clsx("chip", cat === "all" && "sel")}
               onClick={() => setCat("all")}
             >
-              All trades
+              {t("book.allTrades")}
             </button>
             {offered.map((c) => (
               <button
@@ -149,7 +154,7 @@ export function TechnicianBrowse({
         ) : (
           <div className="flex flex-wrap gap-2">
             <Chip active={cat === "all"} onClick={() => setCat("all")}>
-              All trades
+              {t("book.allTrades")}
             </Chip>
             {offered.map((c) => (
               <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>

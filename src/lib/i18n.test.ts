@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 // key the app looks up must exist with a non-empty English and Urdu string,
 // and no key may be defined twice.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { translateProEntry } from "@/lib/i18n";
 
@@ -132,5 +132,43 @@ describe("translateProEntry", () => {
     expect(
       translateProEntry("ur", { href: "/somewhere", label: "Elsewhere", hint: "Unknown" }, null)
     ).toEqual({ href: "/somewhere", label: "Elsewhere", hint: "Unknown" });
+  });
+});
+
+/* A missing key does not throw — lookup() returns the key itself, so the
+   screen renders "book.searchLabel" where a label should be, in BOTH
+   languages. That is invisible in review and obvious to a user, which is the
+   worst way round. This catches it at build time instead.
+
+   Source text rather than imports, same as the checks above: the screens are
+   .tsx and this suite is node-env, so they cannot be mounted. */
+describe("every t() key a screen uses actually exists", () => {
+  const KEY = /^\s*"([a-zA-Z0-9.:_ -]+)":\s*\{/gm;
+  // Excludes a preceding letter or dot, or `.select("x")` and `.get("x")`
+  // match their own tails and every column name looks like a missing key.
+  const CALL = /(?<![A-Za-z_.])t\("([a-zA-Z0-9.:_ -]+)"\)/g;
+
+  function tsxFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) out.push(...tsxFiles(full));
+      else if (e.name.endsWith(".tsx")) out.push(full);
+    }
+    return out;
+  }
+
+  it("resolves", () => {
+    const defined = new Set([...SRC.matchAll(KEY)].map((m) => m[1]));
+    expect(defined.size).toBeGreaterThan(50);
+
+    const missing: string[] = [];
+    for (const file of tsxFiles(join(__dirname, ".."))) {
+      const body = readFileSync(file, "utf8");
+      for (const m of body.matchAll(CALL)) {
+        if (!defined.has(m[1])) missing.push(`${m[1]} (${file})`);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });

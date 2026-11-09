@@ -21,7 +21,6 @@ import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/mon
 import { JOB_STATUS_LABEL, type BusinessMember, type Job, type Profile } from "@/lib/types";
 import { BRAND } from "@/lib/config";
 import { dbErrorMessage } from "@/lib/dbErrors";
-import { LedgerHistory } from "@/components/LedgerHistory";
 import { InfoTip } from "@/components/InfoTip";
 
 /** One technician's outstanding balance with this business. */
@@ -227,19 +226,26 @@ export default function BusinessEarnings() {
         </section>
       )}
 
-      <h2 className="mt-8 mb-4 flex items-center gap-2 text-xl font-bold tracking-tight">
-        Your statement
-        <InfoTip label="About your statement">
-          Every line {BRAND.name} has recorded against your company, newest first: your share of
-          each dispatched job, the commission raised on it, and any cash you have settled.
-        </InfoTip>
-      </h2>
-
-      {user && (
-        <Card>
-          <LedgerHistory accountId={user.id} />
-        </Card>
-      )}
+      {/* Moved to its own screen — see /pro/statement for the same note. */}
+      <Card className="mt-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              Your statement
+              <InfoTip label="About your statement">
+                Every line {BRAND.name} has recorded against your company. Filter it by date on
+                that screen.
+              </InfoTip>
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Line by line, filterable by date.
+            </p>
+          </div>
+          <LinkButton href="/business/statement" size="sm" icon="file">
+            Open statement
+          </LinkButton>
+        </div>
+      </Card>
 
       <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Dispatched jobs</h2>
 

@@ -12,11 +12,13 @@ import { formatPKR } from "@/lib/money";
 import type { Service, ServiceCategory } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 import { TechnicianBrowse } from "@/components/TechnicianBrowse";
+import { useLanguage } from "@/lib/i18n";
 
 type Cat = ServiceCategory & { services: Service[] };
 
 function BookInner() {
   const search = useSearchParams();
+  const { t } = useLanguage();
   const [cats, setCats] = useState<Cat[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(search.get("q") ?? "");
@@ -101,10 +103,10 @@ function BookInner() {
   return (
     <Screen>
       <TopBar
-        title="Book a service"
+        title={t("book.title")}
         back="/"
         action={
-          <Link className="ic" href="/support" aria-label="Help">
+          <Link className="ic" href="/support" aria-label={t("book.help")}>
             <KIcon name="info" />
           </Link>
         }
@@ -118,7 +120,7 @@ function BookInner() {
             className={clsx("chip", tab === "services" && "sel")}
             onClick={() => setTab("services")}
           >
-            Book a service
+            {t("book.tabService")}
           </button>
           <button
             type="button"
@@ -127,7 +129,7 @@ function BookInner() {
             className={clsx("chip", tab === "technicians" && "sel")}
             onClick={() => setTab("technicians")}
           >
-            Book a technician
+            {t("book.tabTechnician")}
           </button>
         </div>
 
@@ -138,9 +140,12 @@ function BookInner() {
           <div className="note">
             <KIcon name="user" />
             <p>
-              <b>Booking {proName ?? "this technician"}.</b> Showing only what they offer.{" "}
+              <b>
+                {t("book.bookingNamed")} {proName ?? ""}.
+              </b>{" "}
+              {t("book.onlyTheirServices")}{" "}
               <Link href="/book" className="link">
-                Browse everything instead
+                {t("book.browseEverything")}
               </Link>
             </p>
           </div>
@@ -158,13 +163,13 @@ function BookInner() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search services, e.g. leaking tap"
-            aria-label="Search services"
+            placeholder={t("book.searchPlaceholder")}
+            aria-label={t("book.searchLabel")}
           />
         </label>
 
         {cats && cats.length > 1 && (
-          <div className="chips" role="tablist" aria-label="Categories">
+          <div className="chips" role="tablist" aria-label={t("book.categories")}>
             <button
               type="button"
               role="tab"
@@ -172,7 +177,7 @@ function BookInner() {
               className={clsx("chip", cat === "all" && "sel")}
               onClick={() => setCat("all")}
             >
-              All
+              {t("book.all")}
             </button>
             {cats.map((c) => (
               <button
@@ -269,12 +274,12 @@ function BookInner() {
         <div className="note">
           <KIcon name="shield" />
           <p>
-            <b>You only pay once the work is done.</b> Every pro is CNIC-verified, and the price you
-            see is the price you pay.
+            <b>{t("book.payAfter")}</b> {t("book.verifiedCopy")}
           </p>
         </div>
         <Pill tone="ok" icon="check" className="kg-self-center">
-          {count} {count === 1 ? "service" : "services"} available in Karachi
+          {count} {count === 1 ? t("book.service") : t("book.servicesPlural")}{" "}
+          {t("book.available")}
         </Pill>
         </>
         )}

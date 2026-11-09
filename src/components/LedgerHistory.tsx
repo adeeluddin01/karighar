@@ -6,6 +6,7 @@ import { Card, EmptyState, KV, Pill, Spinner, formatPKR } from "@/components/ui"
 import { InfoTip } from "@/components/InfoTip";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
 import { BRAND } from "@/lib/config";
+import type { DateRange } from "@/lib/dateRange";
 
 /* ============================================================
    One account's money, job by job.
@@ -71,28 +72,51 @@ const TYPE_TIP: Record<string, string> = {
 export function LedgerHistory({
   accountId,
   variant = "self",
+  range,
 }: {
   accountId: string;
   variant?: "self" | "admin";
+  /**
+   * Narrows the LINE LIST only. The totals above it stay all-time on
+   * purpose: "still owed" is a fact about the account, not about a window,
+   * and a balance that changed when you picked a month would be a money
+   * figure that is quietly wrong.
+   */
+  range?: DateRange;
 }) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [summary, setSummary] = useState<LedgerSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
 
+  const from = range?.from ?? null;
+  const to = range?.to ?? null;
+
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data: led, error } = await supabase
+
+    // Two reads, deliberately. The totals must see every line the account
+    // has ever had; the list only needs the window being viewed, and
+    // filtering in the query keeps a long history off the wire.
+    let listQuery = supabase
       .from("provider_ledger")
       .select("id,job_id,type,amount,created_at")
       .eq("provider_id", accountId)
       .order("created_at", { ascending: false });
+    if (from) listQuery = listQuery.gte("created_at", from);
+    if (to) listQuery = listQuery.lt("created_at", to);
+
+    const [{ data: led, error }, { data: allRows }] = await Promise.all([
+      listQuery,
+      supabase.from("provider_ledger").select("type,amount").eq("provider_id", accountId),
+    ]);
     if (error) {
       setFailed(true);
       setLoading(false);
       return;
     }
     const lines = (led as LedgerRow[]) || [];
+    const summaryLines = (allRows as { type: LedgerEntry["type"]; amount: number }[]) || [];
 
     const jobIds = [...new Set(lines.map((l) => l.job_id).filter((x): x is string => !!x))];
     const [{ data: jobs }, { data: pays }] = await Promise.all([
@@ -164,9 +188,9 @@ export function LedgerHistory({
 
     out.sort((a, b) => (a.when < b.when ? 1 : -1));
     setGroups(out);
-    setSummary(summarizeLedger(lines.map((l) => ({ type: l.type, amount: l.amount }))));
+    setSummary(summarizeLedger(summaryLines));
     setLoading(false);
-  }, [accountId, variant]);
+  }, [accountId, variant, from, to]);
 
   useEffect(() => {
     void (async () => {
@@ -274,7 +298,15 @@ export function LedgerHistory({
       )}
 
       {groups.length === 0 ? (
-        <EmptyState icon="wallet" title="Nothing yet" hint="Lines appear once a job is paid." />
+        <EmptyState
+          icon="wallet"
+          title={from || to ? "Nothing in this period" : "Nothing yet"}
+          hint={
+            from || to
+              ? "Try a wider date range — the totals above still cover everything."
+              : "Lines appear once a job is paid."
+          }
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {groups.map((g) => (

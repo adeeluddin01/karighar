@@ -16,8 +16,12 @@ import { JOB_STATUS_LABEL, type Job, type Service, type ServiceCategory } from "
 import { areaOf } from "@/lib/area";
 import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
 import { proPromo } from "@/components/nav";
+import { useLanguage } from "@/lib/i18n";
 
 type Cat = ServiceCategory & { services: Service[] };
+
+/** Three rows of the 3-wide tile grid. */
+const HOME_CATEGORY_LIMIT = 9;
 // The statuses that put a booking on the Home screen's live banner.
 const LIVE: Job["status"][] = ["assigned", "en_route", "arrived", "in_progress"];
 
@@ -32,6 +36,7 @@ function cheapest(services: Service[]) {
 export default function HomeScreen() {
   const { user, profile, providerStatus } = useUser();
   const router = useRouter();
+  const { t } = useLanguage();
   const promo = proPromo(profile?.role, providerStatus);
   // Home renders both lanes so the web one keeps its prerendered content for
   // crawlers (see LaneSplit) — which means this tree also mounts on desktop,
@@ -103,6 +108,20 @@ export default function HomeScreen() {
   const hero = useMemo(() => cats?.find((c) => c.is_active && c.services.length > 0), [cats]);
   const heroFrom = hero ? cheapest(hero.services) : null;
 
+  // The grid is 3 wide, so 9 is three clean rows. It used to render every
+  // category — fine with eight of them, a wall once the catalogue grew — and
+  // "See all" above it has always gone to the full list.
+  //
+  // Bookable ones first: a home screen whose top rows all say "Coming soon"
+  // is worse than a shorter one, and the cut has to fall somewhere.
+  const homeCats = useMemo(() => {
+    if (!cats) return [];
+    const bookable = (c: Cat) => c.is_active && c.services.length > 0;
+    return [...cats]
+      .sort((a, b) => Number(bookable(b)) - Number(bookable(a)))
+      .slice(0, HOME_CATEGORY_LIMIT);
+  }, [cats]);
+
   return (
     <Screen>
       <Scroll>
@@ -110,15 +129,15 @@ export default function HomeScreen() {
           <Link className="who" href={user ? "/profile" : "/signin"}>
             <Ava name={profile?.full_name ?? user?.email ?? null} src={profile?.avatar_url} />
             <div>
-              <small>Salaam 👋</small>
-              <b>{profile?.full_name || (user ? "Your profile" : "Welcome")}</b>
+              <small>{t("home.greeting")}</small>
+              <b>{profile?.full_name || (user ? t("home.yourProfile") : t("home.welcome"))}</b>
             </div>
           </Link>
           {/* `.hh` is space-between, so the location and the bell share one
               group to keep it a two-column header. */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
             <Link className="loc" href={user ? "/profile" : "/signin"}>
-              <small>Location</small>
+              <small>{t("home.location")}</small>
               <b>
                 <KIcon name="pin" />
                 {area ?? "Karachi"}
@@ -142,11 +161,11 @@ export default function HomeScreen() {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search services, e.g. leaking tap"
-              aria-label="Search services"
+              placeholder={t("home.searchPlaceholder")}
+              aria-label={t("home.searchLabel")}
             />
           </label>
-          <Link className="ic sq" href="/book" aria-label="Browse all services">
+          <Link className="ic sq" href="/book" aria-label={t("home.browseAll")}>
             <KIcon name="sliders" />
           </Link>
         </form>
@@ -170,7 +189,7 @@ export default function HomeScreen() {
                   : ""}
               </small>
             </div>
-            <span className="btn sm dark">Track</span>
+            <span className="btn sm dark">{t("home.track")}</span>
           </Link>
         )}
 
@@ -184,7 +203,7 @@ export default function HomeScreen() {
             <Link className="hero" href={`/book/?cat=${hero.id}`}>
               <div className="hero-top">
                 <Pill tone="act" icon="flame">
-                  Most booked
+                  {t("home.mostBooked")}
                 </Pill>
                 <span className="ic glass" aria-hidden="true">
                   <KIcon name="heart" />
@@ -207,8 +226,8 @@ export default function HomeScreen() {
           )
         )}
 
-        <Sec title="Services">
-          <Link href="/book">See all</Link>
+        <Sec title={t("home.services")}>
+          <Link href="/book">{t("home.seeAll")}</Link>
         </Sec>
         {cats === null ? (
           <div className="grid3">
@@ -218,7 +237,7 @@ export default function HomeScreen() {
           </div>
         ) : (
           <div className="grid3">
-            {cats.map((c) => {
+            {homeCats.map((c) => {
               const from = cheapest(c.services);
               const soon = !c.is_active || c.services.length === 0;
               const body = (
@@ -227,9 +246,9 @@ export default function HomeScreen() {
                   <b>{c.name}</b>
                   <small>
                     {soon
-                      ? "Coming soon"
+                      ? t("home.comingSoon")
                       : from === null
-                        ? "On quote"
+                        ? t("home.onQuote")
                         : `From ${formatPKR(from.base_price)}/${from.unit}`}
                   </small>
                 </>
@@ -253,8 +272,8 @@ export default function HomeScreen() {
                 publish — only an assigned pro's, and only once they are on
                 their way — so browsing people now happens in the Book tab,
                 as a list, with no map implied. */}
-            <Sec title="Top-rated technicians">
-              <Link href="/book/?tab=technicians">See all</Link>
+            <Sec title={t("home.topRated")}>
+              <Link href="/book/?tab=technicians">{t("home.seeAll")}</Link>
             </Sec>
             <div className="hrow">
               {pros.slice(0, 6).map((p) => (
@@ -278,12 +297,9 @@ export default function HomeScreen() {
         {!user && (
           <Link className="promo" href="/signup">
             <div>
-              <span className="eyebrow">New here?</span>
-              <b>Create an account</b>
-              <p>
-                Save your addresses, track your pro live on the map and keep every receipt in one
-                place.
-              </p>
+              <span className="eyebrow">{t("home.newHere")}</span>
+              <b>{t("home.createAccount")}</b>
+              <p>{t("home.createAccountBody")}</p>
             </div>
             <span className="ic">
               <KIcon name="arrow" />

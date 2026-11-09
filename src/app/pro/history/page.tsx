@@ -18,7 +18,6 @@ import {
   formatPKR,
 } from "@/components/ui";
 import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/money";
-import { LedgerHistory } from "@/components/LedgerHistory";
 import { InfoTip } from "@/components/InfoTip";
 import { JOB_STATUS_LABEL, type Job } from "@/lib/types";
 import { BRAND } from "@/lib/config";
@@ -179,23 +178,29 @@ export default function ProviderHistoryPage() {
         </Card>
       )}
 
-      {/* The line-by-line statement. The totals above answer "how much?";
-          this answers "from which jobs?", which is the question a pro
-          actually asks when a figure looks wrong — and until now only an
-          admin could see it. */}
-      <h2 className="mt-8 mb-4 flex items-center gap-2 text-xl font-bold tracking-tight">
-        Your statement
-        <InfoTip label="About your statement">
-          Every line {BRAND.name} has recorded against your account, newest first: what you earned
-          on each job, the commission raised on it, and any cash you have settled.
-        </InfoTip>
-      </h2>
-
-      {user && (
-        <Card>
-          <LedgerHistory accountId={user.id} />
-        </Card>
-      )}
+      {/* The statement itself lives on its own screen now. It was a card
+          here, between the totals and the job list, and a ledger has no
+          natural length — on a busy account it buried both. */}
+      <Card className="mt-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              Your statement
+              <InfoTip label="About your statement">
+                Every line {BRAND.name} has recorded against your account: what you earned on each
+                job, the commission raised on it, and any cash you have settled. Filter it by date
+                on that screen.
+              </InfoTip>
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Line by line, filterable by date.
+            </p>
+          </div>
+          <LinkButton href="/pro/statement" size="sm" icon="file">
+            Open statement
+          </LinkButton>
+        </div>
+      </Card>
 
       <h2 className="mt-8 mb-4 text-xl font-bold tracking-tight">Past jobs</h2>
 
