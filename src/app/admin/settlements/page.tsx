@@ -9,6 +9,7 @@ import { summarizeLedger, type LedgerEntry, type LedgerSummary } from "@/lib/mon
 import type { Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
 import { dbErrorMessage } from "@/lib/dbErrors";
+import { AccountLedgerModal } from "@/components/admin/AccountLedgerModal";
 
 type Row = {
   id: string;
@@ -21,6 +22,10 @@ type Row = {
 type Recon = {
   paid_without_payment: number;
   duplicate_payments: number;
+  /** Ledger lines whose job was deleted. Added in patch_v30 — absent on a
+      database that hasn't run it, hence the `?`. */
+  orphaned_ledger_lines?: number;
+  orphaned_ledger_value?: number;
   payments_commission: number;
   ledger_commission: number;
   commission_delta: number;
@@ -35,6 +40,8 @@ export default function AdminSettlements() {
   const [busy, setBusy] = useState<string | null>(null);
   // P2-7: `payments` was write-only — nothing ever compared it to the ledger.
   const [recon, setRecon] = useState<Recon | null>(null);
+  // Which account's line-by-line history is open.
+  const [history, setHistory] = useState<Row | null>(null);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -70,7 +77,11 @@ export default function AdminSettlements() {
   }, []);
 
   useEffect(() => {
-    load();
+    // Wrapped so nothing in load() runs synchronously in the effect body —
+    // every setState in it is behind an await. Same shape as /business/team.
+    void (async () => {
+      await load();
+    })();
   }, [load]);
 
   async function settle(row: Row) {
@@ -133,7 +144,16 @@ export default function AdminSettlements() {
                   <Avatar name={r.name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="font-bold">
-                      {r.name}
+                      {/* The totals beside this are billed from the ledger.
+                          When they look wrong, the next question is always
+                          "which job?" — so the name opens the answer. */}
+                      <button
+                        type="button"
+                        className="text-start underline decoration-dotted underline-offset-2 hover:text-primary"
+                        onClick={() => setHistory(r)}
+                      >
+                        {r.name}
+                      </button>
                       {r.role && r.role !== "provider" && (
                         <span className="ms-2 text-xs font-semibold text-muted-foreground">
                           · {r.role}
@@ -174,6 +194,14 @@ export default function AdminSettlements() {
                   />
                   <Button
                     size="sm"
+                    variant="ghost"
+                    icon="history"
+                    onClick={() => setHistory(r)}
+                  >
+                    History
+                  </Button>
+                  <Button
+                    size="sm"
                     disabled={busy === r.id || r.summary.commissionOwed <= 0}
                     onClick={() => settle(r)}
                   >
@@ -185,6 +213,14 @@ export default function AdminSettlements() {
           ))}
         </div>
       )}
+{history && (
+        <AccountLedgerModal
+          accountId={history.id}
+          name={history.name}
+          onClose={() => setHistory(null)}
+        />
+      )}
+
     </AdminShell>
   );
 }
@@ -199,8 +235,13 @@ export default function AdminSettlements() {
  * negative 'commission', so both legs are netted before comparing.
  */
 function Reconciliation({ r }: { r: Recon }) {
+  const orphanLines = r.orphaned_ledger_lines ?? 0;
+  const orphanValue = r.orphaned_ledger_value ?? 0;
   const clean =
-    r.paid_without_payment === 0 && r.duplicate_payments === 0 && Math.abs(r.commission_delta) < 0.01;
+    r.paid_without_payment === 0 &&
+    r.duplicate_payments === 0 &&
+    orphanLines === 0 &&
+    Math.abs(r.commission_delta) < 0.01;
   return (
     <Card className={clsx("mb-6", clean ? "" : "bg-warning-light")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -223,6 +264,19 @@ function Reconciliation({ r }: { r: Recon }) {
         <KV label="Paid, no payment row">{r.paid_without_payment}</KV>
         <KV label="Duplicate payments">{r.duplicate_payments}</KV>
       </div>
+
+      {/* The check that was missing when this banner reported Rs -400 with
+          everything else clean: a deleted job destroys its payment row
+          (cascade) but leaves its ledger lines behind (set null), and the
+          ledger side of the delta counts them with no job filter. */}
+      {orphanLines > 0 && (
+        <p className="mt-4 border-t border-border pt-3 text-xs text-warning-foreground">
+          <strong>{orphanLines}</strong> ledger line{orphanLines === 1 ? "" : "s"} belong to a job
+          that no longer exists, accounting for {formatPKR(orphanValue)} of the difference. They
+          are still being billed to the account below and cannot be reconciled against anything —
+          see supabase/diagnose_ledger_drift.sql.
+        </p>
+      )}
       {r.stranded_completed > 0 && (
         <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
           <strong>{r.stranded_completed}</strong> job
