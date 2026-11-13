@@ -57,6 +57,46 @@ export function Ava({
   );
 }
 
+/**
+ * The photo panel on a service card.
+ *
+ * The category icon is a real child underneath and the photo is layered
+ * OVER it, so a row with no `image_url` — or a URL that 404s — degrades to
+ * the glyph the screen used before rather than to a hole. Same trick as
+ * <Ava> above.
+ *
+ * Plain <img>: next/image needs an optimizer this static export doesn't
+ * have, which is why `images.unoptimized` is set in next.config.ts.
+ */
+export function Shot({
+  src,
+  icon,
+  className,
+}: {
+  src?: string | null;
+  icon?: KIconName;
+  className?: string;
+}) {
+  return (
+    <span className={clsx("shot", className)}>
+      {icon && <KIcon name={icon} />}
+      {src && (
+        // alt="" on purpose: the service name is rendered immediately below,
+        // so a description here would announce the same thing twice.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </span>
+  );
+}
+
 /** Rounded-square icon well in the brand tint. */
 export function Well({
   icon,

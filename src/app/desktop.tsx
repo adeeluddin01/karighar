@@ -3,6 +3,7 @@ import { CATALOG, formatPKR } from "@/lib/catalog";
 import { AppShell } from "@/components/AppShell";
 import { BecomeProCard } from "@/components/BecomeProCard";
 import { HeroSearch } from "@/components/HeroSearch";
+import { Shot } from "@/components/Shot";
 import { Icon, type IconName } from "@/components/Icon";
 import { Card, LinkButton } from "@/components/ui";
 import { BRAND } from "@/lib/config";
@@ -21,10 +22,17 @@ const GUARANTEE: [IconName, string, string][] = [
   ["shield", "Satisfaction guarantee", "Not fixed properly? Tell us and we make it right."],
 ];
 
-// Cheapest listed price in a category, for the "From Rs …" line on the service cards.
-function fromPrice(services: { basePrice: number | null }[]) {
-  const prices = services.map((s) => s.basePrice).filter((p): p is number => p !== null);
-  return prices.length ? Math.min(...prices) : null;
+// The cheapest listed service in a category, for the "From Rs …" line on the
+// service cards. Returns the SERVICE, not just the number, so the unit can
+// travel with it — a category whose floor is "Rs 65 / sq ft" must not read
+// as a flat "From Rs 65". Mirrors `cheapest()` on the phone lane.
+function cheapest<T extends { basePrice: number | null }>(services: T[]): T | null {
+  let best: T | null = null;
+  for (const s of services) {
+    if (s.basePrice === null) continue;
+    if (best === null || s.basePrice < (best.basePrice as number)) best = s;
+  }
+  return best;
 }
 
 export default function Home() {
@@ -49,17 +57,36 @@ export default function Home() {
         <h2 className="text-xl font-bold tracking-tight">Our services</h2>
         <span className="text-xs text-muted-foreground">{CATALOG.length} available</span>
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      {/* The same image-first card as /book, drawn from the hardcoded CATALOG
+          so this page stays a Server Component and keeps its prerendered,
+          crawler-visible text (see LaneSplit). That is also why there is no
+          photo here: the uploaded art lives in the database, and reaching
+          for it would turn this tree client and empty the static HTML. The
+          icon panel is the honest fallback <Shot> already draws. */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {CATALOG.map((cat) => {
-          const from = fromPrice(cat.services);
+          const from = cheapest(cat.services);
           return (
-            <Link key={cat.key} href="/book" className="opt">
-              <span className="emoji">
-                <Icon name={cat.icon as IconName} className="text-accent-foreground" />
-              </span>
-              <span className="text-base font-bold">{cat.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {from === null ? "On quote" : `From ${formatPKR(from)}`}
+            <Link
+              key={cat.key}
+              href="/book"
+              className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lift"
+            >
+              <Shot icon={cat.icon as IconName} />
+              <span className="flex flex-1 flex-col p-3">
+                <span className="line-clamp-2 text-base font-bold">{cat.name}</span>
+                <span className="mt-auto pt-1.5 text-base font-extrabold">
+                  {from === null ? (
+                    "On quote"
+                  ) : (
+                    <>
+                      From {formatPKR(from.basePrice)}
+                      <span className="ms-1 text-xs font-semibold text-muted-foreground">
+                        /{from.unit}
+                      </span>
+                    </>
+                  )}
+                </span>
               </span>
             </Link>
           );

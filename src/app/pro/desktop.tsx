@@ -4,16 +4,21 @@ import { useUser } from "@/lib/useUser";
 import { AppShell } from "@/components/AppShell";
 import { Card, LinkButton, Pill } from "@/components/ui";
 import { BRAND } from "@/lib/config";
+import { formatRateRange } from "@/lib/commission";
+import { usePlatformRates } from "@/lib/usePlatformRates";
 
-const BENEFITS = [
+// Takes the rate rather than hardcoding it — see the note in pro/mobile.tsx.
+const benefits = (rate: string): [string, string, string][] => [
   ["📋", "Get matched", "Receive nearby jobs that fit your skills and area."],
-  ["💰", "Keep more", "Low commission (15–20%). Cash paid directly to you."],
+  ["💰", "Keep more", `Low commission (${rate}). Cash paid directly to you.`],
   ["⭐", "Build a reputation", "Ratings help you win more, higher-value jobs."],
-] as const;
+];
 
 export default function BecomeAProPage() {
   const { user, profile } = useUser();
   const isProvider = profile?.role === "provider";
+  const { rates } = usePlatformRates("provider");
+  const BENEFITS = benefits(formatRateRange(rates));
 
   return (
     <AppShell>

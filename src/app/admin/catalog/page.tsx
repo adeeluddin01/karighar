@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminShell } from "@/components/AdminShell";
 import { Modal } from "@/components/Modal";
@@ -17,7 +17,16 @@ import {
   Spinner,
   Textarea,
 } from "@/components/ui";
+import { Shot } from "@/components/Shot";
+import { StockImagePicker } from "@/components/StockImagePicker";
 import { CATEGORY_ICON_CHOICES, CATEGORY_ICON_WEB } from "@/lib/catalogIcons";
+import {
+  CATALOG_IMAGE_ACCEPT,
+  uploadServiceImage,
+  validateServiceImage,
+  type CatalogImageKind,
+} from "@/lib/serviceImage";
+import { stockImageSlug, stockImageUrl } from "@/lib/stockImages";
 import { clsx } from "@/lib/clsx";
 import type { Service, ServiceCategory } from "@/lib/types";
 import { dbErrorMessage } from "@/lib/dbErrors";
@@ -27,7 +36,14 @@ import { LIMITS, firstError, validateAmount, validateFreeText } from "@/lib/vali
 // catalog actually uses, and what the customer screens render after "per".
 const UNITS = ["job", "visit", "unit", "item", "sq ft"];
 
-type CatForm = { name: string; icon: string; sort_order: string; is_active: boolean };
+type CatForm = {
+  name: string;
+  icon: string;
+  sort_order: string;
+  is_active: boolean;
+  /** The SAVED url. A newly picked file lives in `catFile` until the row is written. */
+  image_url: string;
+};
 type SvcForm = {
   name: string;
   description: string;
@@ -35,9 +51,16 @@ type SvcForm = {
   unit: string;
   visit_fee: string;
   is_active: boolean;
+  image_url: string;
 };
 
-const BLANK_CAT: CatForm = { name: "", icon: "wrench", sort_order: "", is_active: true };
+const BLANK_CAT: CatForm = {
+  name: "",
+  icon: "wrench",
+  sort_order: "",
+  is_active: true,
+  image_url: "",
+};
 const BLANK_SVC: SvcForm = {
   name: "",
   description: "",
@@ -45,6 +68,7 @@ const BLANK_SVC: SvcForm = {
   unit: "job",
   visit_fee: "0",
   is_active: true,
+  image_url: "",
 };
 
 /** Blank price means "on quote" — the schema stores null, not zero. */
@@ -69,6 +93,71 @@ export default function AdminCatalog() {
   const [confirm, setConfirm] = useState<
     { kind: "cat"; cat: ServiceCategory } | { kind: "svc"; svc: Service } | null
   >(null);
+
+  // A picked photo is STAGED, not uploaded on pick: its storage key is the
+  // row id, and a brand-new row has no id until it is inserted. The preview
+  // is an object-URL so the admin sees the photo before committing.
+  const [catFile, setCatFile] = useState<File | null>(null);
+  const [catPreview, setCatPreview] = useState<string | null>(null);
+  const [svcFile, setSvcFile] = useState<File | null>(null);
+  const [svcPreview, setSvcPreview] = useState<string | null>(null);
+
+  /** Picking a file: validate here, where the admin can still fix it. */
+  function pick(
+    file: File | undefined,
+    setFile: (f: File | null) => void,
+    setPreview: (u: string | null) => void,
+    prev: string | null
+  ) {
+    if (!file) return;
+    const bad = validateServiceImage(file);
+    if (bad) {
+      toast(bad, "error");
+      return;
+    }
+    if (prev) URL.revokeObjectURL(prev);
+    setFile(file);
+    setPreview(URL.createObjectURL(file));
+  }
+
+  /** Close a modal: drop the staged file and release its object-URL. */
+  function closeCat() {
+    if (catPreview) URL.revokeObjectURL(catPreview);
+    setCatFile(null);
+    setCatPreview(null);
+    setCatModal(null);
+  }
+  function closeSvc() {
+    if (svcPreview) URL.revokeObjectURL(svcPreview);
+    setSvcFile(null);
+    setSvcPreview(null);
+    setSvcModal(null);
+  }
+
+  /**
+   * Upload a staged photo and point the row at it.
+   *
+   * Runs AFTER the row is written, because `serviceImagePath` is keyed on
+   * the row id. Pre-uploading to a random uuid would save this second
+   * write, but every cancelled modal would leave an orphan in a bucket
+   * with no cleanup job.
+   *
+   * Returns an error string only for the PHOTO — the row itself is already
+   * saved by the time this runs, and saying so is the difference between
+   * "retry the photo" and "I just lost my edit".
+   */
+  async function attachPhoto(
+    supabase: ReturnType<typeof createClient>,
+    kind: CatalogImageKind,
+    table: "service_categories" | "services",
+    rowId: string,
+    file: File
+  ): Promise<string | null> {
+    const up = await uploadServiceImage(supabase, kind, rowId, file);
+    if (up.error) return up.error;
+    const { error } = await supabase.from(table).update({ image_url: up.url }).eq("id", rowId);
+    return error ? dbErrorMessage(error) : null;
+  }
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -106,10 +195,14 @@ export default function AdminCatalog() {
             icon: cat.icon ?? "wrench",
             sort_order: String(cat.sort_order),
             is_active: cat.is_active,
+            image_url: cat.image_url ?? "",
           }
         : // Default the new category to the end of the list.
           { ...BLANK_CAT, sort_order: String((cats.at(-1)?.sort_order ?? 0) + 1) }
     );
+    if (catPreview) URL.revokeObjectURL(catPreview);
+    setCatFile(null);
+    setCatPreview(null);
     setCatModal({ cat });
   }
 
@@ -122,18 +215,41 @@ export default function AdminCatalog() {
       icon: catForm.icon,
       sort_order: Number(catForm.sort_order) || 0,
       is_active: catForm.is_active,
+      // "" means the admin cleared the photo; the column stores null.
+      image_url: catForm.image_url || null,
     };
     setBusy("cat");
     const supabase = createClient();
-    const { error } = catModal.cat
-      ? await supabase.from("service_categories").update(payload).eq("id", catModal.cat.id)
-      : await supabase.from("service_categories").insert(payload);
-    setBusy(null);
+    // `.select("id").single()` is what makes a staged photo work on an
+    // INSERT: the row id it is keyed on only exists after the write.
+    const { data, error } = catModal.cat
+      ? await supabase
+          .from("service_categories")
+          .update(payload)
+          .eq("id", catModal.cat.id)
+          .select("id")
+          .single()
+      : await supabase.from("service_categories").insert(payload).select("id").single();
     if (error) {
+      setBusy(null);
       toast(dbErrorMessage(error), "error");
       return;
     }
-    setCatModal(null);
+
+    if (catFile && data) {
+      const bad = await attachPhoto(supabase, "category", "service_categories", data.id, catFile);
+      if (bad) {
+        // The row IS saved; only the photo failed. Say exactly that, rather
+        // than leaving the admin thinking the whole edit was lost.
+        setBusy(null);
+        toast(`Saved, but the photo didn't upload: ${bad}`, "error");
+        await load();
+        return;
+      }
+    }
+
+    setBusy(null);
+    closeCat();
     toast(catModal.cat ? "Service updated." : "Service added.", "success");
     await load();
   }
@@ -150,9 +266,13 @@ export default function AdminCatalog() {
             unit: svc.unit,
             visit_fee: String(svc.visit_fee),
             is_active: svc.is_active,
+            image_url: svc.image_url ?? "",
           }
         : BLANK_SVC
     );
+    if (svcPreview) URL.revokeObjectURL(svcPreview);
+    setSvcFile(null);
+    setSvcPreview(null);
     setSvcModal({ categoryId, svc });
   }
 
@@ -190,18 +310,36 @@ export default function AdminCatalog() {
       unit: svcForm.unit,
       visit_fee: Number(svcForm.visit_fee) || 0,
       is_active: svcForm.is_active,
+      image_url: svcForm.image_url || null,
     };
     setBusy("svc");
     const supabase = createClient();
-    const { error } = svcModal.svc
-      ? await supabase.from("services").update(payload).eq("id", svcModal.svc.id)
-      : await supabase.from("services").insert(payload);
-    setBusy(null);
+    const { data, error } = svcModal.svc
+      ? await supabase
+          .from("services")
+          .update(payload)
+          .eq("id", svcModal.svc.id)
+          .select("id")
+          .single()
+      : await supabase.from("services").insert(payload).select("id").single();
     if (error) {
+      setBusy(null);
       toast(dbErrorMessage(error), "error");
       return;
     }
-    setSvcModal(null);
+
+    if (svcFile && data) {
+      const bad = await attachPhoto(supabase, "service", "services", data.id, svcFile);
+      if (bad) {
+        setBusy(null);
+        toast(`Saved, but the photo didn't upload: ${bad}`, "error");
+        await load();
+        return;
+      }
+    }
+
+    setBusy(null);
+    closeSvc();
     toast(svcModal.svc ? "Sub-service updated." : "Sub-service added.", "success");
     await load();
   }
@@ -327,7 +465,14 @@ export default function AdminCatalog() {
                     {kids.map((svc) => (
                       <Card key={svc.id}>
                         <div className="flex flex-wrap items-center justify-between gap-4">
-                          <div className="min-w-0">
+                          {/* Which rows still have no art, without opening
+                              forty modals to find out. */}
+                          <Shot
+                            src={svc.image_url ?? cat.image_url}
+                            icon={(CATEGORY_ICON_WEB[cat.icon ?? ""] ?? "wrench") as IconName}
+                            className="w-16 flex-none rounded-lg"
+                          />
+                          <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-base font-bold">{svc.name}</span>
                               {!svc.is_active && <Pill tone="bad">Hidden</Pill>}
@@ -377,7 +522,7 @@ export default function AdminCatalog() {
         <Modal
           title={catModal.cat ? "Edit service" : "Add a service"}
           subtitle="A category customers browse, like “Electrician”."
-          onClose={() => setCatModal(null)}
+          onClose={closeCat}
         >
           <div className="flex flex-col gap-4">
             <Field label="Name">
@@ -389,9 +534,33 @@ export default function AdminCatalog() {
                 aria-label="Service name"
               />
             </Field>
+            <ImageField
+              label="Photo"
+              hint="Shown on the service cards. Sub-services with no photo of their own fall back to this one."
+              url={catForm.image_url}
+              preview={catPreview}
+              icon={(CATEGORY_ICON_WEB[catForm.icon] ?? "wrench") as IconName}
+              busy={busy === "cat"}
+              onPick={(f) => pick(f, setCatFile, setCatPreview, catPreview)}
+              onPickStock={(slug) => {
+                // A library pick replaces a staged upload rather than
+                // queueing behind it — otherwise save would upload the file
+                // and then overwrite image_url with the library path.
+                if (catPreview) URL.revokeObjectURL(catPreview);
+                setCatFile(null);
+                setCatPreview(null);
+                setCatForm({ ...catForm, image_url: stockImageUrl(slug) });
+              }}
+              onRemove={() => {
+                if (catPreview) URL.revokeObjectURL(catPreview);
+                setCatFile(null);
+                setCatPreview(null);
+                setCatForm({ ...catForm, image_url: "" });
+              }}
+            />
             <Field
               label="Icon"
-              hint="Only icons that render on both the web and phone layouts are listed."
+              hint="Drawn on cards with no photo, and in the category chips on /book."
             >
               {/* A dropdown of names told the admin nothing about what the
                   category would actually look like — "Masonry & renovation"
@@ -449,7 +618,7 @@ export default function AdminCatalog() {
               Visible to customers
             </label>
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setCatModal(null)}>
+              <Button variant="ghost" onClick={closeCat}>
                 Cancel
               </Button>
               <Button disabled={busy === "cat" || !catForm.name.trim()} onClick={saveCat}>
@@ -465,7 +634,7 @@ export default function AdminCatalog() {
         <Modal
           title={svcModal.svc ? "Edit sub-service" : "Add a sub-service"}
           subtitle={cats.find((c) => c.id === svcModal.categoryId)?.name}
-          onClose={() => setSvcModal(null)}
+          onClose={closeSvc}
         >
           <div className="flex flex-col gap-4">
             <Field label="Name">
@@ -487,6 +656,31 @@ export default function AdminCatalog() {
                 aria-label="Description"
               />
             </Field>
+            <ImageField
+              label="Photo"
+              hint="Optional — falls back to the category's photo, then to its icon."
+              url={svcForm.image_url}
+              preview={svcPreview}
+              icon={
+                (CATEGORY_ICON_WEB[
+                  cats.find((c) => c.id === svcModal.categoryId)?.icon ?? ""
+                ] ?? "wrench") as IconName
+              }
+              busy={busy === "svc"}
+              onPick={(f) => pick(f, setSvcFile, setSvcPreview, svcPreview)}
+              onPickStock={(slug) => {
+                if (svcPreview) URL.revokeObjectURL(svcPreview);
+                setSvcFile(null);
+                setSvcPreview(null);
+                setSvcForm({ ...svcForm, image_url: stockImageUrl(slug) });
+              }}
+              onRemove={() => {
+                if (svcPreview) URL.revokeObjectURL(svcPreview);
+                setSvcFile(null);
+                setSvcPreview(null);
+                setSvcForm({ ...svcForm, image_url: "" });
+              }}
+            />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Base price" hint="Blank = on quote">
                 <Input
@@ -531,7 +725,7 @@ export default function AdminCatalog() {
               Bookable by customers
             </label>
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setSvcModal(null)}>
+              <Button variant="ghost" onClick={closeSvc}>
                 Cancel
               </Button>
               <Button disabled={busy === "svc" || !svcForm.name.trim()} onClick={saveSvc}>
@@ -557,6 +751,104 @@ export default function AdminCatalog() {
         </Modal>
       )}
     </AdminShell>
+  );
+}
+
+/**
+ * Photo picker: preview, Add/Replace, Remove.
+ *
+ * NOT wrapped in <Field>. Field renders a <label>, and a hidden
+ * <input type="file"> inside a label is activated by the label AS WELL AS
+ * by the button's onClick — the picker opens twice, or the first click is
+ * swallowed. The <span className="lbl"> below is Field's own label styling,
+ * borrowed without the <label> element.
+ */
+function ImageField({
+  label,
+  hint,
+  url,
+  preview,
+  icon,
+  busy,
+  onPick,
+  onPickStock,
+  onRemove,
+}: {
+  label: string;
+  hint?: string;
+  /** The saved image_url, or "" once the admin clears it. */
+  url: string;
+  /** Object-URL for a file staged this session; wins over `url`. */
+  preview: string | null;
+  icon: IconName;
+  busy: boolean;
+  onPick: (file: File | undefined) => void;
+  /** Choosing from the bundled library — stores a path, uploads nothing. */
+  onPickStock: (slug: string) => void;
+  onRemove: () => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [browsing, setBrowsing] = useState(false);
+  const shown = preview || url || null;
+  // A library pick is a known path, so the grid can show which one is on.
+  // An uploaded photo has no slug, and nothing in the grid reads selected.
+  const stockSlug = preview ? null : stockImageSlug(url);
+
+  return (
+    <div className="block">
+      <span className="lbl mb-2">{label}</span>
+      <div className="flex items-center gap-3">
+        <Shot src={shown} icon={icon} className="w-20 flex-none rounded-xl" />
+        <input
+          ref={fileRef}
+          type="file"
+          accept={CATALOG_IMAGE_ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            onPick(e.target.files?.[0]);
+            // Reset, so picking the SAME file again still fires onChange.
+            e.target.value = "";
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Icon name="camera" size="sm" />
+            {shown ? "Replace" : "Upload"}
+          </Button>
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setBrowsing((b) => !b)}>
+            <Icon name="search" size="sm" />
+            {browsing ? "Close library" : "Choose from library"}
+          </Button>
+          {shown && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline"
+              disabled={busy}
+              onClick={onRemove}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+      {browsing && (
+        <div className="mt-3">
+          <StockImagePicker
+            value={stockSlug}
+            onPick={(slug) => {
+              onPickStock(slug);
+              setBrowsing(false);
+            }}
+          />
+        </div>
+      )}
+      {hint && <span className="mt-1.5 block text-xs text-muted-foreground">{hint}</span>}
+    </div>
   );
 }
 

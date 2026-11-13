@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TechnicianBrowse } from "@/components/TechnicianBrowse";
 import { AppShell } from "@/components/AppShell";
+import { Shot } from "@/components/Shot";
 import { Icon, type IconName } from "@/components/Icon";
 import { CATEGORY_ICON_WEB } from "@/lib/catalogIcons";
 import {
@@ -14,7 +15,6 @@ import {
   Input,
   LinkButton,
   PageHeader,
-  Pill,
   Spinner,
   Tabs,
   formatPKR,
@@ -197,19 +197,32 @@ function BookInner() {
                   </span>
                   <h3 className="text-base font-bold">{cat.name}</h3>
                 </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {/* Image-first cards, the same shape the phone lane draws.
+                    Not `.opt`: that class is a padded column used by four
+                    other web screens and fights an edge-to-edge photo. */}
+                <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {cat.services.map((s) => (
-                    <Link key={s.id} href={withPro(`/book/service/?id=${s.id}`)} className="opt">
-                      <span className="flex w-full items-start justify-between gap-3">
-                        <span className="text-base font-bold">{s.name}</span>
-                        <Pill tone={s.base_price === null ? "warn" : "info"}>
+                    <Link
+                      key={s.id}
+                      href={withPro(`/book/service/?id=${s.id}`)}
+                      className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lift"
+                    >
+                      <Shot
+                        src={s.image_url ?? cat.image_url}
+                        icon={CATEGORY_ICON[cat.icon ?? ""] ?? "wrench"}
+                      />
+                      <span className="flex flex-1 flex-col p-3">
+                        <span className="line-clamp-2 text-base font-bold">{s.name}</span>
+                        {/* The unit travels with the price: a service priced
+                            per sq ft must not read as a flat "Rs 65". */}
+                        <span className="mt-auto pt-1.5 text-base font-extrabold">
                           {formatPKR(s.base_price)}
-                        </Pill>
-                      </span>
-                      <span className="text-sm text-muted-foreground">{s.description}</span>
-                      <span className="text-xs text-muted-foreground">
-                        per {s.unit}
-
+                          {s.base_price !== null && (
+                            <span className="ms-1 text-xs font-semibold text-muted-foreground">
+                              /{s.unit}
+                            </span>
+                          )}
+                        </span>
                       </span>
                     </Link>
                   ))}

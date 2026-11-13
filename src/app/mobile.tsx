@@ -9,7 +9,7 @@ import { useIsPhone } from "@/components/Lanes";
 import { Screen, Scroll, Tabs } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { AlertsBell } from "@/components/kg/AlertsBell";
-import { Ava, Pill, Rate, Sec, Skel, Well } from "@/components/kg/parts";
+import { Ava, Pill, Rate, Sec, Shot, Skel } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Job, type Service, type ServiceCategory } from "@/lib/types";
@@ -20,8 +20,8 @@ import { useLanguage } from "@/lib/i18n";
 
 type Cat = ServiceCategory & { services: Service[] };
 
-/** Three rows of the 3-wide tile grid. */
-const HOME_CATEGORY_LIMIT = 9;
+/** Four rows of the 2-wide card grid. */
+const HOME_CATEGORY_LIMIT = 8;
 // The statuses that put a booking on the Home screen's live banner.
 const LIVE: Job["status"][] = ["assigned", "en_route", "arrived", "in_progress"];
 
@@ -108,9 +108,10 @@ export default function HomeScreen() {
   const hero = useMemo(() => cats?.find((c) => c.is_active && c.services.length > 0), [cats]);
   const heroFrom = hero ? cheapest(hero.services) : null;
 
-  // The grid is 3 wide, so 9 is three clean rows. It used to render every
-  // category — fine with eight of them, a wall once the catalogue grew — and
-  // "See all" above it has always gone to the full list.
+  // The grid is 2 wide, so 8 is four clean rows with no orphan. It used to
+  // render every category — fine with eight of them, a wall once the
+  // catalogue grew — and "See all" above it has always gone to the full
+  // list.
   //
   // Bookable ones first: a home screen whose top rows all say "Coming soon"
   // is worse than a shorter one, and the cut has to fall somewhere.
@@ -230,35 +231,40 @@ export default function HomeScreen() {
           <Link href="/book">{t("home.seeAll")}</Link>
         </Sec>
         {cats === null ? (
-          <div className="grid3">
-            <Skel h={96} />
-            <Skel h={96} />
-            <Skel h={96} />
+          <div className="svc-grid">
+            <Skel h={178} />
+            <Skel h={178} />
+            <Skel h={178} />
+            <Skel h={178} />
           </div>
         ) : (
-          <div className="grid3">
+          <div className="svc-grid">
             {homeCats.map((c) => {
               const from = cheapest(c.services);
               const soon = !c.is_active || c.services.length === 0;
               const body = (
                 <>
-                  <Well icon={categoryIcon(c.icon)} />
+                  <Shot src={c.image_url} icon={categoryIcon(c.icon)} />
                   <b>{c.name}</b>
-                  <small>
-                    {soon
-                      ? t("home.comingSoon")
-                      : from === null
-                        ? t("home.onQuote")
-                        : `From ${formatPKR(from.base_price)}/${from.unit}`}
-                  </small>
+                  <em>
+                    {soon ? (
+                      t("home.comingSoon")
+                    ) : from === null ? (
+                      t("home.onQuote")
+                    ) : (
+                      <>
+                        From {formatPKR(from.base_price)} <small>/{from.unit}</small>
+                      </>
+                    )}
+                  </em>
                 </>
               );
               return soon ? (
-                <span key={c.id} className="tile soon">
+                <span key={c.id} className="svc-card soon">
                   {body}
                 </span>
               ) : (
-                <Link key={c.id} className="tile" href={`/book/?cat=${c.id}`}>
+                <Link key={c.id} className="svc-card" href={`/book/?cat=${c.id}`}>
                   {body}
                 </Link>
               );

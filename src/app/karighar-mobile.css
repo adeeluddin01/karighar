@@ -974,37 +974,112 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .kg .grid3 {
+  /* ----------------------------------------------------------------
+     Image-first service cards. Shared by Home's category grid and the
+     service grid on /book — a photo panel filling the card's top, with
+     the name and price beneath it.
+
+     `.opt` is deliberately NOT reused here. That is the radio-ROW
+     vocabulary (book/service, bookings/view, pro, support) and means
+     something else entirely; repurposing it would silently reshape four
+     other screens.
+
+     Two columns. `.scroll` is padded 18px a side, so the content box is
+     324px at 360px and 284px at 320px — a 3-up grid there leaves an 88px
+     card whose photo panel is 66px tall, SMALLER than the 48px icon well
+     plus two text lines it replaced. 2-up holds the photo at 156x117
+     (136x102 on a 320px phone), which is the width the artwork needs to
+     be the point of the card.
+     ---------------------------------------------------------------- */
+  .kg .svc-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
-  .kg .tile {
+  .kg .svc-card {
     background: var(--card);
     border-radius: 18px;
-    padding: 12px 10px 11px;
+    /* Clips the photo to the card's top corners, so the panel needs no
+       radius of its own and stays square where the two meet. */
+    overflow: hidden;
+    padding-bottom: 10px;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    gap: 3px;
     text-decoration: none;
     color: var(--ink);
     cursor: pointer;
     min-width: 0;
   }
-  .kg .tile b {
-    font-size: 13px;
-    line-height: 1.1;
+  .kg .svc-card b {
+    padding: 9px 10px 0;
+    font-size: 13.5px;
+    line-height: 1.22;
+    /* Two lines then ellipsis. "Washing Machine Repair" must not push its
+       price out of line with the card beside it. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
-  .kg .tile small {
-    font-size: 11px;
+  .kg .svc-card em {
+    /* `margin-top: auto` plus the grid's default stretch is what keeps
+       every price in a row on one baseline when one name wraps to two
+       lines and the next doesn't. */
+    margin-top: auto;
+    padding: 2px 10px 0;
+    font: 800 14.5px var(--f-display);
+    font-style: normal;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
   }
-  .kg .tile.soon {
+  .kg .svc-card em small {
+    /* Block, unlike `.opt em small` right above, which forces inline.
+       Stated rather than inherited from `.kg small` because the choice
+       is deliberate: "From Rs 1,750 /unit" is 118px against a 116px
+       inner width on a 320px phone, so inline would wrap on some cards
+       and not others and leave a row of prices on two different
+       baselines. Its own line is the same on every card. */
+    display: block;
+    font: 600 11px var(--f-body);
+    color: var(--mute);
+  }
+  .kg .svc-card.soon {
     opacity: 0.6;
   }
-  .kg .tile.soon .well {
+
+  /* The photo panel. The category icon is a real child underneath and the
+     photo is absolutely positioned over it, so no photo — or a broken URL,
+     which <Shot>'s onError hides — falls back to the glyph rather than to
+     a hole. Same layering as `.ava`.
+
+     `cover`, not `contain`: admins upload mixed aspect ratios, and
+     letterboxing each one against the tint would destroy the grid's
+     rhythm. The tint is `--card-2` so a transparent PNG still reads. */
+  .kg .shot {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 4 / 3;
     background: var(--card-2);
+    color: var(--brand-fg);
+    overflow: hidden;
+  }
+  .kg .shot .i {
+    width: 34px;
+    height: 34px;
+  }
+  .kg .shot img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .kg .svc-card.soon .shot {
     color: var(--mute);
+    filter: grayscale(1);
   }
 
   /* The full-bleed rail on Home. Negative margins make it span the whole

@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Screen, Scroll, Tabs, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
-import { EmptyK, Pill, Skel, Well } from "@/components/kg/parts";
+import { EmptyK, Pill, Shot, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { formatPKR } from "@/lib/money";
 import type { Service, ServiceCategory } from "@/lib/types";
@@ -237,14 +237,17 @@ function BookInner() {
                 {c.services.length} {c.services.length === 1 ? "service" : "services"}
               </span>
             </div>
-            <div className="opts">
+            <div className="svc-grid">
               {c.services.map((s) => (
-                <Link key={s.id} className="opt" href={withPro(`/book/service/?id=${s.id}`)}>
-                  <Well icon={categoryIcon(c.icon)} size="sm" />
-                  <div>
-                    <b>{s.name}</b>
-                    <small>{s.description}</small>
-                  </div>
+                <Link
+                  key={s.id}
+                  className="svc-card"
+                  href={withPro(`/book/service/?id=${s.id}`)}
+                >
+                  {/* The service's own photo when it has one, otherwise the
+                      category's, otherwise the icon <Shot> draws underneath. */}
+                  <Shot src={s.image_url ?? c.image_url} icon={categoryIcon(c.icon)} />
+                  <b>{s.name}</b>
                   <em>
                     {s.base_price === null ? (
                       "On quote"

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   DEFAULT_COMMISSION,
+  formatKeepRange,
+  formatRateRange,
   effectiveRate,
   fromPercent,
   ratePairOf,
@@ -128,5 +130,60 @@ describe("ratePairOf", () => {
   it("coerces values that arrive as strings", () => {
     const stringy = { ...row, business_fixed: "0.125" } as unknown as PlatformSettings;
     expect(ratePairOf(stringy, "business").fixed).toBe(0.125);
+  });
+});
+
+describe("formatRateRange", () => {
+  it("renders the default provider pair as the range the pitch used to hardcode", () => {
+    expect(formatRateRange(DEFAULT_COMMISSION.provider)).toBe("15–20%");
+  });
+
+  // `fixed` is normally the HIGHER of the two, so a naive
+  // `${fixed}–${custom}` would read "20–15%".
+  it("puts the low rate first whichever column holds it", () => {
+    expect(formatRateRange({ fixed: 0.2, custom: 0.15 })).toBe("15–20%");
+    expect(formatRateRange({ fixed: 0.15, custom: 0.2 })).toBe("15–20%");
+  });
+
+  it("collapses to one number when both rates match", () => {
+    expect(formatRateRange({ fixed: 0.18, custom: 0.18 })).toBe("18%");
+  });
+
+  it("follows an admin's edit rather than the compiled-in default", () => {
+    expect(formatRateRange({ fixed: 0.25, custom: 0.1 })).toBe("10–25%");
+  });
+
+  it("keeps a fractional rate readable", () => {
+    expect(formatRateRange({ fixed: 0.125, custom: 0.125 })).toBe("12.5%");
+  });
+
+  it("handles a zero-commission promotion without printing an empty string", () => {
+    expect(formatRateRange({ fixed: 0.2, custom: 0 })).toBe("0–20%");
+  });
+});
+
+describe("formatKeepRange", () => {
+  it("is the default range seen from the technician's side", () => {
+    expect(formatKeepRange(DEFAULT_COMMISSION.provider)).toBe("80–85%");
+  });
+
+  // The two lines appear on the same screen; if they ever stop summing to
+  // 100% the page contradicts itself.
+  it("complements formatRateRange for any pair", () => {
+    for (const pair of [
+      { fixed: 0.2, custom: 0.15 },
+      { fixed: 0.25, custom: 0.1 },
+      { fixed: 0.18, custom: 0.18 },
+    ]) {
+      const take = formatRateRange(pair).replace("%", "").split("–").map(Number);
+      const keep = formatKeepRange(pair).replace("%", "").split("–").map(Number);
+      // Lowest commission pairs with the highest take-home, and vice versa.
+      expect(take[0] + keep[keep.length - 1]).toBe(100);
+      expect(take[take.length - 1] + keep[0]).toBe(100);
+    }
+  });
+
+  it("collapses to one number when both rates match", () => {
+    expect(formatKeepRange({ fixed: 0.18, custom: 0.18 })).toBe("82%");
   });
 });

@@ -91,3 +91,38 @@ export function effectiveRate(
     ? { rate: platformDefault, custom: false }
     : { rate: override, custom: true };
 }
+
+/**
+ * A scope's pair of rates as one line of copy: "15–20%", or "20%" when both
+ * rates are the same.
+ *
+ * The /pro landing page quotes this to someone deciding whether to sign up,
+ * and it used to be a hardcoded "15–20%" in three places. That was true
+ * only for as long as nobody touched the platform defaults — the moment an
+ * admin changed them, the pitch and the deal stopped matching, with no
+ * failing test to notice. Deriving it means the page is wrong only if the
+ * database is.
+ *
+ * Low first regardless of which column holds it: `fixed` is usually the
+ * higher of the two, so `${fixed}–${custom}` would read "20–15%".
+ */
+export function formatRateRange(pair: RatePair): string {
+  const lo = Math.min(pair.fixed, pair.custom);
+  const hi = Math.max(pair.fixed, pair.custom);
+  // En dash, matching the copy this replaced.
+  return lo === hi ? `${toPercent(lo)}%` : `${toPercent(lo)}–${toPercent(hi)}%`;
+}
+
+/**
+ * The same pair seen from the technician's side: "80–85%".
+ *
+ * The /pro hero quotes what a pro KEEPS while the CTA quotes what Karighar
+ * takes, and the two are one number stated twice. They were hardcoded
+ * separately, so an admin moving the rate would have made them disagree
+ * with each other as well as with the database.
+ */
+export function formatKeepRange(pair: RatePair): string {
+  const lo = 1 - Math.max(pair.fixed, pair.custom);
+  const hi = 1 - Math.min(pair.fixed, pair.custom);
+  return lo === hi ? `${toPercent(lo)}%` : `${toPercent(lo)}–${toPercent(hi)}%`;
+}

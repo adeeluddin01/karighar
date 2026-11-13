@@ -31,6 +31,8 @@ export type ServiceCategory = {
   id: string;
   name: string;
   icon: string | null;
+  /** Card art (patch_v33). Null falls back to `icon`. */
+  image_url: string | null;
   sort_order: number;
   is_active: boolean;
 };
@@ -42,6 +44,8 @@ export type Service = {
   description: string | null;
   base_price: number | null;
   unit: string;
+  /** Card art (patch_v33). Null falls back to the category's photo, then its icon. */
+  image_url: string | null;
   visit_fee: number;
   is_active: boolean;
 };

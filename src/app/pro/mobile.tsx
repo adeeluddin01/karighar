@@ -6,10 +6,15 @@ import { Screen, Scroll, TopBar, Cta } from "@/components/kg/Screen";
 import { KIcon, type KIconName } from "@/components/kg/icons";
 import { Pill, Well } from "@/components/kg/parts";
 import { BRAND } from "@/lib/config";
+import { formatKeepRange, formatRateRange } from "@/lib/commission";
+import { usePlatformRates } from "@/lib/usePlatformRates";
 
-const BENEFITS: [KIconName, string, string][] = [
+// Takes the rate so the pitch and the deal cannot drift apart: this used to
+// read a hardcoded "15–20%", which stopped being true the moment an admin
+// edited the platform defaults.
+const benefits = (rate: string): [KIconName, string, string][] => [
   ["nav", "Get matched", "Nearby jobs that fit your skills and the areas you cover."],
-  ["cash", "Keep more", "Low commission (15–20%). Customers pay you cash directly."],
+  ["cash", "Keep more", `Low commission (${rate}). Customers pay you cash directly.`],
   ["star", "Build a reputation", "Ratings from real bookings win you more, bigger jobs."],
   ["shield", "Verified means trusted", "A CNIC check puts you ahead of the roadside competition."],
 ];
@@ -22,6 +27,12 @@ const STEPS: [string, string][] = [
 
 export default function BecomeAProScreen() {
   const { user, profile, providerStatus } = useUser();
+  const { rates } = usePlatformRates("provider");
+  const rate = formatRateRange(rates);
+  // What the pro keeps and what Karighar takes are one number stated twice;
+  // both come off the same pair so they cannot disagree.
+  const keep = formatKeepRange(rates);
+  const BENEFITS = benefits(rate);
   const approved = profile?.role === "provider" && providerStatus === "approved";
   const applied = profile?.role === "provider";
 
@@ -55,7 +66,7 @@ export default function BecomeAProScreen() {
             <div className="hero-stats">
               <div>
                 <small>You keep</small>
-                <b>80–85%</b>
+                <b>{keep}</b>
               </div>
               <div>
                 <small>Payment</small>
@@ -126,7 +137,7 @@ export default function BecomeAProScreen() {
         <div>
           <small>Commission</small>
           <b>
-            15–20% <span>per job</span>
+            {rate} <span>per job</span>
           </b>
         </div>
         <Link className="btn" href={cta.href}>

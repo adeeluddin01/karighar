@@ -223,6 +223,9 @@ create table service_categories (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
   icon       text,
+  -- Card art on Home and /book. Null falls back to `icon`; see patch_v33.
+  image_url  text constraint service_categories_image_url_len
+               check (image_url is null or length(image_url) <= 500),
   sort_order int not null default 0,
   is_active  boolean not null default true
 );
@@ -234,6 +237,9 @@ create table services (
   description text,
   base_price  numeric(10,2),        -- null = quote/custom
   unit        text not null default 'job',  -- 'unit','visit','sq ft','item','job'
+  -- Card art. Null falls back to the category's photo, then to its icon.
+  image_url   text constraint services_image_url_len
+                check (image_url is null or length(image_url) <= 500),
   visit_fee   numeric(10,2) not null default 0,
   is_active   boolean not null default true
 );
@@ -2242,6 +2248,35 @@ create policy avatars_own_update on storage.objects for update to authenticated
 drop policy if exists avatars_own_delete on storage.objects;
 create policy avatars_own_delete on storage.objects for delete to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Catalog photos — the art on the service cards. Public, like `avatars`,
+-- because /book and Home are browsable logged-out. But NOT the same policy
+-- shape: an avatar belongs to the account that uploaded it, so its path is
+-- a folder per uid; a catalog photo belongs to the platform, so there is no
+-- uid to key on and the write policies gate on is_admin() instead. Objects
+-- are `catalog/services/<service id>.<ext>` and
+-- `catalog/categories/<category id>.<ext>` — keyed on the row, so a
+-- re-upload replaces rather than accumulates. See patch_v33.
+insert into storage.buckets (id, name, public)
+  values ('catalog', 'catalog', true)
+  on conflict (id) do update set public = true;
+
+drop policy if exists catalog_read on storage.objects;
+create policy catalog_read on storage.objects for select
+  using (bucket_id = 'catalog');
+drop policy if exists catalog_write on storage.objects;
+create policy catalog_write on storage.objects for insert to authenticated
+  with check (bucket_id = 'catalog' and is_admin());
+-- Needed as well as insert: the client uploads with `upsert: true`.
+drop policy if exists catalog_update on storage.objects;
+create policy catalog_update on storage.objects for update to authenticated
+  using (bucket_id = 'catalog' and is_admin())
+  with check (bucket_id = 'catalog' and is_admin());
+-- Lets an admin's replacement clear the stale sibling (.jpg -> .png);
+-- nothing else in this project ever deletes a storage object.
+drop policy if exists catalog_delete on storage.objects;
+create policy catalog_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'catalog' and is_admin());
 
 -- Providers upload/read their own files; admins read all.
 -- `storage` lives outside the public schema, so these survive a
