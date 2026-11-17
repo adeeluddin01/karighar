@@ -276,11 +276,10 @@ export default function HomeScreen() {
           <>
             {/* Was "Open map". A technician's location is not ours to
                 publish — only an assigned pro's, and only once they are on
-                their way — so browsing people now happens in the Book tab,
-                as a list, with no map implied. */}
-            <Sec title={t("home.topRated")}>
-              <Link href="/book/?tab=technicians">{t("home.seeAll")}</Link>
-            </Sec>
+                their way — so this is a plain rail of profiles, no map
+                implied. No "See all" either: there is no browse-technicians
+                screen to send anyone to, and no way to book one by name. */}
+            <Sec title={t("home.topRated")} />
             <div className="hrow">
               {pros.slice(0, 6).map((p) => (
                 <Link key={p.id} className="pro-card" href={`/providers/view/?id=${p.id}`}>

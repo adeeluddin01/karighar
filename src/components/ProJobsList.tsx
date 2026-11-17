@@ -251,14 +251,6 @@ export function ProJobsList({
                           {job.title}
                         </Link>
                         {job.type === "custom" && <Pill tone="warn">{t("pro.customQuote")}</Pill>}
-                        {/* Asked for by name. Worth the loudest tone on the
-                            card: it is held exclusively for this pro for ten
-                            minutes, so acting on it now actually matters. */}
-                        {job.requested_provider_id && (
-                          <Pill tone="ok" icon="star">
-                            Requested for you
-                          </Pill>
-                        )}
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{job.address}</p>
                       {job.description && <p className="mt-1 text-sm">{job.description}</p>}

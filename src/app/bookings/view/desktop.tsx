@@ -36,6 +36,7 @@ import {
 import { fetchPublicPros } from "@/lib/providers";
 import { JOB_STATUS_LABEL, type Job, type Bid, type Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
+import { rebookHref } from "@/lib/jobFlow";
 import { dbErrorMessage } from "@/lib/dbErrors";
 import { LIMITS } from "@/lib/validate";
 
@@ -513,6 +514,22 @@ function BookingDetailContent() {
               </>
             )}
           </Card>
+
+          {/* Book again. The href carries the service and deliberately NOT
+              job.provider_id: a customer cannot ask for a named technician,
+              so this reopens an ordinary job for the dispatch ring. The web
+              lane had no rebook at all before this. */}
+          {(job.status === "paid" || job.status === "rated") && (
+            <Card>
+              <h2 className="text-base font-bold">Book again</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Book {job.title} again at today&rsquo;s price.
+              </p>
+              <LinkButton href={rebookHref(job)} size="sm" className="mt-3 w-full">
+                Book again
+              </LinkButton>
+            </Card>
+          )}
 
           {/* Awaiting payment */}
           {awaitingPayment && (

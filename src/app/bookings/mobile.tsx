@@ -11,6 +11,7 @@ import { EmptyK, Pill, Skel, Well } from "@/components/kg/parts";
 import { categoryIcon } from "@/components/kg/catalogIcons";
 import { STATUS_PILL, STATUS_PILL_UR, isActiveJob, jobRef, whenLabel } from "@/components/kg/job";
 import { fetchPublicPros } from "@/lib/providers";
+import { rebookHref } from "@/lib/jobFlow";
 import { useLanguage } from "@/lib/i18n";
 import {
   DEFAULT_JOB_FILTERS,
@@ -280,7 +281,7 @@ function Actions({ job }: { job: Enriched }) {
   if (job.status === "paid" || job.status === "rated") {
     return (
       <div className="bk-act">
-        <Link className="btn sm ghost" href="/book">
+        <Link className="btn sm ghost" href={rebookHref(job)}>
           {t("bookings.ctaBookAgain")}
         </Link>
         <Link className="link" href={href}>

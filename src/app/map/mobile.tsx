@@ -131,19 +131,11 @@ export default function MapScreen() {
           </Link>
         </div>
 
-        {/* The technician list used to live here, under a map. It has moved
-            to Book > Book a technician, as a plain list: we do not hold a
-            technician's location to share, and showing people beside a map
-            implied that we did. The one exception is the pro already on
-            their way to you, whose live position appears on the booking
+        {/* A technician list used to live here, under a map. There is no
+            technician location for us to share, and showing people beside a
+            map implied that there was. The one exception is the pro already
+            on their way to you, whose live position appears on the booking
             itself while they are en route. */}
-        <Link className="pro-row card" href="/book/?tab=technicians">
-          <div>
-            <b>Browse technicians</b>
-            <small>Pick someone by trade and rating, and ask for them by name.</small>
-          </div>
-          <KIcon name="chev-r" className="chev" />
-        </Link>
 
         {/* Companies, below the pros. Nothing renders on an installation
             with no business accounts, which is every one of them today. */}

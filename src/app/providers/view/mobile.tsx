@@ -4,12 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Screen, Scroll, TopBar, Cta } from "@/components/kg/Screen";
+import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Ava, EmptyK, Pill, Skel } from "@/components/kg/parts";
 import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
-import { formatPKR } from "@/lib/money";
-import type { Review as FullReview, Service } from "@/lib/types";
+import type { Review as FullReview } from "@/lib/types";
 
 // Just the columns this page selects, off the shared row type.
 type Review = Pick<FullReview, "id" | "rating" | "comment" | "created_at">;
@@ -34,7 +33,6 @@ function ProviderProfileContent() {
   const id = useSearchParams().get("id") ?? "";
   const [profile, setProfile] = useState<PublicPro | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [from, setFrom] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,7 +42,7 @@ function ProviderProfileContent() {
     }
     const supabase = createClient();
     (async () => {
-      const [found, { data: revs }, { data: services }] = await Promise.all([
+      const [found, { data: revs }] = await Promise.all([
         fetchPublicPros(supabase, { id }),
         supabase
           .from("reviews")
@@ -52,14 +50,9 @@ function ProviderProfileContent() {
           .eq("provider_id", id)
           .order("created_at", { ascending: false })
           .limit(20),
-        supabase.from("services").select("base_price").eq("is_active", true),
       ]);
       setProfile(found.pros[0] ?? null);
       setReviews((revs as Review[]) ?? []);
-      const prices = ((services as Pick<Service, "base_price">[]) ?? [])
-        .map((s) => s.base_price)
-        .filter((p): p is number => p !== null);
-      setFrom(prices.length ? Math.min(...prices) : null);
       setLoading(false);
     })();
   }, [id]);
@@ -101,7 +94,7 @@ function ProviderProfileContent() {
   return (
     <Screen>
       <TopBar title={proName(profile)} back="/map" />
-      <Scroll underTop pad="cta">
+      <Scroll underTop pad="plain">
         <div className="me card">
           <Ava name={proName(profile)} src={profile.avatar_url} size="xl" verified />
           <div>
@@ -190,21 +183,11 @@ function ProviderProfileContent() {
             can review a pro.
           </p>
         </div>
+        {/* No booking control, by design. A customer cannot ask for a named
+            technician: every job goes into the open pool and is claimed
+            through the ordinary dispatch ring, so this page is a profile to
+            read, not a pro to hire. Booking starts from the service. */}
       </Scroll>
-
-      <Cta>
-        <div>
-          <small>Visits from</small>
-          <b>{from === null ? "On quote" : formatPKR(from)}</b>
-        </div>
-        {/* Carries the pro's id. Without it this dropped the one thing the
-            customer came here to say — which pro they want — and sent them
-            to the generic pool. */}
-        <Link className="btn" href={`/book/?pro=${id}`}>
-          Book {proName(profile).split(" ")[0]}
-          <KIcon name="arrow" />
-        </Link>
-      </Cta>
     </Screen>
   );
 }

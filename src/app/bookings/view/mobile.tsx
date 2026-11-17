@@ -24,6 +24,7 @@ import {
 import { formatPKR } from "@/lib/money";
 import { JOB_STATUS_LABEL, type Bid, type Job, type Profile } from "@/lib/types";
 import { clsx } from "@/lib/clsx";
+import { rebookHref } from "@/lib/jobFlow";
 import { dbErrorMessage } from "@/lib/dbErrors";
 import { LIMITS } from "@/lib/validate";
 
@@ -1050,7 +1051,7 @@ function BookingContent() {
           <small>{bad ? "No charge" : "Paid in cash"}</small>
           <b>{bad || job.price === null ? "—" : formatPKR(job.price)}</b>
         </div>
-        <Link className="btn" href="/book">
+        <Link className="btn" href={rebookHref(job)}>
           Book again
           <KIcon name="arrow" />
         </Link>

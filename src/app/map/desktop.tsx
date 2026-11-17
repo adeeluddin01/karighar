@@ -19,8 +19,8 @@ const webIcon = (slug: string | null) =>
  * Desktop lane of /map.
  *
  * Individual technicians have no stored coordinates — they have
- * `service_areas`, a list of neighbourhood names — so they are listed, not
- * plotted. Service companies are different: a business is a licensed
+ * `service_areas`, a list of neighbourhood names — so they are not on this
+ * map at all. Service companies are different: a business is a licensed
  * premises whose pin the admin records at grant time (patch_v22), so those
  * do go on a map, carrying the icon of the trade they cover. A deployment
  * with no business accounts sees the page exactly as it was.
@@ -45,14 +45,13 @@ export default function NearbyCompaniesPage() {
       {/* Was "Verified pros near you", with the technician grid below it.
           We hold no location for a technician to publish — only a company's
           registered premises, and an assigned pro's live position while they
-          are on their way to you. Browsing people moved to Book > Book a
-          technician, where it is a list and implies no location. */}
+          are on their way to you. */}
       <PageHeader
         title="Companies near you"
-        subtitle="Registered premises in Karachi. To browse individual technicians, use Book a technician."
+        subtitle="Registered premises in Karachi."
         action={
-          <LinkButton href="/book/?tab=technicians" size="sm" icon="users">
-            Book a technician
+          <LinkButton href="/book" size="sm" icon="plus">
+            Book a service
           </LinkButton>
         }
       />
@@ -118,13 +117,16 @@ export default function NearbyCompaniesPage() {
         </section>
       )}
 
+      {/* On a deployment with no business accounts — which is every one of
+          them today — this card is the entire body. Without it the page is a
+          header over nothing. */}
       <Card className="text-center">
-        <p className="text-sm font-semibold">Looking for a specific technician?</p>
+        <p className="text-sm font-semibold">Looking for something specific?</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Browse every verified technician by trade and rating, and ask for one by name.
+          Browse every service with upfront Karachi pricing, and a verified pro will take it.
         </p>
-        <LinkButton href="/book/?tab=technicians" size="sm" className="mt-4">
-          Book a technician
+        <LinkButton href="/book" size="sm" className="mt-4">
+          Book a service
         </LinkButton>
       </Card>
     </AppShell>

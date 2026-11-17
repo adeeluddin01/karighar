@@ -406,8 +406,6 @@ const STRINGS: Record<string, Entry> = {
   // ---- Book a service (phone lane) ----
   "book.title": { en: "Book a service", ur: "سروس بک کریں" },
   "book.help": { en: "Help", ur: "مدد" },
-  "book.tabService": { en: "Book a service", ur: "سروس بک کریں" },
-  "book.tabTechnician": { en: "Book a technician", ur: "کاریگر بک کریں" },
   "book.searchPlaceholder": {
     en: "Search services, e.g. leaking tap",
     ur: "سروس تلاش کریں، مثلاً ٹپکتا نل",
@@ -428,14 +426,6 @@ const STRINGS: Record<string, Entry> = {
     en: "Every pro is CNIC-verified, and the price you see is the price you pay.",
     ur: "ہر کاریگر کا شناختی کارڈ تصدیق شدہ ہے، اور جو قیمت نظر آتی ہے وہی ادا کرنی ہے۔",
   },
-  "book.bookingNamed": { en: "Booking", ur: "بک کر رہے ہیں" },
-  "book.onlyTheirServices": {
-    en: "Showing only what they offer.",
-    ur: "صرف وہی دکھایا جا رہا ہے جو وہ پیش کرتے ہیں۔",
-  },
-  "book.browseEverything": { en: "Browse everything instead", ur: "اس کے بجائے سب دیکھیں" },
-  "book.searchTechnicians": { en: "Search by name or trade", ur: "نام یا ہنر سے تلاش کریں" },
-  "book.allTrades": { en: "All trades", ur: "تمام ہنر" },
 
   "profile.yourHistory": { en: "Your history", ur: "آپ کی تاریخ" },
   "profile.allReviewsHint": { en: "Every review on the platform", ur: "پلیٹ فارم پر ہر جائزہ" },
