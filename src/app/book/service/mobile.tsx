@@ -347,7 +347,9 @@ function BookServiceContent() {
     );
   }
 
-  const icon = categoryIcon(cat?.icon);
+  // The sub-service's own glyph when it has one (patch_v35), else the
+  // category's — the same precedence the card the customer tapped used.
+  const icon = categoryIcon(service?.icon ?? cat?.icon);
   const addressOk = address.trim().length > 2;
   const timeOk = when !== "pick" || (!!date && !!time);
   const canBook = addressOk && timeOk && !!service && !busy;

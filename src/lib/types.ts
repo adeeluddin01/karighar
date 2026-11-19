@@ -46,6 +46,13 @@ export type Service = {
   unit: string;
   /** Card art (patch_v33). Null falls back to the category's photo, then its icon. */
   image_url: string | null;
+  /**
+   * This sub-service's own glyph slug (patch_v35); null inherits the
+   * category's. A CATEGORY_ICON_CHOICES slug, never an icon-library name —
+   * each lane maps it onto its own set. Drawn UNDER the photo, so it is
+   * what shows while the art loads or if its URL 404s.
+   */
+  icon: string | null;
   visit_fee: number;
   is_active: boolean;
 };

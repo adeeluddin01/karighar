@@ -11,6 +11,8 @@ import { Screen, Scroll, TopBar } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Pill, Skel, Well } from "@/components/kg/parts";
 import { proEntry } from "@/components/nav";
+import { formatKeepRange } from "@/lib/commission";
+import { usePlatformRates } from "@/lib/usePlatformRates";
 import { useLanguage } from "@/lib/i18n";
 import { useTheme, type Theme } from "@/lib/theme";
 import { BRAND } from "@/lib/config";
@@ -71,7 +73,11 @@ export default function SettingsScreen() {
     router.refresh();
   }
 
-  const pro = tPro(proEntry(profile?.role, providerStatus), providerStatus);
+  // The live rate, so "keep 80–85%" is the number this install charges
+  // rather than a figure frozen into the dictionary.
+  const { rates } = usePlatformRates("provider");
+  const keep = formatKeepRange(rates);
+  const pro = tPro(proEntry(profile?.role, providerStatus, keep), providerStatus, { keep });
 
   if (loading || !user) {
     return (

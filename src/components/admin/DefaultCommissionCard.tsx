@@ -6,6 +6,7 @@ import { useToast } from "@/components/Toast";
 import { Button, Card, Field, Input, Pill } from "@/components/ui";
 import { dbErrorMessage } from "@/lib/dbErrors";
 import {
+  DEFAULT_COMMISSION,
   fromPercent,
   toPercent,
   validatePercent,
@@ -101,8 +102,9 @@ export function DefaultCommissionCard({
       {missing && (
         <p className="mt-3 text-sm font-semibold text-amber-600 dark:text-amber-500">
           Commission settings aren&apos;t in this database yet. Run{" "}
-          <code>supabase/patch_v24_commission_rates.sql</code>, then reload. Until then every
-          job uses the built-in 20% / 15%.
+          <code>supabase/patch_v24_commission_rates.sql</code>, then reload. Until then every job
+          uses the built-in {toPercent(DEFAULT_COMMISSION[scope].fixed)}% /{" "}
+          {toPercent(DEFAULT_COMMISSION[scope].custom)}%.
         </p>
       )}
 

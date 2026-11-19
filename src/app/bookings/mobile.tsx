@@ -48,13 +48,18 @@ export default function BookingsScreen() {
           .select("*")
           .eq("customer_id", user.id)
           .order("created_at", { ascending: false }),
-        supabase.from("services").select("id,name,category_id"),
+        supabase.from("services").select("id,name,category_id,icon"),
         supabase.from("service_categories").select("id,icon"),
       ]);
       const list = (rows as Job[]) ?? [];
 
       const svc = new Map(
         ((services as Pick<Service, "id" | "category_id">[]) ?? []).map((s) => [s.id, s.category_id])
+      );
+      // The sub-service's own glyph (patch_v35) outranks its category's, so
+      // two jobs under "Electrician" don't both draw the same bolt.
+      const svcIcon = new Map(
+        ((services as Pick<Service, "id" | "icon">[]) ?? []).map((s) => [s.id, s.icon])
       );
       setServices(
         ((services as Pick<Service, "id" | "name">[]) ?? []).map((s) => ({
@@ -82,7 +87,9 @@ export default function BookingsScreen() {
         list.map((j) => ({
           ...j,
           proName: j.provider_id ? proName.get(j.provider_id) ?? null : null,
-          icon: j.service_id ? catIcon.get(svc.get(j.service_id) ?? "") ?? null : null,
+          icon: j.service_id
+            ? svcIcon.get(j.service_id) ?? catIcon.get(svc.get(j.service_id) ?? "") ?? null
+            : null,
           rated: ratedJobs.has(j.id),
         }))
       );

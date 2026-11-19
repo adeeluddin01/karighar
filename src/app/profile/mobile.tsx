@@ -11,6 +11,8 @@ import { Screen, Scroll, Tabs } from "@/components/kg/Screen";
 import { KIcon } from "@/components/kg/icons";
 import { Ava, Pill, Skel, Well } from "@/components/kg/parts";
 import { proEntry } from "@/components/nav";
+import { formatKeepRange } from "@/lib/commission";
+import { usePlatformRates } from "@/lib/usePlatformRates";
 import { useDarkMode } from "@/lib/theme";
 import { areaOf, joinAddress, splitAddress } from "@/lib/area";
 import { MapPicker } from "@/components/maps/MapPicker";
@@ -28,6 +30,12 @@ export default function ProfileScreen() {
   const router = useRouter();
   const toast = useToast();
   const { t, tProviderStatus, lang } = useLanguage();
+  // Up here with the other hooks, not down beside the proEntry() call that
+  // uses it: there is a `loading || !user` early return in between, and a
+  // hook after it is called conditionally. Feeds both the "for technicians"
+  // card's hint and the earn blurb, so they quote one number.
+  const { rates } = usePlatformRates("provider");
+  const keep = formatKeepRange(rates);
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [address, setAddress] = useState<string | null>(null);
@@ -177,7 +185,7 @@ export default function ProfileScreen() {
   // Where the "for technicians" card sends you depends on how far along the
   // application is. Shared with Settings so the two can't drift; the card
   // keeps its own, more inviting copy. Null for an admin, who gets no card.
-  const pro = proEntry(profile?.role, providerStatus);
+  const pro = proEntry(profile?.role, providerStatus, keep);
 
   return (
     <Screen>
@@ -301,7 +309,7 @@ export default function ProfileScreen() {
               <p>
                 {provider?.status === "approved"
                   ? t("profile.proDashboardHint")
-                  : t("profile.earnHint")}
+                  : t("profile.earnHint", { keep })}
               </p>
             </div>
             <span className="ic">

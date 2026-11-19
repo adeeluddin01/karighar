@@ -228,8 +228,8 @@ const STRINGS: Record<string, Entry> = {
   },
   "settings.becomePro": { en: "Become a pro", ur: "پرو بنیں" },
   "settings.becomeProHint": {
-    en: "Get matched to jobs near you and keep 80–85% of each one",
-    ur: "اپنے قریب کے کام حاصل کریں اور ہر کام کا 80–85% رکھیں",
+    en: "Get matched to jobs near you and keep {keep} of each one",
+    ur: "اپنے قریب کے کام حاصل کریں اور ہر کام کا {keep} رکھیں",
   },
   "settings.application": { en: "Application", ur: "درخواست" },
   "settings.inProgress": { en: "in progress", ur: "جاری ہے" },
@@ -358,8 +358,8 @@ const STRINGS: Record<string, Entry> = {
     ur: "آپ کے قریب کام، آپ کی آمدنی اور کمیشن میں کیا واجب ہے۔",
   },
   "profile.earnHint": {
-    en: "Get matched to jobs near you and keep 80–85% of every job. CNIC and a selfie to verify, approval in 1–2 days.",
-    ur: "اپنے قریب کے کاموں سے جڑیں اور ہر کام کا 80–85% رکھیں۔ تصدیق کے لیے CNIC اور سیلفی، منظوری 1–2 دن میں۔",
+    en: "Get matched to jobs near you and keep {keep} of every job. CNIC and a selfie to verify, approval in 1–2 days.",
+    ur: "اپنے قریب کے کاموں سے جڑیں اور ہر کام کا {keep} رکھیں۔ تصدیق کے لیے CNIC اور سیلفی، منظوری 1–2 دن میں۔",
   },
   "profile.account": { en: "Account", ur: "اکاؤنٹ" },
   "profile.services": { en: "Services", ur: "سروسز" },
@@ -461,10 +461,27 @@ const STRINGS: Record<string, Entry> = {
   "profile.editProfile": { en: "Edit profile", ur: "پروفائل میں ترمیم کریں" },
 };
 
-function lookup(lang: Lang, key: string): string {
+/**
+ * Substitute `{name}` placeholders.
+ *
+ * Exists for one job: the commission rate. A string like "keep {keep} of
+ * every job" has to read the live platform rate, and baking "80–85%" into
+ * the dictionary meant the pitch silently stopped matching the database the
+ * moment an admin moved the defaults. The Urdu twin has the same token in
+ * the same place, so one substitution serves both.
+ *
+ * An unsupplied token is left visible rather than blanked: "{keep}" on
+ * screen is an obvious bug, an empty gap reads as finished copy.
+ */
+function interpolate(text: string, vars?: Record<string, string>): string {
+  if (!vars) return text;
+  return text.replace(/\{(\w+)\}/g, (whole, name: string) => vars[name] ?? whole);
+}
+
+function lookup(lang: Lang, key: string, vars?: Record<string, string>): string {
   const entry = STRINGS[key];
   if (!entry) return key;
-  return lang === "ur" ? entry.ur : entry.en;
+  return interpolate(lang === "ur" ? entry.ur : entry.en, vars);
 }
 
 // proEntry() (components/nav.ts) returns plain English copy. Settings
@@ -476,7 +493,8 @@ export type ProEntry = { href: string; label: string; hint: string };
 export function translateProEntry(
   lang: Lang,
   entry: ProEntry | null,
-  providerStatus?: string | null
+  providerStatus?: string | null,
+  vars?: Record<string, string>
 ): ProEntry | null {
   if (!entry) return null;
   switch (entry.href) {
@@ -505,7 +523,7 @@ export function translateProEntry(
       return {
         href: entry.href,
         label: lookup(lang, "settings.becomePro"),
-        hint: lookup(lang, "settings.becomeProHint"),
+        hint: lookup(lang, "settings.becomeProHint", vars),
       };
     default:
       return entry;
@@ -537,7 +555,7 @@ export type LanguageApi = {
   lang: Lang;
   setLang: (next: Lang) => void;
   /** Translate a dictionary key; falls back to the English text, never blank. */
-  t: (key: string) => string;
+  t: (key: string, vars?: Record<string, string>) => string;
   /** Translate a nav.ts label by its English text. */
   tNav: (label: string) => string;
   /** Translate a job status (JOB_STATUS_LABEL meanings). */
@@ -545,18 +563,22 @@ export type LanguageApi = {
   /** Translate a provider application status (approved/pending/suspended/rejected). */
   tProviderStatus: (status: string) => string;
   /** Translate a proEntry() card (Settings, Profile). */
-  tPro: (entry: ProEntry | null, providerStatus?: string | null) => ProEntry | null;
+  tPro: (
+    entry: ProEntry | null,
+    providerStatus?: string | null,
+    vars?: Record<string, string>
+  ) => ProEntry | null;
 };
 
 const LanguageContext = createContext<LanguageApi>({
   lang: "en",
   setLang: () => {},
-  t: (key) => lookup("en", key),
+  t: (key, vars) => lookup("en", key, vars),
   tNav: (label) => lookup("en", `nav:${label}`),
   tStatus: (status) => lookup("en", `status:${status}`),
   tProviderStatus: (status) =>
     STRINGS[`status.${status}`] ? lookup("en", `status.${status}`) : status,
-  tPro: (entry, providerStatus) => translateProEntry("en", entry, providerStatus),
+  tPro: (entry, providerStatus, vars) => translateProEntry("en", entry, providerStatus, vars),
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
@@ -576,7 +598,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const api: LanguageApi = {
     lang,
     setLang,
-    t: useCallback((key: string) => lookup(lang, key), [lang]),
+    t: useCallback(
+      (key: string, vars?: Record<string, string>) => lookup(lang, key, vars),
+      [lang]
+    ),
     tNav: useCallback((label: string) => lookup(lang, `nav:${label}`), [lang]),
     tStatus: useCallback((status: JobStatus) => lookup(lang, `status:${status}`), [lang]),
     // Unknown statuses fall through to the raw value — lookup() returns
@@ -590,8 +615,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       [lang]
     ),
     tPro: useCallback(
-      (entry: ProEntry | null, providerStatus?: string | null) =>
-        translateProEntry(lang, entry, providerStatus),
+      (entry: ProEntry | null, providerStatus?: string | null, vars?: Record<string, string>) =>
+        translateProEntry(lang, entry, providerStatus, vars),
       [lang]
     ),
   };

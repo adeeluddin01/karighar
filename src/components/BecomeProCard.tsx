@@ -5,6 +5,8 @@ import { Card, LinkButton } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { proPromo } from "@/components/nav";
 import { useUser } from "@/lib/useUser";
+import { formatKeepRange } from "@/lib/commission";
+import { usePlatformRates } from "@/lib/usePlatformRates";
 
 /**
  * The recruitment promo on the web Home.
@@ -18,7 +20,14 @@ import { useUser } from "@/lib/useUser";
  */
 export function BecomeProCard() {
   const { profile, providerStatus, loading } = useUser();
-  const promo = loading ? proPromo(null, null) : proPromo(profile?.role, providerStatus);
+  // The live platform rate, so the pitch quotes the same number the pro is
+  // actually charged. Falls back to the compiled-in defaults for a guest,
+  // whose anon read of platform_settings returns nothing.
+  const { rates } = usePlatformRates("provider");
+  const keep = formatKeepRange(rates);
+  const promo = loading
+    ? proPromo(null, null, keep)
+    : proPromo(profile?.role, providerStatus, keep);
 
   if (!promo) return null;
 

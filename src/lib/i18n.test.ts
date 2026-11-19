@@ -146,7 +146,12 @@ describe("every t() key a screen uses actually exists", () => {
   const KEY = /^\s*"([a-zA-Z0-9.:_ -]+)":\s*\{/gm;
   // Excludes a preceding letter or dot, or `.select("x")` and `.get("x")`
   // match their own tails and every column name looks like a missing key.
-  const CALL = /(?<![A-Za-z_.])t\("([a-zA-Z0-9.:_ -]+)"\)/g;
+  //
+  // Trailing `[,)]` rather than `)`: t() takes optional placeholder vars,
+  // so `t("profile.earnHint", { keep })` is a real call. Requiring the
+  // closing paren meant every interpolated key went unchecked — exactly the
+  // keys most likely to be mistyped, since they are the newest.
+  const CALL = /(?<![A-Za-z_.])t\("([a-zA-Z0-9.:_ -]+)"\s*[,)]/g;
 
   function tsxFiles(dir: string): string[] {
     const out: string[] = [];
@@ -170,5 +175,43 @@ describe("every t() key a screen uses actually exists", () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+});
+
+/* Placeholder substitution. The commission rate is the only thing that uses
+   it, and the failure mode it exists to prevent is silent: a dictionary with
+   "80-85%" baked in kept quoting that number after an admin moved the
+   platform defaults, so the pitch and the deal disagreed with nothing to
+   catch it. */
+describe("placeholder interpolation", () => {
+  it("fills a token in both languages", () => {
+    const en = translateProEntry("en", { href: "/pro", label: "x", hint: "y" }, null, {
+      keep: "70-75%",
+    });
+    const ur = translateProEntry("ur", { href: "/pro", label: "x", hint: "y" }, null, {
+      keep: "70-75%",
+    });
+    expect(en?.hint).toContain("70-75%");
+    expect(ur?.hint).toContain("70-75%");
+    // The token itself must not survive into either rendering.
+    expect(en?.hint).not.toContain("{keep}");
+    expect(ur?.hint).not.toContain("{keep}");
+  });
+
+  it("leaves an unsupplied token visible rather than blanking the copy", () => {
+    // "{keep}" on screen is an obvious bug; a gap reads as finished copy and
+    // would ship.
+    const bare = translateProEntry("en", { href: "/pro", label: "x", hint: "y" }, null);
+    expect(bare?.hint).toContain("{keep}");
+  });
+
+  it("no dictionary string hardcodes a commission percentage", () => {
+    // The whole point: a number here is a number that cannot track the
+    // database. Matches "80-85%" and "20%" alike, in either script.
+    const offenders = [...SRC.matchAll(/^\s*(en|ur):\s*"([^"]*\d+(?:[–-]\d+)?%[^"]*)"/gm)]
+      .map((m) => m[2])
+      // Rates are the concern, not every digit: "9am - 9pm" and the like.
+      .filter((s) => /%/.test(s));
+    expect(offenders).toEqual([]);
   });
 });

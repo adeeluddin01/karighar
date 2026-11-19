@@ -152,7 +152,24 @@ export const ROLE_MAP: Record<Role, string> = {
  * here rather than being written out twice. Null when there's nothing to
  * offer (admins).
  */
-export function proEntry(role?: string | null, providerStatus?: string | null) {
+/**
+ * What a pro keeps, when the caller could not ask the database.
+ *
+ * `proEntry` is a pure function — Settings, Profile and Home all call it
+ * during render — so it cannot use the `usePlatformRates` hook itself. The
+ * live figure is passed IN; this is only the shape of the sentence when it
+ * isn't. It matches the column defaults in `platform_settings`, i.e. what a
+ * brand-new install actually charges, and is the same fallback
+ * `DEFAULT_COMMISSION` gives every other caller.
+ */
+const KEEP_FALLBACK = "80–85%";
+
+export function proEntry(
+  role?: string | null,
+  providerStatus?: string | null,
+  /** From `formatKeepRange(rates)` — see /pro, which already derives it. */
+  keepRange?: string
+) {
   // An admin is never going to apply; don't offer it to them. Nor is a
   // business — it dispatches work rather than doing it, and
   // grant_business_account() refuses an account that is already a pro.
@@ -180,7 +197,7 @@ export function proEntry(role?: string | null, providerStatus?: string | null) {
   return {
     href: "/pro",
     label: "Become a pro",
-    hint: "Get matched to jobs near you and keep 80–85% of each one",
+    hint: `Get matched to jobs near you and keep ${keepRange ?? KEEP_FALLBACK} of each one`,
   };
 }
 
@@ -195,11 +212,16 @@ export function proEntry(role?: string | null, providerStatus?: string | null) {
  * Someone mid-application gets a nudge to finish rather than a sales pitch —
  * the href comes from proEntry() above, which already knows that funnel.
  */
-export function proPromo(role?: string | null, providerStatus?: string | null) {
+export function proPromo(
+  role?: string | null,
+  providerStatus?: string | null,
+  /** What a pro keeps, from `formatKeepRange(rates)`. See proEntry. */
+  keepRange?: string
+) {
   if (role === "admin" || role === "business") return null;
   if (role === "provider" && providerStatus === "approved") return null;
 
-  const entry = proEntry(role, providerStatus);
+  const entry = proEntry(role, providerStatus, keepRange);
   if (!entry) return null;
 
   if (role === "provider") {
@@ -216,7 +238,7 @@ export function proPromo(role?: string | null, providerStatus?: string | null) {
     href: entry.href,
     eyebrow: "Business with Karighar",
     title: "Earn as a Karighar pro",
-    body: "Run your trade on Karighar: get matched to jobs near you, keep 80–85% of every one, and get paid in cash the same day.",
+    body: `Run your trade on Karighar: get matched to jobs near you, keep ${keepRange ?? KEEP_FALLBACK} of every one, and get paid in cash the same day.`,
     cta: "Become a pro",
   };
 }

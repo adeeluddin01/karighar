@@ -26,7 +26,7 @@ import {
   validateServiceImage,
   type CatalogImageKind,
 } from "@/lib/serviceImage";
-import { stockImageSlug, stockImageUrl } from "@/lib/stockImages";
+import { fetchCatalogUploads, type LibraryImage } from "@/lib/catalogLibrary";
 import { clsx } from "@/lib/clsx";
 import type { Service, ServiceCategory } from "@/lib/types";
 import { dbErrorMessage } from "@/lib/dbErrors";
@@ -52,6 +52,9 @@ type SvcForm = {
   visit_fee: string;
   is_active: boolean;
   image_url: string;
+  /** "" means inherit the category's icon, which is what every row did
+      before patch_v35 gave `services` an icon column of its own. */
+  icon: string;
 };
 
 const BLANK_CAT: CatForm = {
@@ -69,6 +72,7 @@ const BLANK_SVC: SvcForm = {
   visit_fee: "0",
   is_active: true,
   image_url: "",
+  icon: "",
 };
 
 /** Blank price means "on quote" — the schema stores null, not zero. */
@@ -81,6 +85,13 @@ export default function AdminCatalog() {
   const [jobCounts, setJobCounts] = useState<Map<string, number>>(new Map());
   const [fetching, setFetching] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Every photo already uploaded on this install, so the library can offer
+  // them for reuse instead of making an admin re-upload the same file for
+  // each row. Fetched once here rather than per modal — both editors show
+  // the same list, and listing the bucket twice per open is wasted.
+  const [uploads, setUploads] = useState<LibraryImage[]>([]);
+  const [uploadsError, setUploadsError] = useState<string | null>(null);
 
   // Which editor is open. `catFor`/`svcFor` hold the row being edited, or
   // the parent category id when creating.
@@ -168,8 +179,18 @@ export default function AdminCatalog() {
       // explained up front rather than surfacing as a raw constraint error.
       supabase.from("jobs").select("service_id"),
     ]);
-    setCats((c as ServiceCategory[]) || []);
-    setServices((s as Service[]) || []);
+    const catRows = (c as ServiceCategory[]) || [];
+    const svcRows = (s as Service[]) || [];
+    setCats(catRows);
+    setServices(svcRows);
+
+    // After the rows, because an upload is keyed on a row id and needs the
+    // row to label it. Non-fatal: a bucket that can't be listed costs the
+    // library its "uploaded" group, not the page.
+    const lib = await fetchCatalogUploads(supabase, catRows, svcRows);
+    setUploads(lib.images);
+    setUploadsError(lib.error);
+
     const counts = new Map<string, number>();
     for (const row of (j as { service_id: string | null }[]) || []) {
       if (row.service_id) counts.set(row.service_id, (counts.get(row.service_id) ?? 0) + 1);
@@ -267,6 +288,7 @@ export default function AdminCatalog() {
             visit_fee: String(svc.visit_fee),
             is_active: svc.is_active,
             image_url: svc.image_url ?? "",
+            icon: svc.icon ?? "",
           }
         : BLANK_SVC
     );
@@ -311,6 +333,8 @@ export default function AdminCatalog() {
       visit_fee: Number(svcForm.visit_fee) || 0,
       is_active: svcForm.is_active,
       image_url: svcForm.image_url || null,
+      // "" is "inherit the category's", which the column stores as null.
+      icon: svcForm.icon || null,
     };
     setBusy("svc");
     const supabase = createClient();
@@ -425,12 +449,15 @@ export default function AdminCatalog() {
               <section key={cat.id}>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span className="emoji">
-                      <Icon
-                        name={(CATEGORY_ICON_WEB[cat.icon ?? ""] ?? "wrench") as IconName}
-                        className="text-accent-foreground"
-                      />
-                    </span>
+                    {/* <Shot>, not a bare <Icon>: this showed only the glyph,
+                        so a category whose photo an admin had just uploaded
+                        looked exactly as it had before and read as a failed
+                        upload. The icon stays underneath as the fallback. */}
+                    <Shot
+                      src={cat.image_url}
+                      icon={(CATEGORY_ICON_WEB[cat.icon ?? ""] ?? "wrench") as IconName}
+                      className="w-14 flex-none rounded-lg"
+                    />
                     <div>
                       <h2 className="flex flex-wrap items-center gap-2 text-xl font-bold tracking-tight">
                         {cat.name}
@@ -469,7 +496,10 @@ export default function AdminCatalog() {
                               forty modals to find out. */}
                           <Shot
                             src={svc.image_url ?? cat.image_url}
-                            icon={(CATEGORY_ICON_WEB[cat.icon ?? ""] ?? "wrench") as IconName}
+                            icon={
+                              (CATEGORY_ICON_WEB[svc.icon ?? cat.icon ?? ""] ??
+                                "wrench") as IconName
+                            }
                             className="w-16 flex-none rounded-lg"
                           />
                           <div className="min-w-0 flex-1">
@@ -534,22 +564,24 @@ export default function AdminCatalog() {
                 aria-label="Service name"
               />
             </Field>
-            <ImageField
-              label="Photo"
-              hint="Shown on the service cards. Sub-services with no photo of their own fall back to this one."
+            <ArtField
+              label="Artwork"
+              hint="Shown on the service cards. Sub-services with no artwork of their own fall back to this."
               url={catForm.image_url}
               preview={catPreview}
-              icon={(CATEGORY_ICON_WEB[catForm.icon] ?? "wrench") as IconName}
+              iconSlug={catForm.icon}
               busy={busy === "cat"}
-              onPick={(f) => pick(f, setCatFile, setCatPreview, catPreview)}
-              onPickStock={(slug) => {
+              uploads={uploads}
+              uploadsError={uploadsError}
+              onPick={(file) => pick(file, setCatFile, setCatPreview, catPreview)}
+              onPickLibrary={(picked) => {
                 // A library pick replaces a staged upload rather than
                 // queueing behind it — otherwise save would upload the file
                 // and then overwrite image_url with the library path.
                 if (catPreview) URL.revokeObjectURL(catPreview);
                 setCatFile(null);
                 setCatPreview(null);
-                setCatForm({ ...catForm, image_url: stockImageUrl(slug) });
+                setCatForm({ ...catForm, image_url: picked });
               }}
               onRemove={() => {
                 if (catPreview) URL.revokeObjectURL(catPreview);
@@ -557,49 +589,8 @@ export default function AdminCatalog() {
                 setCatPreview(null);
                 setCatForm({ ...catForm, image_url: "" });
               }}
+              onIcon={(slug) => setCatForm({ ...catForm, icon: slug || "wrench" })}
             />
-            <Field
-              label="Icon"
-              hint="Drawn on cards with no photo, and in the category chips on /book."
-            >
-              {/* A dropdown of names told the admin nothing about what the
-                  category would actually look like — "Masonry & renovation"
-                  and "Tiles & flooring" are indistinguishable until it ships.
-                  The grid is the picker; the select stays underneath it for
-                  keyboard and screen-reader use. */}
-              <div className="mb-3 grid max-h-64 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-6">
-                {CATEGORY_ICON_CHOICES.map((c) => (
-                  <button
-                    key={c.slug}
-                    type="button"
-                    title={c.label}
-                    aria-label={c.label}
-                    aria-pressed={catForm.icon === c.slug}
-                    onClick={() => setCatForm({ ...catForm, icon: c.slug })}
-                    className={clsx(
-                      "flex flex-col items-center gap-1 rounded-lg border p-2 text-[10px] leading-tight transition-colors",
-                      catForm.icon === c.slug
-                        ? "border-primary bg-primary-light text-primary"
-                        : "border-transparent text-muted-foreground hover:bg-secondary"
-                    )}
-                  >
-                    <Icon name={(CATEGORY_ICON_WEB[c.slug] ?? "wrench") as IconName} />
-                    <span className="line-clamp-2 text-center">{c.label}</span>
-                  </button>
-                ))}
-              </div>
-              <Select
-                value={catForm.icon}
-                onChange={(e) => setCatForm({ ...catForm, icon: e.target.value })}
-                aria-label="Category icon"
-              >
-                {CATEGORY_ICON_CHOICES.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Field label="Sort order" hint="Lowest first on the booking screen.">
               <Input
                 type="number"
@@ -656,23 +647,25 @@ export default function AdminCatalog() {
                 aria-label="Description"
               />
             </Field>
-            <ImageField
-              label="Photo"
-              hint="Optional — falls back to the category's photo, then to its icon."
+            <ArtField
+              label="Artwork"
+              hint="Optional — with nothing set here the card falls back to the service's artwork."
               url={svcForm.image_url}
               preview={svcPreview}
-              icon={
-                (CATEGORY_ICON_WEB[
-                  cats.find((c) => c.id === svcModal.categoryId)?.icon ?? ""
-                ] ?? "wrench") as IconName
-              }
+              iconSlug={svcForm.icon}
+              // Passing this is what turns on the "Inherit" choice, so a
+              // sub-service can keep deferring to its category the way
+              // every row did before it had an icon column of its own.
+              inheritedIcon={cats.find((c) => c.id === svcModal.categoryId)?.icon ?? null}
               busy={busy === "svc"}
-              onPick={(f) => pick(f, setSvcFile, setSvcPreview, svcPreview)}
-              onPickStock={(slug) => {
+              uploads={uploads}
+              uploadsError={uploadsError}
+              onPick={(file) => pick(file, setSvcFile, setSvcPreview, svcPreview)}
+              onPickLibrary={(picked) => {
                 if (svcPreview) URL.revokeObjectURL(svcPreview);
                 setSvcFile(null);
                 setSvcPreview(null);
-                setSvcForm({ ...svcForm, image_url: stockImageUrl(slug) });
+                setSvcForm({ ...svcForm, image_url: picked });
               }}
               onRemove={() => {
                 if (svcPreview) URL.revokeObjectURL(svcPreview);
@@ -680,6 +673,7 @@ export default function AdminCatalog() {
                 setSvcPreview(null);
                 setSvcForm({ ...svcForm, image_url: "" });
               }}
+              onIcon={(slug) => setSvcForm({ ...svcForm, icon: slug })}
             />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Base price" hint="Blank = on quote">
@@ -755,24 +749,39 @@ export default function AdminCatalog() {
 }
 
 /**
- * Photo picker: preview, Add/Replace, Remove.
+ * A catalog row's artwork: a picture, or the icon it falls back to.
  *
- * NOT wrapped in <Field>. Field renders a <label>, and a hidden
- * <input type="file"> inside a label is activated by the label AS WELL AS
- * by the button's onClick — the picker opens twice, or the first click is
- * swallowed. The <span className="lbl"> below is Field's own label styling,
- * borrowed without the <label> element.
+ * ONE FIELD, NOT TWO. The photo and the icon used to be separate fields
+ * stacked in the modal, which read as two independent settings when they
+ * are one decision with a fallback: <Shot> layers the photo OVER the glyph,
+ * so a row with a picture is still drawing the icon underneath it — while
+ * the photo loads, and for good if its URL 404s. The toggle says which one
+ * the row LEADS with; the icon is chosen either way, because it is the
+ * safety net. Switching to Icon therefore clears the picture, but choosing
+ * a picture never clears the icon.
+ *
+ * NOT WRAPPED IN <Field>. Field renders a <label>, and interactive children
+ * inside a label get the label's click forwarded to its associated control
+ * as well as firing their own handler: the hidden <input type="file"> was
+ * opened twice, and the icon grid's 33 buttons each also popped the icon
+ * <select> open — which is what made the icon picker look broken. The
+ * <span className="lbl"> below is Field's label styling, borrowed without
+ * the <label> element.
  */
-function ImageField({
+function ArtField({
   label,
   hint,
   url,
   preview,
-  icon,
+  iconSlug,
+  inheritedIcon,
   busy,
+  uploads,
+  uploadsError,
   onPick,
-  onPickStock,
+  onPickLibrary,
   onRemove,
+  onIcon,
 }: {
   label: string;
   hint?: string;
@@ -780,73 +789,198 @@ function ImageField({
   url: string;
   /** Object-URL for a file staged this session; wins over `url`. */
   preview: string | null;
-  icon: IconName;
+  /** The row's own icon slug, or "" when it inherits. */
+  iconSlug: string;
+  /**
+   * The category's icon, for a sub-service. Given here the field offers an
+   * "Inherit" choice and previews what inheriting looks like; omitted (a
+   * category, which has nothing to inherit from) it does not.
+   */
+  inheritedIcon?: string | null;
   busy: boolean;
+  uploads: LibraryImage[];
+  uploadsError?: string | null;
   onPick: (file: File | undefined) => void;
-  /** Choosing from the bundled library — stores a path, uploads nothing. */
-  onPickStock: (slug: string) => void;
+  /** A library pick — hands back the finished image_url. */
+  onPickLibrary: (url: string) => void;
   onRemove: () => void;
+  onIcon: (slug: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [browsing, setBrowsing] = useState(false);
   const shown = preview || url || null;
-  // A library pick is a known path, so the grid can show which one is on.
-  // An uploaded photo has no slug, and nothing in the grid reads selected.
-  const stockSlug = preview ? null : stockImageSlug(url);
+  // Opens on whichever the row actually uses, so editing a row that has a
+  // photo lands on the photo controls rather than hiding them behind a tab.
+  const [mode, setMode] = useState<"picture" | "icon">(shown ? "picture" : "icon");
+  const canInherit = inheritedIcon !== undefined;
+  const effectiveIcon = iconSlug || inheritedIcon || "wrench";
+  const drawnIcon = (CATEGORY_ICON_WEB[effectiveIcon] ?? "wrench") as IconName;
+
+  function choose(next: "picture" | "icon") {
+    setMode(next);
+    // Leading with the icon means there must be no picture on top of it.
+    // The icon itself is untouched either way — it is the fallback.
+    if (next === "icon" && shown) onRemove();
+    if (next === "picture") setBrowsing(false);
+  }
 
   return (
     <div className="block">
       <span className="lbl mb-2">{label}</span>
-      <div className="flex items-center gap-3">
-        <Shot src={shown} icon={icon} className="w-20 flex-none rounded-xl" />
-        <input
-          ref={fileRef}
-          type="file"
-          accept={CATALOG_IMAGE_ACCEPT}
-          className="hidden"
-          onChange={(e) => {
-            onPick(e.target.files?.[0]);
-            // Reset, so picking the SAME file again still fires onChange.
-            e.target.value = "";
-          }}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-          >
-            <Icon name="camera" size="sm" />
-            {shown ? "Replace" : "Upload"}
-          </Button>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setBrowsing((b) => !b)}>
-            <Icon name="search" size="sm" />
-            {browsing ? "Close library" : "Choose from library"}
-          </Button>
-          {shown && (
-            <button
-              type="button"
-              className="text-xs text-muted-foreground underline"
-              disabled={busy}
-              onClick={onRemove}
-            >
-              Remove
-            </button>
+
+      <div className="flex items-start gap-3">
+        <Shot src={shown} icon={drawnIcon} className="w-20 flex-none rounded-xl" />
+
+        <div className="min-w-0 flex-1">
+          {/* role="group", not "tablist": two choices that swap the controls
+              below them, not tabs over one panel. */}
+          <div className="inline-flex rounded-lg border border-border p-0.5" role="group">
+            {(["picture", "icon"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                disabled={busy}
+                aria-pressed={mode === m}
+                onClick={() => choose(m)}
+                className={clsx(
+                  "rounded-md px-3 py-1.5 text-xs font-bold transition-colors",
+                  mode === m
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                {m === "picture" ? "Picture" : "Icon"}
+              </button>
+            ))}
+          </div>
+
+          {mode === "picture" ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <input
+                ref={fileRef}
+                type="file"
+                accept={CATALOG_IMAGE_ACCEPT}
+                className="hidden"
+                onChange={(e) => {
+                  onPick(e.target.files?.[0]);
+                  // Reset, so picking the SAME file again still fires onChange.
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                <Icon name="camera" size="sm" />
+                {shown ? "Replace" : "Upload"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => setBrowsing((b) => !b)}
+              >
+                <Icon name="search" size="sm" />
+                {browsing ? "Close library" : "Choose from library"}
+              </Button>
+              {shown && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline"
+                  disabled={busy}
+                  onClick={onRemove}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Drawn on the cards. This is also what shows if a picture ever fails to load, so it
+              is worth setting either way.
+            </p>
           )}
         </div>
       </div>
-      {browsing && (
+
+      {mode === "picture" && browsing && (
         <div className="mt-3">
           <StockImagePicker
-            value={stockSlug}
-            onPick={(slug) => {
-              onPickStock(slug);
+            value={preview ? null : url || null}
+            uploads={uploads}
+            uploadsError={uploadsError}
+            onPick={(picked) => {
+              onPickLibrary(picked);
               setBrowsing(false);
             }}
           />
         </div>
       )}
+
+      {mode === "icon" && (
+        <div className="mt-3">
+          {/* The grid IS the picker; the select underneath is the keyboard
+              and screen-reader path. A dropdown of names alone told the
+              admin nothing about what the row would look like — "Masonry &
+              renovation" and "Tiles & flooring" are indistinguishable until
+              it ships. */}
+          <div className="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto rounded-xl border border-border p-2 sm:grid-cols-6">
+            {canInherit && (
+              <button
+                type="button"
+                title="Inherit the category icon"
+                aria-label="Inherit the category icon"
+                aria-pressed={iconSlug === ""}
+                onClick={() => onIcon("")}
+                className={clsx(
+                  "flex flex-col items-center gap-1 rounded-lg border p-2 text-[10px] leading-tight transition-colors",
+                  iconSlug === ""
+                    ? "border-primary bg-primary-light text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                <Icon name={(CATEGORY_ICON_WEB[inheritedIcon ?? ""] ?? "wrench") as IconName} />
+                <span className="line-clamp-2 text-center">Inherit</span>
+              </button>
+            )}
+            {CATEGORY_ICON_CHOICES.map((c) => (
+              <button
+                key={c.slug}
+                type="button"
+                title={c.label}
+                aria-label={c.label}
+                aria-pressed={iconSlug === c.slug}
+                onClick={() => onIcon(c.slug)}
+                className={clsx(
+                  "flex flex-col items-center gap-1 rounded-lg border p-2 text-[10px] leading-tight transition-colors",
+                  iconSlug === c.slug
+                    ? "border-primary bg-primary-light text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-secondary"
+                )}
+              >
+                <Icon name={(CATEGORY_ICON_WEB[c.slug] ?? "wrench") as IconName} />
+                <span className="line-clamp-2 text-center">{c.label}</span>
+              </button>
+            ))}
+          </div>
+          <Select
+            className="mt-3"
+            value={iconSlug}
+            onChange={(e) => onIcon(e.target.value)}
+            aria-label={`${label} icon`}
+          >
+            {canInherit && <option value="">Inherit the category icon</option>}
+            {CATEGORY_ICON_CHOICES.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       {hint && <span className="mt-1.5 block text-xs text-muted-foreground">{hint}</span>}
     </div>
   );

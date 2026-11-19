@@ -161,7 +161,10 @@ function BookInner() {
                 <Link key={s.id} className="svc-card" href={`/book/service/?id=${s.id}`}>
                   {/* The service's own photo when it has one, otherwise the
                       category's, otherwise the icon <Shot> draws underneath. */}
-                  <Shot src={s.image_url ?? c.image_url} icon={categoryIcon(c.icon)} />
+                  <Shot
+                    src={s.image_url ?? c.image_url}
+                    icon={categoryIcon(s.icon ?? c.icon)}
+                  />
                   <b>{s.name}</b>
                   <em>
                     {s.base_price === null ? (

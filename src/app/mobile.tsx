@@ -17,6 +17,8 @@ import { areaOf } from "@/lib/area";
 import { fetchPublicPros, proName, type PublicPro } from "@/lib/providers";
 import { proPromo } from "@/components/nav";
 import { useLanguage } from "@/lib/i18n";
+import { formatKeepRange } from "@/lib/commission";
+import { usePlatformRates } from "@/lib/usePlatformRates";
 
 type Cat = ServiceCategory & { services: Service[] };
 
@@ -37,7 +39,9 @@ export default function HomeScreen() {
   const { user, profile, providerStatus } = useUser();
   const router = useRouter();
   const { t } = useLanguage();
-  const promo = proPromo(profile?.role, providerStatus);
+  // Live platform rate, so the recruitment copy and the deal agree.
+  const { rates } = usePlatformRates("provider");
+  const promo = proPromo(profile?.role, providerStatus, formatKeepRange(rates));
   // Home renders both lanes so the web one keeps its prerendered content for
   // crawlers (see LaneSplit) — which means this tree also mounts on desktop,
   // hidden. Gate the queries so they only run when this lane is the live one.

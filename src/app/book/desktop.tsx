@@ -150,7 +150,7 @@ function BookInner() {
                     >
                       <Shot
                         src={s.image_url ?? cat.image_url}
-                        icon={CATEGORY_ICON[cat.icon ?? ""] ?? "wrench"}
+                        icon={CATEGORY_ICON[s.icon ?? cat.icon ?? ""] ?? "wrench"}
                       />
                       <span className="flex flex-1 flex-col p-3">
                         <span className="line-clamp-2 text-base font-bold">{s.name}</span>
