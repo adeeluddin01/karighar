@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackHomeCats, homeCatsFromDb } from "./homeCatalog";
+import { fallbackHomeCats, homeCatsFromDb, limitHomeCats } from "./homeCatalog";
 import type { Service, ServiceCategory } from "./types";
 
 const cat = (over: Partial<ServiceCategory>): ServiceCategory => ({
@@ -76,6 +76,33 @@ describe("homeCatsFromDb", () => {
     );
     expect(cats.map((c) => c.name)).toEqual(["A", "B"]);
     expect(homeCatsFromDb([], [])).toEqual([]);
+  });
+});
+
+describe("limitHomeCats", () => {
+  it("keeps the first three, in sort order", () => {
+    const cats = homeCatsFromDb(
+      [
+        cat({ id: "c3", name: "C", sort_order: 3 }),
+        cat({ id: "c1", name: "A", sort_order: 1 }),
+        cat({ id: "c5", name: "E", sort_order: 5 }),
+        cat({ id: "c2", name: "B", sort_order: 2 }),
+        cat({ id: "c4", name: "D", sort_order: 4 }),
+      ],
+      [
+        svc({ category_id: "c3" }),
+        svc({ id: "s1", category_id: "c1" }),
+        svc({ id: "s5", category_id: "c5" }),
+        svc({ id: "s2", category_id: "c2" }),
+        svc({ id: "s4", category_id: "c4" }),
+      ]
+    );
+    expect(limitHomeCats(cats).map((c) => c.name)).toEqual(["A", "B", "C"]);
+  });
+
+  it("passes through fewer than three unchanged", () => {
+    const cats = homeCatsFromDb([cat({})], [svc({})]);
+    expect(limitHomeCats(cats)).toHaveLength(1);
   });
 });
 

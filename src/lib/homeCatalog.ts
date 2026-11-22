@@ -92,3 +92,14 @@ export function homeCatsFromDb(
     })
     .filter((c) => c.services.length > 0);
 }
+
+/** How many categories the web Home shows: the first three live ones. */
+export const HOME_CATEGORY_LIMIT = 3;
+
+/**
+ * First `limit` categories, in the order given (homeCatsFromDb already
+ * orders by sort_order). Fewer than `limit` passes through unchanged.
+ */
+export function limitHomeCats(cats: HomeCat[], limit: number = HOME_CATEGORY_LIMIT): HomeCat[] {
+  return cats.slice(0, limit);
+}
