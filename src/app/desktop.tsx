@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatPKR } from "@/lib/catalog";
-import { fallbackHomeCats, homeCatsFromDb, type HomeCat } from "@/lib/homeCatalog";
+import { fallbackHomeCats, homeCatsFromDb, limitHomeCats, type HomeCat } from "@/lib/homeCatalog";
 import { createClient } from "@/lib/supabase/client";
 import { useIsPhone } from "@/components/Lanes";
 import { AppShell } from "@/components/AppShell";
@@ -55,6 +55,9 @@ export default function Home() {
   const isPhone = useIsPhone();
   const [cats, setCats] = useState<HomeCat[]>(() => fallbackHomeCats());
 
+  // The Home shows the first three live categories only, in sort_order.
+  const shown = limitHomeCats(cats);
+
   useEffect(() => {
     if (isPhone !== false) return;
     const supabase = createClient();
@@ -91,13 +94,13 @@ export default function Home() {
       {/* Services */}
       <div className="mt-10 mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">Our services</h2>
-        <span className="text-xs text-muted-foreground">{cats.length} available</span>
+        <span className="text-xs text-muted-foreground">{shown.length} available</span>
       </div>
       {/* The same image-first card as /book: the category's photo, falling
           back to its first service's photo, with the icon <Shot> draws
           underneath while the photo loads or when there is no art at all. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {cats.map((cat) => {
+        {shown.map((cat) => {
           const from = cheapest(cat.services);
           return (
             <Link
@@ -175,7 +178,7 @@ export default function Home() {
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        {cats.map((cat) => (
+        {shown.map((cat) => (
           <Card key={cat.key} className="flex flex-col">
             <div className="flex items-center gap-3">
               <span className="emoji">
