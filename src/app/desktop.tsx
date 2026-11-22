@@ -1,5 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CATALOG, formatPKR } from "@/lib/catalog";
+import { formatPKR } from "@/lib/catalog";
+import { fallbackHomeCats, homeCatsFromDb, type HomeCat } from "@/lib/homeCatalog";
+import { createClient } from "@/lib/supabase/client";
+import { useIsPhone } from "@/components/Lanes";
 import { AppShell } from "@/components/AppShell";
 import { BecomeProCard } from "@/components/BecomeProCard";
 import { HeroSearch } from "@/components/HeroSearch";
@@ -7,6 +13,7 @@ import { Shot } from "@/components/Shot";
 import { Icon, type IconName } from "@/components/Icon";
 import { Card, LinkButton } from "@/components/ui";
 import { BRAND } from "@/lib/config";
+import type { Service, ServiceCategory } from "@/lib/types";
 
 const HOW_IT_WORKS = [
   ["1", "Pick a service", "Choose a fixed-price service or post a custom job for quotes."],
@@ -36,6 +43,35 @@ function cheapest<T extends { basePrice: number | null }>(services: T[]): T | nu
 }
 
 export default function Home() {
+  // The live catalog, with the hardcoded CATALOG as the initial state —
+  // not a spinner. That keeps the first paint and the prerendered static
+  // HTML carrying real names and prices (see LaneSplit), and the page
+  // never goes empty or errors when the database is unreachable: the
+  // fallback simply stays. Once hydrated on the web lane, the same
+  // public queries /book runs replace it with every live category and
+  // its photo, so a photo an admin uploads shows here without a redeploy.
+  // Gated to the web lane like the phone lane gates its own fetch, so the
+  // two mounted lanes don't both fetch on a phone.
+  const isPhone = useIsPhone();
+  const [cats, setCats] = useState<HomeCat[]>(() => fallbackHomeCats());
+
+  useEffect(() => {
+    if (isPhone !== false) return;
+    const supabase = createClient();
+    (async () => {
+      const [{ data: categories, error: e1 }, { data: services, error: e2 }] = await Promise.all([
+        supabase.from("service_categories").select("*").eq("is_active", true).order("sort_order"),
+        supabase.from("services").select("*").eq("is_active", true),
+      ]);
+      if (e1 || e2) return; // Keep the fallback; the Home must not error.
+      const live = homeCatsFromDb(
+        (categories as ServiceCategory[]) ?? [],
+        (services as Service[]) ?? []
+      );
+      if (live.length > 0) setCats(live);
+    })();
+  }, [isPhone]);
+
   return (
     <AppShell>
       {/* Hero */}
@@ -55,16 +91,13 @@ export default function Home() {
       {/* Services */}
       <div className="mt-10 mb-4 flex items-center justify-between">
         <h2 className="text-xl font-bold tracking-tight">Our services</h2>
-        <span className="text-xs text-muted-foreground">{CATALOG.length} available</span>
+        <span className="text-xs text-muted-foreground">{cats.length} available</span>
       </div>
-      {/* The same image-first card as /book, drawn from the hardcoded CATALOG
-          so this page stays a Server Component and keeps its prerendered,
-          crawler-visible text (see LaneSplit). That is also why there is no
-          photo here: the uploaded art lives in the database, and reaching
-          for it would turn this tree client and empty the static HTML. The
-          icon panel is the honest fallback <Shot> already draws. */}
+      {/* The same image-first card as /book: the category's photo, falling
+          back to its first service's photo, with the icon <Shot> draws
+          underneath while the photo loads or when there is no art at all. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {CATALOG.map((cat) => {
+        {cats.map((cat) => {
           const from = cheapest(cat.services);
           return (
             <Link
@@ -72,7 +105,7 @@ export default function Home() {
               href="/book"
               className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition hover:-translate-y-0.5 hover:border-primary hover:shadow-lift"
             >
-              <Shot icon={cat.icon as IconName} />
+              <Shot src={cat.imageUrl} icon={cat.icon} />
               <span className="flex flex-1 flex-col p-3">
                 <span className="line-clamp-2 text-base font-bold">{cat.name}</span>
                 <span className="mt-auto pt-1.5 text-base font-extrabold">
@@ -142,11 +175,11 @@ export default function Home() {
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        {CATALOG.map((cat) => (
+        {cats.map((cat) => (
           <Card key={cat.key} className="flex flex-col">
             <div className="flex items-center gap-3">
               <span className="emoji">
-                <Icon name={cat.icon as IconName} className="text-accent-foreground" />
+                <Icon name={cat.icon} className="text-accent-foreground" />
               </span>
               <h3 className="text-base font-bold">{cat.name}</h3>
             </div>
